@@ -8,6 +8,7 @@ import { ResultsRibbon } from "./results";
 import { IsoRibbon } from "./iso";
 import * as D from "./dialogs";
 import * as P from "./props";
+import * as T from "./tools";
 import { Icon } from "./ui";
 import { Help, helpCard, HELP } from "./help";
 import { invoke, Example } from "./api";
@@ -116,7 +117,7 @@ export const Ribbon = () => {
         <G l="Elements" h="elements"><B big i="addel" l="Add Element" run={C.addAfter} /><S><B i="split" l="Insert Node" run={C.split} /><B i="renum" l="Renumber" run={C.renumber} /><B i="del" l="Delete" run={C.del} off={!sel()} /></S></G>
         <G l="Components" h="components"><Comp big k="bend:long" i="bend" l="Bend" /><S><Comp k="tee:welding" i="tee" l="Tee" /><Comp k="reducer" i="reducer" l="Reducer" /><Comp k="pipe" i="pipe" l="Straight" /></S><S><Comp k="rigid:valve" i="valve" l="Valve" /><Comp k="rigid:flange" i="flange" l="Flange Pair" /><Comp k="rigid:rigid" i="rigid" l="Rigid" /></S></G>
         <G l="Properties" h="pipes"><B big i="pipe" l="Pipes" run={() => P.pipes()} /><B big i="material" l="Materials" run={() => P.materials()} /><B big i="temp" l="Line Conditions" run={() => P.conds()} /></G>
-        <G l="Edit" h="edit"><S><Planned i="copy" l="Copy Section" v="0.1.4" /><Planned i="mirror" l="Mirror" v="0.1.4" /><Planned i="loop" l="Expansion Loop" v="0.1.4" /></S></G>
+        <G l="Edit" h="edit"><B big i="loop" l="Expansion Loop" run={() => T.loopWizard()} title="Turn the selected straight element into an expansion loop" /><S><B i="copy" l="Copy Section" run={() => T.copySection()} /><B i="mirror" l="Mirror Section" run={() => T.copySection(true)} /></S></G>
       </Show>
       <Show when={tab() === "loads"}>
         <G l="Conditions" h="conds"><B big i="temp" l="Line Conditions" run={() => P.conds()} /></G>

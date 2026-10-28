@@ -1,7 +1,7 @@
 // The element table: the piping as rows (From, To, DX, DY, DZ, pipe, material, line conditions,
 // component). Typing in the last row adds an element that starts at the node above; every cell
 // sends one edit to the engine. The selected row follows the 3D view and the other way round.
-import { For, Show, createSignal, createMemo } from "solid-js";
+import { For, Index, Show, createSignal, createMemo } from "solid-js";
 import { Element, Comp, Model, num, parseNum } from "./api";
 import { model, act, sel, setSel, toast } from "./store";
 import { toU, fromU, unit } from "./units";
@@ -45,6 +45,13 @@ const keys = (e: KeyboardEvent) => {
   else if (e.key === "ArrowUp" && t instanceof HTMLInputElement) { e.preventDefault(); move(t, -1); }
 };
 
+/** In the new row, Enter adds the element and stays there for the next one. */
+const newKeys = (e: KeyboardEvent) => {
+  const t = e.currentTarget as HTMLInputElement;
+  if (e.key === "Enter") { e.preventDefault(); t.blur(); setTimeout(() => { t.focus(); t.closest(".escroll")?.scrollTo({ top: 1e6 }); }, 60); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); move(t, -1); }
+};
+
 export const [tableH, setTableH] = createSignal(230);
 
 export const ElementTable = () => {
@@ -80,25 +87,25 @@ export const ElementTable = () => {
         <table class="egrid">
           <thead><tr><th class="rn">#</th><th>From</th><th>To</th><th>DX</th><th>DY</th><th>DZ</th><th>Length</th><th>Pipe</th><th>Material</th><th>Conditions</th><th>Component</th></tr></thead>
           <tbody>
-            <For each={m().elements}>{(e, i) => (
-              <tr classList={{ on: rowOn(e) }} onPointerDown={() => drag || setSel({ kind: "element", id: e.id })}>
-                <td class="rn">{i() + 1}</td>
-                <td><input class="mono n" value={e.from} onKeyDown={keys} onChange={ev => { const v = parseNum(ev.currentTarget.value); if (v === null || v < 1 || v % 1) { ev.currentTarget.value = String(e.from); return toast("Node numbers are whole numbers from 1."); } put(e, { from: v }); }} /></td>
-                <td><input class="mono n" value={e.to} onKeyDown={keys} onChange={ev => { const v = parseNum(ev.currentTarget.value); if (v === null || v < 1 || v % 1) { ev.currentTarget.value = String(e.to); return toast("Node numbers are whole numbers from 1."); } put(e, { to: v }); }} /></td>
-                <For each={[0, 1, 2]}>{k => <td><input class="mono" value={e.d[k] ? shownC(e.d[k]) : ""} placeholder="0" onKeyDown={keys}
-                  onChange={ev => { const t = ev.currentTarget.value.trim(); const v = t === "" ? 0 : parseNum(t); if (v === null) { ev.currentTarget.value = e.d[k] ? shownC(e.d[k]) : ""; return; } const d = [...e.d] as [number, number, number]; d[k] = fromU("coord", v); put(e, { d }); }} /></td>}</For>
-                <td class="r mono muted">{num(toU("coord", len(e.d)), 5)}</td>
-                <td><select onKeyDown={keys} onChange={ev => put(e, { pipe: +ev.currentTarget.value })}><For each={m().pipes}>{p => <option value={p.id} selected={p.id === e.pipe}>{p.name}</option>}</For></select></td>
-                <td><select onKeyDown={keys} onChange={ev => put(e, { material: +ev.currentTarget.value })}><For each={m().materials}>{p => <option value={p.id} selected={p.id === e.material}>{p.name}</option>}</For></select></td>
-                <td><select onKeyDown={keys} onChange={ev => put(e, { cond: +ev.currentTarget.value })}><For each={m().conds}>{p => <option value={p.id} selected={p.id === e.cond}>{p.name}</option>}</For></select></td>
-                <td><select onKeyDown={keys} onChange={ev => put(e, { comp: compFrom(ev.currentTarget.value, e, m()) })}><For each={COMPS}>{c => <option value={c[0]} selected={c[0] === compKey(e.comp)}>{c[1]}</option>}</For></select></td>
+            <Index each={m().elements}>{(e, i) => (
+              <tr classList={{ on: rowOn(e()) }} onPointerDown={() => drag || setSel({ kind: "element", id: e().id })}>
+                <td class="rn">{i + 1}</td>
+                <td><input class="mono n" value={e().from} onKeyDown={keys} onChange={ev => { const v = parseNum(ev.currentTarget.value); if (v === null || v < 1 || v % 1) { ev.currentTarget.value = String(e().from); return toast("Node numbers are whole numbers from 1."); } put(e(), { from: v }); }} /></td>
+                <td><input class="mono n" value={e().to} onKeyDown={keys} onChange={ev => { const v = parseNum(ev.currentTarget.value); if (v === null || v < 1 || v % 1) { ev.currentTarget.value = String(e().to); return toast("Node numbers are whole numbers from 1."); } put(e(), { to: v }); }} /></td>
+                <For each={[0, 1, 2]}>{k => <td><input class="mono" value={e().d[k] ? shownC(e().d[k]) : ""} placeholder="0" onKeyDown={keys}
+                  onChange={ev => { const t = ev.currentTarget.value.trim(); const v = t === "" ? 0 : parseNum(t); if (v === null) { ev.currentTarget.value = e().d[k] ? shownC(e().d[k]) : ""; return; } const d = [...e().d] as [number, number, number]; d[k] = fromU("coord", v); put(e(), { d }); }} /></td>}</For>
+                <td class="r mono muted">{num(toU("coord", len(e().d)), 5)}</td>
+                <td><select onKeyDown={keys} onChange={ev => put(e(), { pipe: +ev.currentTarget.value })}><For each={m().pipes}>{p => <option value={p.id} selected={p.id === e().pipe}>{p.name}</option>}</For></select></td>
+                <td><select onKeyDown={keys} onChange={ev => put(e(), { material: +ev.currentTarget.value })}><For each={m().materials}>{p => <option value={p.id} selected={p.id === e().material}>{p.name}</option>}</For></select></td>
+                <td><select onKeyDown={keys} onChange={ev => put(e(), { cond: +ev.currentTarget.value })}><For each={m().conds}>{p => <option value={p.id} selected={p.id === e().cond}>{p.name}</option>}</For></select></td>
+                <td><select onKeyDown={keys} onChange={ev => put(e(), { comp: compFrom(ev.currentTarget.value, e(), m()) })}><For each={COMPS}>{c => <option value={c[0]} selected={c[0] === compKey(e().comp)}>{c[1]}</option>}</For></select></td>
               </tr>
-            )}</For>
+            )}</Index>
             <tr class="newrow">
               <td class="rn">+</td>
               <td><input class="mono n" value={from()} title="The new element starts here" onKeyDown={keys} onChange={ev => { const v = parseNum(ev.currentTarget.value); setNewFrom(v && v >= 1 && v % 1 === 0 ? v : null); }} /></td>
               <td class="mono muted">{nextNum(from())}</td>
-              <For each={[0, 1, 2]}>{k => <td><input class="mono" placeholder={["DX", "DY", "DZ"][k]} onKeyDown={keys} onChange={ev => { const v = parseNum(ev.currentTarget.value); ev.currentTarget.value = ""; if (v) add(k, v); }} /></td>}</For>
+              <For each={[0, 1, 2]}>{k => <td><input class="mono" placeholder={["DX", "DY", "DZ"][k]} onKeyDown={newKeys} onChange={ev => { const v = parseNum(ev.currentTarget.value); ev.currentTarget.value = ""; if (v) add(k, v); }} /></td>}</For>
               <td colSpan={5} class="muted small">Type a length in DX, DY or DZ to add an element from node {from()}.</td>
             </tr>
           </tbody>

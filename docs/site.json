@@ -36,23 +36,13 @@
   "screenshots": [],
   "roadmap": [
     {
-      "v": "0.1.3",
-      "title": "Report and isometric polish",
-      "when": "Next",
-      "items": [
-        "Isometric sheets that fit the page and the screen, PDF from the Isometric view",
-        "Results checks in the report for every case",
-        "More hand-worked tests and the verification record"
-      ]
-    },
-    {
       "v": "0.1.4",
       "title": "Polish",
-      "when": "Soon",
+      "when": "Next",
       "items": [
-        "Expansion loop wizard, copy and mirror a section",
-        "Keyboard work in the table, empty states, help cards",
-        "Screenshots and the site page"
+        "Screenshots, help cards and empty states everywhere",
+        "A final check that every example solves, prints and saves",
+        "Keyboard work in the Inspector and the dialogs"
       ]
     },
     {

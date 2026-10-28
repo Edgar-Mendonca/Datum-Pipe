@@ -6,7 +6,7 @@
 | | |
 | --- | --- |
 | **Product** | Datum Pipe: pipe stress analysis on the desktop (element table, 3D view, linear supports, the process piping code's equations, support and nozzle loads, isometric, stress report) |
-| **Current version** | 0.1.2 (2026-10-28) |
+| **Current version** | 0.1.3 (2026-10-28) |
 | **Repo** | `Edgar-Mendonca/Datum-Pipe` · branch `claude/datum-pipe-setup-1oa8wk` (the first branch pushed, so the default branch) |
 | **Stack** | Rust engine (`crates/core`, own solver with faer), Tauri 2, SolidJS + strict TypeScript, three.js for the 3D view; no Python |
 | **Identifier** | `com.edgarmendonca.datumpipe` · files `.dpipe` (JSON, `format` 1) · installer `DatumPipe-x.y.z-setup.exe` + `SHA256SUMS.txt` |
@@ -27,7 +27,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | File | What it does |
 | --- | --- |
 | `crates/core/src/model.rs` | The model: nodes (number and position), elements (From, To, DX/DY/DZ, pipe, material, line conditions, component, extra load), pipes, materials (tables against temperature), line conditions (T1–T3, P1–P3, hydrotest), supports, nozzles, loads, load cases, title block, settings; `layout` (positions from the deltas, loops must close); `check` (every rule); `.dpipe` read item by item with migration and `repair` (damaged files open as far as possible, with warnings), and write |
-| `crates/core/src/doc.rs` | Edit operations (Add, Set, Delete with cascade, SetStart, Split, Renumber, SetSettings, SetMeta, SetCases, RecommendCases, Batch) on a copy, kept only if layout and `check` pass; snapshot undo/redo |
+| `crates/core/src/doc.rs` | Edit operations (Add, Set, Delete with cascade, SetStart, Split, Renumber, Loop (expansion loop wizard), Duplicate (copy or mirror a section with its supports), SetSettings, SetMeta, SetCases, RecommendCases, Batch) on a copy, kept only if layout and `check` pass; snapshot undo/redo |
 | `crates/core/src/library.rs` | Pipe sizes ½"–24" and schedules (ASME B36.10M/B36.19M dimensions); five materials (carbon, 1¼Cr-½Mo, 304, 316, duplex 2205) with E and α against temperature and typical allowables min(Su/3, 2Sy/3), with sources; `interp` |
 | `crates/core/src/units.rs` | Calc's unit table (NIST SP 811) with unit expressions and the display table for SI and US |
 | `crates/core/src/cases.rs` | Which operating cases are used; the recommended load cases (OPE1–3, SUS, EXP1–3, EXP ranges between cases, HYD); `rebuild` keeps ids by name |
@@ -62,6 +62,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | `ui/src/view3d.tsx` | The 3D view (three.js): pipes at true diameter from the engine's geometry, arcs, insulation, components, support and nozzle symbols, node labels, picking, standard views, fit, stress-ratio colours and legend, the deformed shape (vertices moved by the interpolated displacements, animated) |
 | `ui/src/rstate.ts`, `ui/src/results.tsx` | Results state (last analysis, out of date, case shown, colour and deformation options) and Analyze; the Results tab and view (summary, code stresses, displacements, forces, support loads, nozzle loads, minimum wall, equilibrium) |
 | `ui/src/iso.tsx` | The isometric view: each sheet as SVG (symbols, dimensions in mm or ft-in, north arrow, continuation notes, stress ratio and support load tags), sheet tabs, Save as SVG, and the sheets in the printed report |
+| `ui/src/tools.tsx` | The expansion loop wizard (with a picture to scale) and copy or mirror a section of table rows |
 | `ui/src/help.tsx` | The `?` cards |
 | `ui/src/roadmap.tsx` | File › Roadmap from `docs/site.json` |
 | `ui/src/styles.css`, `ui/src/ui.tsx`, `ui/index.html` | Plan's styles (moss accent) and components; the icon sprite |
@@ -112,6 +113,9 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | 0.1.1 | Releases follow the brief's steps, but 0.1.1 already shows code stresses and the results tables (the engine had them) | Cheap once the solver was there; 0.1.2 is then about the remaining components, results polish and nozzle checks |
 | 0.1.2 | The isometric and the full report (brief step 6) came in 0.1.2, with the four other examples; 0.1.3 is their polish and more checks, 0.1.4 the brief's step 7 | They were built while 0.1.1 was releasing; releasing them at once gives the user more to try |
 | 0.1.2 | Example supports chosen like a designer would: a line stop instead of a second anchor on the rack, a spring next to the settling tank | The first drafts gave a 3 MN axial load on the rack and 4.7 × the tank nozzle's allowable: correct numbers for poor layouts, but examples should show good practice |
+| 0.1.3 | The element table keys its rows by position (Solid's `Index`), not by item | Every edit returns a new model, so keyed rows were all rebuilt and the cursor was lost after each cell (found by a UI test that types across a row) |
+| 0.1.3 | The loop wizard puts the loop in the middle of a straight element, sideways (horizontal plane) or upwards, with long-radius bends, and refuses a loop that does not fit its bends | The common case in one dialog; anything else is typed in the table |
+| 0.1.3 | Copy Section joins the copy's first node to a chosen node and numbers the rest after the largest node; Mirror flips one axis of every delta (and of skewed restraints) | Simple to explain; covers repeated runs and symmetric layouts |
 | 0.1.2 | Iso tags: one per element, on its longest line; dimensions node to node (centre to centre), offset away from the drawing's middle | Bends have two arc segments and drew two tags each |
 
 ## 3. Roadmap
@@ -124,8 +128,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | 0.1.0 | Shell, updater, File page, Options; model, edits, library, units, cases, hardening tests; element table, Inspector, property dialogs, print of the input; CI and release | ✅ |
 | 0.1.1 | Engine: 3D pipe element, bends, supports, solve, equilibrium, code checks; benchmarks 1–8 (21 checks); 3D view; results tables; examples L-bend and Z-bend; Help › Verification | ✅ |
 | 0.1.2 | Components checked by hand (worked.rs), deformed shape and animation, nozzle checks, the four other examples, the isometric (view, print, SVG), the results pages of the report | ✅ |
-| 0.1.3 | Polish of the isometric and report; more tests; the verification record | 🔜 |
-| 0.1.4 | Polish: expansion loop wizard, copy/mirror, renumber, keyboard, empty states, help cards; screenshots, README | ⬜ |
+| 0.1.3 | Loop wizard, copy and mirror, table typing fixes, report and isometric polish, hydrotest and occasional checks | ✅ |
+| 0.1.4 | Polish: keyboard, empty states, help cards; screenshots, README, site; every example solves and prints | 🔜 |
 | 0.2 | Nonlinear supports (one-way rests, gaps, friction), spring hanger selection, import of plain-text piping component files, wind and seismic, the public regulator benchmarks | ⬜ |
 | 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum | ⬜ |
@@ -152,7 +156,12 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 - Engine: worked.rs (8 hand-worked cases; found my own sign error for a settling anchor's reaction, the engine was right), the four remaining examples (tuned with `examples/summary.rs`), iso.rs.
 - Window: the Isometric view and its print pages, the report's results pages, deformed shape checked by screenshot. 33 UI checks.
 
-## 5. Known limits (0.1.2)
+### 2026-10-28: Session 1, continued (0.1.3: editing tools and polish)
+- Released 0.1.2 (Release run 3). CI runs 1–2 green on Linux, Windows and macOS.
+- Found by a new UI test: the table lost the cursor after every edit (rows rebuilt); fixed with position-keyed rows. Checked typing rows with the keyboard in the real app.
+- Engine: Loop and Duplicate ops with a test; hydrotest and occasional hand-worked cases. Window: loop wizard, copy and mirror dialogs, report page fit, plain report headings, one iso tag per element.
+
+## 5. Known limits (0.1.3)
 
 - Rests are two-way (one-way in 0.2); no friction or gaps.
 - No pressure elongation (Bourdon effect) or pressure thrust; no occasional loads yet (the OCC case kind is ready).

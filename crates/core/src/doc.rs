@@ -35,6 +35,12 @@ pub enum Op {
     Split { id: u32, at: f64 },
     /// Number the nodes again in table order: start, start + step, …
     Renumber { start: u32, step: u32 },
+    /// Turn a straight element into an expansion loop in its middle: out by `height` (sideways in
+    /// the horizontal plane, or up when `up`), across by `width`, and back, with long-radius bends.
+    Loop { id: u32, width: f64, height: f64, up: bool },
+    /// Copy the elements `ids` (with their components and the supports on their nodes) and join the
+    /// copy to node `at`, mirrored across the plane normal to axis 0, 1 or 2 (X, Y, Z) if given.
+    Duplicate { ids: Vec<u32>, at: u32, mirror: Option<u8> },
     SetSettings { s: Settings, units: String },
     SetMeta { name: String, notes: String, project: Project },
     /// Replace the load cases (turns automatic cases off).
@@ -325,6 +331,96 @@ fn exec(m: &mut Model, op: Op, created: &mut Vec<u32>) -> Result<(), String> {
             }
             m.settings.step = step;
         }
+        Op::Loop { id, width, height, up } => {
+            let i = m.elements.iter().position(|e| e.id == id).ok_or("That element is no longer in the model.")?;
+            let e = m.elements[i].clone();
+            if !matches!(e.comp, crate::model::Comp::Pipe) {
+                return Err("An expansion loop goes in a straight piece of pipe: choose an element with no component.".into());
+            }
+            let l = e.length();
+            if !(width > 0.0 && height > 0.0 && width.is_finite() && height.is_finite()) {
+                return Err("The loop needs a width and a height.".into());
+            }
+            let u = crate::mat::unit(e.d);
+            let side = if up { [0.0, 1.0, 0.0] } else { crate::mat::unit(crate::mat::cross([0.0, 1.0, 0.0], u)) };
+            if crate::mat::norm(side) < 0.5 || crate::mat::dot(side, u).abs() > 1e-6 {
+                return Err("A loop sideways needs a horizontal pipe; a loop upwards needs a pipe that is not vertical.".into());
+            }
+            let rb = crate::geom::bend_radius(m, crate::model::BendKind::Long, 0.0, e.pipe);
+            if width < 2.0 * rb + 1e-6 || height < 2.0 * rb + 1e-6 || l < width + 2.0 * rb + 1e-6 {
+                return Err(format!("The loop does not fit: with {:.0} mm bends it needs a width and height of at least {:.0} mm, and an element longer than the width by {:.0} mm.", rb * 1000.0, 2000.0 * rb, 2000.0 * rb));
+            }
+            let a = (l - width) / 2.0;
+            let step = m.settings.step.max(1);
+            let mut nums = vec![];
+            let mut want = e.from.min(e.to) + 1;
+            for _ in 0..4 {
+                let n = free_num(m, want);
+                // Keep the four new numbers apart from each other too.
+                let n = (n..).find(|x| !nums.contains(x) && !m.node_order().contains(x)).unwrap_or(n);
+                nums.push(n);
+                want = n + 1;
+            }
+            let _ = step;
+            let legs: [(f64, [f64; 3]); 5] = [(a, u), (height, side), (width, u), (height, crate::mat::scale(side, -1.0)), (a, u)];
+            let ends = [e.from, nums[0], nums[1], nums[2], nums[3], e.to];
+            let mut new = vec![];
+            for k in 0..5 {
+                let d = crate::mat::scale(legs[k].1, legs[k].0);
+                let comp = if k < 4 { crate::model::Comp::Bend { bend: crate::model::BendKind::Long, r: 0.0 } } else { crate::model::Comp::Pipe };
+                let id = if k == 0 { e.id } else { fresh(m) };
+                if k > 0 {
+                    created.push(id);
+                }
+                new.push(Element { id, from: ends[k], to: ends[k + 1], d, comp, ..e.clone() });
+            }
+            m.elements.splice(i..=i, new);
+        }
+        Op::Duplicate { ids, at, mirror } => {
+            if !m.node_order().contains(&at) {
+                return Err(format!("There is no node {at} to join the copy to."));
+            }
+            let picked: Vec<Element> = m.elements.iter().filter(|e| ids.contains(&e.id)).cloned().collect();
+            if picked.is_empty() {
+                return Err("Choose the elements to copy.".into());
+            }
+            if mirror.is_some_and(|a| a > 2) {
+                return Err("Mirror across X, Y or Z.".into());
+            }
+            // The section's first node joins `at`; the others get new numbers after the largest.
+            let first = picked[0].from;
+            let step = m.settings.step.max(1);
+            let mut next = m.node_order().into_iter().max().unwrap_or(0);
+            let mut map: HashMap<u32, u32> = HashMap::new();
+            map.insert(first, at);
+            let mut out = vec![];
+            for e in &picked {
+                for n in [e.from, e.to] {
+                    map.entry(n).or_insert_with(|| {
+                        next = (next / step + 1) * step;
+                        next
+                    });
+                }
+                let mut d = e.d;
+                if let Some(ax) = mirror {
+                    d[ax as usize] = -d[ax as usize];
+                }
+                let id = fresh(m);
+                created.push(id);
+                out.push(Element { id, from: map[&e.from], to: map[&e.to], d, ..e.clone() });
+            }
+            m.elements.extend(out);
+            let sups: Vec<Support> = m.supports.iter().filter(|s| s.node != first && map.contains_key(&s.node)).cloned().collect();
+            for mut s in sups {
+                s.id = fresh(m);
+                s.node = map[&s.node];
+                if let (Some(ax), crate::model::SupKind::Restraint { dir }) = (mirror, &mut s.kind) {
+                    dir[ax as usize] = -dir[ax as usize];
+                }
+                created.push(s.id);
+                m.supports.push(s);
+            }
+        }
         Op::SetSettings { s, units } => {
             if units != "SI" && units != "US" {
                 return Err("Units are SI or US.".into());
@@ -428,6 +524,22 @@ mod tests {
         assert_eq!(d.m.node_order(), vec![100, 105, 110, 115, 120]);
         assert!(d.undo() && d.undo());
         assert_eq!(d.m.node_order(), vec![10, 20, 30, 40]);
+        // An expansion loop in the 3 m element 10–20: five elements, four bends, same end point.
+        let mut d2 = Doc::new(Model::new());
+        d2.apply(Op::Add { item: el(10, 20, [12.0, 0.0, 0.0]), after: None }).unwrap();
+        let id = d2.m.elements[0].id;
+        assert!(d2.apply(Op::Loop { id, width: 0.2, height: 3.0, up: false }).is_err());
+        d2.apply(Op::Loop { id, width: 3.0, height: 2.5, up: false }).unwrap();
+        assert_eq!(d2.m.elements.len(), 5);
+        assert_eq!(d2.m.node(20).unwrap().p(), [12.0, 0.0, 0.0]);
+        assert!(d2.m.nodes.iter().any(|n| (n.z.abs() - 2.5).abs() < 1e-12));
+        assert!(crate::geom::Geom::build(&d2.m).unwrap().warnings.is_empty());
+        // Copy it mirrored across X onto node 20: the copy runs back west.
+        let ids: Vec<u32> = d2.m.elements.iter().map(|e| e.id).collect();
+        d2.apply(Op::Duplicate { ids, at: 20, mirror: Some(0) }).unwrap();
+        assert_eq!(d2.m.elements.len(), 10);
+        let last = d2.m.elements.last().unwrap().to;
+        assert!(d2.m.node(last).unwrap().x.abs() < 1e-9, "{:?}", d2.m.node(last));
         // Supports go with their node.
         d.apply(Op::Add { item: Item::Support(Support { node: 40, ..Default::default() }), after: None }).unwrap();
         let last = d.m.elements.last().unwrap().id;

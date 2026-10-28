@@ -234,7 +234,8 @@ export const View3D = () => {
     const r = Math.max(0.5, new THREE.Vector3(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]).length() / 2);
     const dir = camera.position.clone().sub(controls?.target ?? new THREE.Vector3()).normalize();
     if (dir.lengthSq() < 0.5) dir.set(1, 0.8, 1).normalize();
-    const d = r / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.1;
+    const fov = Math.min(camera.fov, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect)));
+    const d = r / Math.sin(THREE.MathUtils.degToRad(fov / 2)) * 0.9;
     camera.position.copy(c.clone().add(dir.multiplyScalar(d)));
     camera.near = d / 1000; camera.far = d * 100; camera.updateProjectionMatrix();
     controls?.target.copy(c); controls?.update(); draw();

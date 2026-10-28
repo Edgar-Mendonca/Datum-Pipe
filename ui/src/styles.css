@@ -825,3 +825,11 @@ tr.behind td { background: var(--err-bg); }
 .isowrap .tblock { margin-top: 0; }
 .isosvg { display: block; }
 .isowrap .isosvg { max-width: min(100%, calc(100vw - 420px)); height: auto; }
+.preport h2 { text-transform: none; letter-spacing: 0; font: 600 17px var(--sans); color: #1B2733; margin: 0 0 6px; }
+.preport h3 { text-transform: none; letter-spacing: 0; font: 600 13.5px var(--sans); color: #1B2733; }
+.preport h4 { text-transform: none; letter-spacing: 0; font: 600 11.5px var(--sans); color: #1B2733; }
+.preport .muted { color: #55606E; }
+.pin .pbody { flex: 1; min-height: 0; overflow: hidden; }
+.form2 { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; margin: 8px 0; }
+.form2 .unit { font: 10.5px var(--mono); color: var(--muted); }
+.looppic { display: block; background: var(--panel); border: 1px solid var(--line); margin: 6px 0; }

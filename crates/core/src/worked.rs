@@ -230,3 +230,42 @@ fn liberal_allowable_and_cycles() {
     let r = analyze(&m).unwrap();
     assert!(close(case(&r, "EXP1").stresses[0].allow, basic * 6.0 * 1e5f64.powf(-0.2), 1e-12));
 }
+
+#[test]
+fn the_hydrotest_fills_the_line_with_water() {
+    // 6 m of 6" Sch 40 between anchors, empty in service; the hydrotest case carries the pipe and
+    // its water: ρ_steel A_metal g + 1000 A_bore g per metre.
+    let mut d = table("hydro", &[(10, 20, 3.0, 0.0, 0.0), (20, 30, 3.0, 0.0, 0.0)]);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup(&mut d, 30, SupKind::Anchor);
+    let mut s = d.m.settings.clone();
+    s.hydro = true;
+    d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+    assert!(d.m.cases.iter().any(|c| c.name == "HYD"));
+    let p = &d.m.pipes[0];
+    let pi = std::f64::consts::PI;
+    let id = p.od - 2.0 * p.wall;
+    let w = 9.806_65 * (d.m.materials[0].rho * pi / 4.0 * (p.od * p.od - id * id) + 1000.0 * pi / 4.0 * id * id);
+    let r = analyze(&d.m).unwrap();
+    let fy = react(&r, "HYD", 10)[1] + react(&r, "HYD", 30)[1];
+    assert!(close(fy, 6.0 * w, 1e-12), "{fy} {}", 6.0 * w);
+    // In service it is empty: less load.
+    assert!(react(&r, "SUS", 10)[1] < react(&r, "HYD", 10)[1]);
+}
+
+#[test]
+fn an_occasional_case_is_checked_against_a_third_more() {
+    // A user's own OCC case (weight and pressure, no occasional loads yet in 0.1): its allowable is
+    // 1.33 Sh and its stress the sustained stress.
+    let mut m = crate::examples::get("lbend").unwrap();
+    let mut cs = m.cases.clone();
+    cs.push(crate::model::LoadCase { id: 0, name: "OCC".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1 } });
+    let mut d = Doc::new(m.clone());
+    d.apply(Op::SetCases { cases: cs }).unwrap();
+    m = d.m;
+    let r = analyze(&m).unwrap();
+    let (sus, occ) = (case(&r, "SUS"), case(&r, "OCC"));
+    for (a, b) in sus.stresses.iter().zip(&occ.stresses) {
+        assert!(close(b.stress, a.stress, 1e-12) && close(b.allow, 1.33 * a.allow, 1e-12));
+    }
+}

@@ -96,6 +96,7 @@ export const ALL_CMDS: [string, () => void, string?][] = [
   ["Undo", C.undo, "Ctrl+Z"], ["Redo", C.redo, "Ctrl+Y"], ["Delete", C.del, "Del"],
   ["Add an element after the selected one", C.addAfter, "Ctrl+Enter"], ["Insert a node (split the element)", C.split], ["Renumber the nodes", C.renumber],
   ...SUPPORTS.map(([k, l]) => [`Support: ${l}`, () => C.support(k)] as [string, () => void]),
+  ["Expansion loop wizard", () => import("./tools").then(t => t.loopWizard())], ["Copy a section", () => import("./tools").then(t => t.copySection())], ["Mirror a section", () => import("./tools").then(t => t.copySection(true))],
   ["Nozzle point", C.nozzle], ["Force or moment at a node", C.load], ["Recommend load cases", C.recommendCases],
   ["SI units", () => C.units("SI")], ["US units", () => C.units("US")],
   ["Fit the model", C.fit, "F"], ["Isometric view", () => C.std("iso"), "1"], ["Plan view", () => C.std("plan"), "2"], ["Front view", () => C.std("front"), "3"], ["Side view", () => C.std("side"), "4"],

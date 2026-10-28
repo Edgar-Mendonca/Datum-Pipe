@@ -7,6 +7,7 @@ import { C, SUPPORTS } from "./cmds";
 import { Help } from "./help";
 import { F, T, numIn } from "./props";
 import * as P from "./props";
+import * as Tools from "./tools";
 import { toU, fromU, unit, fmt } from "./units";
 import { compName, COMPS, compKey, compFrom } from "./table";
 
@@ -44,7 +45,7 @@ const ElementPanel = (p: { e: Element }) => {
       <F l="Extra uniform load (down)" q="wlen" v={e().extra} set={extra => put({ extra })} hint="A walkway, ice or a cable tray carried by the pipe." />
       <Show when={pipe()}>{pp => <table class="vmini"><tbody><tr><td>Outside diameter</td><td class="r">{fmt("len", pp().od)}</td></tr><tr><td>Wall</td><td class="r">{fmt("len", pp().wall)}</td></tr></tbody></table>}</Show>
     </Sec>
-    <p class="ibtns"><button class="btn sm" onClick={() => setSel({ kind: "node", id: e().from })}>Node {e().from}</button><button class="btn sm" onClick={() => setSel({ kind: "node", id: e().to })}>Node {e().to}</button><button class="btn sm" onClick={C.split}>Insert node</button><button class="btn sm" onClick={C.del}>Delete</button></p>
+    <p class="ibtns"><button class="btn sm" onClick={() => setSel({ kind: "node", id: e().from })}>Node {e().from}</button><button class="btn sm" onClick={() => setSel({ kind: "node", id: e().to })}>Node {e().to}</button><button class="btn sm" onClick={C.split}>Insert node</button><Show when={e().comp.kind === "pipe"}><button class="btn sm" onClick={() => Tools.loopWizard()}>Expansion loop</button></Show><button class="btn sm" onClick={C.del}>Delete</button></p>
   </>;
 };
 

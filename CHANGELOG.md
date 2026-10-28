@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.3 — 2026-10-28
+
+Editing tools, smoother typing in the table, and a tidier report and isometric.
+
+**Expansion loop wizard.** Select a straight element and choose Model › Expansion Loop: give the loop's width and height, sideways or upwards, and the element becomes a loop in its middle with four long-radius bends, drawn to scale before you make it.
+
+**Copy and mirror a section.** Model › Copy Section copies a range of table rows, with their components and supports, onto any node; Mirror Section does the same mirrored across X, Y or Z.
+
+**Typing in the table.** Tab and Enter keep the keyboard in the table after every edit (before, an edit rebuilt the rows and the cursor was lost), and Enter in the last row adds the element and stays there for the next one.
+
+**Report and isometric.** Report pages keep their content inside the header and footer, headings print in plain type, the isometric shows one stress ratio tag per element (bends showed two), and the 3D view fits the model more closely.
+
+**More checks.** Hand-worked cases for the hydrotest (the line full of water) and for an occasional case (checked against 1.33 Sh).
+
 ## 0.1.2 — 2026-10-28
 
 Every component checked by hand, four more worked examples, the isometric drawing, and the results in the stress report.

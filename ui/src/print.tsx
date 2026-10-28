@@ -68,7 +68,7 @@ export const PrintPage = () => {
   setPs({ paper: opts().paper || "A4", landscape: opts().landscape === true });
   const [zoomP, setZoomP] = createSignal(0.55);
   const size = createMemo(() => { const p = PAPERS.find(x => x[0] === ps.paper) ?? PAPERS[0]; const [w, h] = ps.landscape ? [p[2], p[1]] : [p[1], p[2]]; return { pw: w, ph: h, w: w * MM, h: h * MM }; });
-  const inner = () => ({ w: size().w - (ps.margins[1] + ps.margins[3]) * MM, h: size().h - (ps.margins[0] + ps.margins[2]) * MM - 60 });
+  const inner = () => ({ w: size().w - (ps.margins[1] + ps.margins[3]) * MM, h: size().h - (ps.margins[0] + ps.margins[2]) * MM - 84 });
   const [split, setSplit] = createSignal<number[][]>([]);
   let measure!: HTMLDivElement;
   const relayout = () => requestAnimationFrame(() => { if (measure) setSplit(ps.report ? paginate(measure, inner().h) : []); });

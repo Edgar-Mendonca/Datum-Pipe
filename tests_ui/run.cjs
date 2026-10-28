@@ -34,9 +34,14 @@ const shots = process.env.SHOTS;
           window.__calls.push([c, a]);
           if (c === "state") return window.__cur;
           if (c === "new_model") { window.__cur = f.models[a.example] ?? f.models.blank; return window.__cur; }
-          if (c === "apply") { window.__cur = { ...window.__cur, dirty: true, undo: true, created: [999] }; return window.__cur; }
+          // Every edit gives back a new copy of the model, as the shell does.
+          if (c === "apply") {
+            const nx = { ...JSON.parse(JSON.stringify(window.__cur)), dirty: true, undo: true, created: [999] };
+            if (a.op.SetSettings) { nx.m.units = a.op.SetSettings.units; nx.m.settings = a.op.SetSettings.s; }
+            window.__cur = nx; return nx;
+          }
           if (c === "history") return window.__cur;
-          const curKey = () => Object.keys(f.models).find(k => f.models[k] === window.__cur) ?? "";
+          const curKey = () => Object.keys(f.models).find(k => f.models[k].m.name === window.__cur.m.name) ?? "";
           if (c === "analyze") { const r = f.results?.[curKey()]; if (r) return r; throw "The piping can move without resistance: add supports."; }
           if (c === "isometric") return f.iso?.[curKey()] ?? { sheets: [] };
           if (c in m) return m[c];
@@ -128,6 +133,10 @@ const shots = process.env.SHOTS;
   check("the table lists the L-bend's elements", (await p.$$(".egrid tbody tr:not(.newrow)")).length === fix.models.lbend.m.elements.length);
   check("the 3D view has a canvas", !!(await p.$(".v3d canvas")));
   check("node numbers are drawn", (await p.$$eval(".nlabel", els => els.map(e => e.textContent))).includes("20"));
+  // Typing across a row keeps the keyboard in the table after each edit (0.1.2: every row was rebuilt).
+  const dy = await p.$('.egrid tbody tr:first-child td:nth-child(5) input');
+  await dy.click(); await dy.fill("100"); await p.keyboard.press("Tab"); await p.waitForTimeout(300);
+  check("Tab after an edit moves to the next cell and keeps the focus", await p.evaluate(() => { const a = document.activeElement; return !!a && a.closest("td")?.cellIndex === 5 && a.closest("tr")?.rowIndex === 1; }));
   await p.click('.egrid tbody tr:first-child td.rn'); await p.waitForTimeout(150);
   check("clicking a row selects the element", (await p.textContent(".insp header")).includes("Element"));
   if (shots) await p.screenshot({ path: `${shots}/lbend.png` });
@@ -150,6 +159,24 @@ const shots = process.env.SHOTS;
   await p.click('.ribbon button[title="Verification"]'); await p.waitForTimeout(400);
   check("Help › Verification: every check passes", (await p.textContent(".dlg .verif")).includes(`${fix.verification.length} of ${fix.verification.length} checks pass`));
   await p.keyboard.press("Escape");
+
+  // The expansion loop wizard sends one Loop edit for the selected straight element.
+  await p.click('.egrid tbody tr:nth-child(2) td.rn'); await p.waitForTimeout(150);
+  await p.click('.tabs > button:text-is("Model")');
+  await p.click('.ribbon button[title="Turn the selected straight element into an expansion loop"]'); await p.waitForTimeout(250);
+  check("the loop wizard draws the loop", !!(await p.$(".dlg .looppic path")));
+  await p.click('.dlg .btn.pri'); await p.waitForTimeout(250);
+  const lp = await lastOp();
+  check("the loop wizard sends a Loop edit", !!lp?.Loop && lp.Loop.width > 0 && lp.Loop.height > 0, JSON.stringify(lp));
+  await p.click('.ribbon button[title="Copy Section"]'); await p.waitForTimeout(250);
+  await p.click('.dlg .btn.pri'); await p.waitForTimeout(250);
+  check("copy a section sends a Duplicate edit", !!(await lastOp())?.Duplicate);
+
+  // US units: lengths in feet, stresses in psi, the isometric in feet and inches.
+  await p.click('.tabs > button:text-is("Home")');
+  await p.click('.ribbon button[title="US: ft, in, lbf, psi"]'); await p.waitForTimeout(300);
+  check("US units: the L-bend's 6000 mm leg shows as 19.685 ft", (await p.textContent(".egrid tbody tr:first-child")).includes("19.685") && (await p.textContent(".etable header")).includes("ft"));
+  await p.click('.ribbon button[title="SI: mm, N, MPa, bar"]'); await p.waitForTimeout(200);
 
   // 10. The pump example: deformed shape, nozzle loads, the report's results pages.
   await open("pump");

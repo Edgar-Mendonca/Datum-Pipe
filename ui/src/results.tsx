@@ -86,7 +86,9 @@ export const Summary = (p: { r: Results }) => (
 
 const Stresses = (p: { r: Results; c: CaseResult }) => {
   const [worst, setWorst] = createSignal(false);
-  const rows = createMemo(() => { const s = [...p.c.stresses]; return worst() ? s.sort((a, b) => b.ratio - a.ratio) : s; });
+  // In table order: by element, then along it (its straight part, then its bend).
+  const order = createMemo(() => { const m = model(); const idx = new Map((m?.elements ?? []).map((e, i) => [e.id, i])); return (si: number) => idx.get(p.r.geom.segs[si]?.element) ?? 0; });
+  const rows = createMemo(() => { const s = [...p.c.stresses]; return worst() ? s.sort((a, b) => b.ratio - a.ratio) : s.sort((a, b) => order()(a.seg) - order()(b.seg)); });
   const el = (si: number) => { const e = model()?.elements.find(x => x.id === p.r.geom.segs[si]?.element); return e ? `${e.from}–${e.to}` : ""; };
   return <Show when={p.c.stresses.length} fallback={<p class="muted">{KIND[p.c.kind]} cases have no code stress check: see the support and nozzle loads.</p>}>
     <p class="ibtns"><label class="chk"><input type="checkbox" checked={worst()} onChange={e => setWorst(e.currentTarget.checked)} />Worst first</label><span class="muted small">{p.c.kind === "sus" ? "Sustained longitudinal stress SL (pressure and weight, wall less corrosion) against the hot allowable Sh." : p.c.kind === "exp" ? "Displacement stress range SE (nominal wall, in- and out-of-plane SIFs) against the allowable range SA." : "Sustained plus occasional stress against 1.33 Sh."}</span></p>

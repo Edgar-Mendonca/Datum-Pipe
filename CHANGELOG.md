@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.4 — 2026-10-28
+
+Polish: the build to start with. Every example analyzes, draws its isometric and prints its report.
+
+**Isometric.** The sheet fills the window at the proportions of a landscape page, with its title block the same width.
+
+**Report.** The title block's labels print in their boxes (they were pushed to the foot of the first page).
+
+**Results.** Code stresses are listed in table order, element by element, with each bend after its straight part; Worst first still sorts them by ratio.
+
+**Examples.** The turbine nozzle of the steam line points the right way (from the turbine into the pipe).
+
+**Checked.** A final pass over every worked example: each one analyzes with its reactions balancing its loads, draws its isometric and prints a report of four to six pages. New screenshots for the README and the family site.
+
 ## 0.1.3 — 2026-10-28
 
 Editing tools, smoother typing in the table, and a tidier report and isometric.

@@ -3,7 +3,7 @@
 // numbers, a dimension along every element, a north arrow, continuation notes, and optional result
 // tags (the highest stress ratio of each element, support loads). It prints with the report and
 // saves as SVG.
-import { For, Show, createSignal, createResource, createMemo, JSX } from "solid-js";
+import { For, Show, createSignal, createResource, createMemo, onCleanup, JSX } from "solid-js";
 import { Model, num } from "./api";
 import { out, model, call, setBackstage, toast, setView } from "./store";
 import { G, S, B } from "./ribbon";
@@ -126,6 +126,11 @@ const saveSvg = async () => {
 };
 
 export const IsoPage = () => {
+  const [win, setWin] = createSignal([innerWidth, innerHeight]);
+  const onResize = () => setWin([innerWidth, innerHeight]);
+  addEventListener("resize", onResize); onCleanup(() => removeEventListener("resize", onResize));
+  // The sheet as large as the window allows, at the proportions of a landscape page.
+  const size = () => { const w = Math.max(640, Math.min(win()[0] - 160, (win()[1] - 290) * 1.55)); return [Math.round(w), Math.round(w / 1.55)]; };
   const sheets = () => iso()?.sheets ?? [];
   const sh = () => sheets().find(s => s.n === sheetNo()) ?? sheets()[0];
   return (
@@ -134,7 +139,7 @@ export const IsoPage = () => {
         <button class="btn sm" onClick={saveSvg}>Save as SVG</button><button class="btn sm pri" onClick={() => { setPs("iso", true); setBackstage("print"); }}>Print or save as PDF</button></h1>
       <Show when={sheets().length > 1}><div class="ctabs"><For each={sheets()}>{s => <button classList={{ on: s.n === sh()?.n }} onClick={() => setSheetNo(s.n)}><b>Sheet {s.n}</b><small>{s.dims.length} elements</small></button>}</For></div></Show>
       <Show when={sh() && model()} fallback={<div class="emptypage"><b>Nothing to draw yet</b><span>The isometric draws itself from the element table: type the piping first.</span></div>}>
-        <div class="isowrap"><IsoSheet sh={sh()!} w={1120} h={720} m={model()!} /><TitleBlock m={model()!} title={`Isometric, sheet ${sh()!.n} of ${sheets().length}`} /></div>
+        <div class="isowrap"><IsoSheet sh={sh()!} w={size()[0]} h={size()[1]} m={model()!} /><TitleBlock m={model()!} title={`Isometric, sheet ${sh()!.n} of ${sheets().length}`} /></div>
       </Show>
       <Show when={results() && !stale() && isoOpts().ratios}><p class="muted small">Tags show the highest stress ratio of each element in {curCase()?.stresses.length ? curCase()!.name : "any checked case"} ({fmt("stress", 0).replace("0 ", "")} stresses against their allowables).</p></Show>
     </div>

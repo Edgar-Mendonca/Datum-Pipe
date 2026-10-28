@@ -202,6 +202,20 @@ const shots = process.env.SHOTS;
   await p.keyboard.press("Escape"); await p.waitForTimeout(200);
   await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
 
+  // 12. Every example opens, analyzes, draws its isometric and prints its report.
+  for (const ex of fix.examples_list.filter(e => e.id !== "blank")) {
+    await open(ex.id);
+    await p.keyboard.press("F5"); await p.waitForTimeout(400);
+    const ok = (await p.textContent("#toast")).includes("Reactions balance the loads in every case");
+    await p.click('.side button[title="Isometric"]'); await p.waitForTimeout(300);
+    const dims = (await p.$$(".isosvg .dim")).length;
+    await p.keyboard.press("Control+p"); await p.waitForTimeout(700);
+    const pages = (await p.$$(".pprev .ppage")).length;
+    await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+    await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+    check(`${ex.name}: analyzes, draws its isometric, prints ${pages} pages`, ok && dims > 0 && pages >= 3, `${ok} ${dims} ${pages}`);
+  }
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

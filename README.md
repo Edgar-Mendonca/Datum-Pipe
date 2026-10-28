@@ -21,7 +21,7 @@
   <a href="docs/MEMORY.md"><img src="https://img.shields.io/badge/Memory_&_roadmap-5B6878?style=for-the-badge" alt="Memory and roadmap"></a>
 </p>
 
-![Datum Pipe: the File page with the worked examples and the updates card](docs/images/file-page.png)
+![Datum Pipe: a steam line on a pipe rack in 3D, coloured by stress ratio, with its deformed shape and the element table](docs/images/model-stress.png)
 
 Route a piping system in a table, the way a stress engineer marks up an isometric; put on its supports, temperatures and pressures; and Datum Pipe works out the displacements, support loads, equipment nozzle loads and code stresses, shows them on the 3D model and on an isometric drawing, and prints a stress report. It is for piping, stress, mechanical, process and plant engineers, consultants and students. It is free and open source (MIT), Windows first, installs in seconds and updates itself. More on the family site: [edgar-mendonca.github.io/Datum/apps/pipe](https://edgar-mendonca.github.io/Datum/apps/pipe).
 
@@ -34,10 +34,19 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 - **Components**: long and short radius bends or your own radius, welding, fabricated and reinforced tees, concentric reducers, valves and flanged joints with their weight.
 - **Supports**: anchors, rests, guides, line stops, restraints in any direction, springs, constant-force supports, nozzle points and imposed equipment movements.
 - **Load cases built for you**: sustained, operating, expansion range and hydrotest, editable.
-- **Code stresses** (from 0.1.2): hoop stress and minimum wall, sustained longitudinal stress and the displacement stress range, PASS or FAIL at every point.
-- **Results** (from 0.1.1): displacements, forces and moments, support loads for the civil team, nozzle loads in the nozzle's axes, and an equilibrium check after every solve.
-- **Isometric and report** (from 0.1.3): an automatic 30° isometric with dimensions and result tags, and a printed stress report.
-- **Verified**: Help › Verification solves benchmark problems with known answers in front of you.
+- **Code stresses**: hoop stress and minimum wall, sustained longitudinal stress and the displacement stress range, PASS or FAIL at every point.
+- **Results**: displacements, forces and moments, support loads for the civil team, nozzle loads in the nozzle's axes, and an equilibrium check after every solve.
+- **Isometric and report**: an automatic 30° isometric with dimensions, symbols and result tags (print or SVG), and a printed stress report with the title block, input echo, stress summary, support and nozzle loads, the isometric and the equilibrium checks.
+- **Editing tools**: an expansion loop wizard, copy and mirror a section, insert a node, renumber, undo and redo everything.
+- **Verified**: Help › Verification solves benchmark problems with known answers in front of you: beam theory, heated L-bends, Z-bends and an expansion loop against the flexibility method by hand, a bend's flexibility, the minimum wall equation and the equilibrium of every example.
+- **Worked examples**: a pump discharge with an expansion loop, a compressor suction line, a steam line on a pipe rack, a tank outlet with settlement, and an L-bend and a Z-bend to check by hand.
+
+| | |
+| --- | --- |
+| ![The isometric drawing with dimensions, supports and stress ratio tags](docs/images/isometric.png) | ![The code stresses table, PASS or FAIL at every point](docs/images/results.png) |
+| The isometric, drawn from the table | Code stresses at every point |
+| ![The printed stress report](docs/images/report.png) | |
+| The stress report, ready to print or save as PDF | |
 
 ## Build it yourself
 

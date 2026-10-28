@@ -33,7 +33,12 @@
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
     "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve"
   ],
-  "screenshots": [],
+  "screenshots": [
+    "docs/images/model-stress.png",
+    "docs/images/isometric.png",
+    "docs/images/results.png",
+    "docs/images/report.png"
+  ],
   "roadmap": [
     {
       "v": "0.1.4",

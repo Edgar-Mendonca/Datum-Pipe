@@ -144,7 +144,10 @@ fn pump() -> Model {
     support(&mut d, 85, SupKind::Rest, "S-85");
     support(&mut d, 110, SupKind::Guide, "G-110");
     support(&mut d, 120, SupKind::Anchor, "A-120 header");
-    meta(&mut d, "Pump discharge with an expansion loop", "6\"-HW-101", "6\" Sch 40 carbon steel, hot water at 150 °C and 20 bar, from the pump discharge nozzle (which grows 1.2 mm upwards when hot) up through a gate valve, then east with an expansion loop to an anchor at the header. The nozzle loads are checked against allowables entered for the pump.");
+    let mut st = d.m.settings.clone();
+    st.hydro = true;
+    d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("hydrotest");
+    meta(&mut d, "Pump discharge with an expansion loop", "6\"-HW-101", "6\" Sch 40 carbon steel, hot water at 150 °C and 20 bar, from the pump discharge nozzle (which grows 1.2 mm upwards when hot) up through a gate valve, then east with an expansion loop to an anchor at the header. The nozzle loads are checked against allowables entered for the pump; the hydrotest case (30 bar, full of water) gives the support loads during the test.");
     d.m
 }
 
@@ -186,7 +189,7 @@ fn steam() -> Model {
     support(&mut d, 20, SupKind::Linestop, "LS-20");
     support(&mut d, 70, SupKind::Anchor, "T-301 inlet");
     displace(&mut d, 70, 0, [0.0, 0.002, 0.0, 0.0, 0.0, 0.0]);
-    nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, 1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
+    nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, -1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
     meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on rests, with guides at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot.");
     d.m
 }

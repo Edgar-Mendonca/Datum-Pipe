@@ -23,12 +23,13 @@ import { ReportPage } from "./report";
 import { Menu, Toast, Icon } from "./ui";
 import { setUnitTable } from "./units";
 import * as D from "./dialogs";
+import { solving } from "./rstate";
 
 const SIDE: ([View, string, string] | "-")[] = [["model", "model", "Model"], "-", ["results", "table", "Results"], ["iso", "iso", "Isometric"], ["report", "report", "Report"]];
 
 const Status = () => (
   <footer class="status">
-    <span>Ready</span>
+    <span>{solving() ? "Analyzing…" : "Ready"}</span>
     <span class="muted">{model() ? `${model()!.elements.length} elements · ${model()!.nodes.length} nodes · ${model()!.supports.length} supports · ${model()!.cases.length} load cases` : ""}</span>
     <Show when={sel()}>{s => <span class="muted">{s().kind === "node" ? `Node ${s().id}` : s().kind === "element" ? (() => { const e = model()?.elements.find(x => x.id === s().id); return e ? `Element ${e.from}–${e.to}` : ""; })() : s().kind}</span>}</Show>
     <span class="grow" />

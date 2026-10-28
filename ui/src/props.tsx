@@ -2,7 +2,7 @@
 // against temperature and allowables, with sources), line conditions (T1–T3, P1–P3, hydrotest)
 // and the load cases. Each edit goes to the engine as one operation.
 import { For, Show, createSignal, createResource, JSX } from "solid-js";
-import { Pipe, Material, Cond, LoadCase, Library, Recipe, num, parseNum } from "./api";
+import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, num, parseNum } from "./api";
 import { openDialog, act, call, model, toast } from "./store";
 import { C } from "./cmds";
 import { Dialog, Icon } from "./ui";
@@ -156,6 +156,23 @@ export const cases = () => openDialog(() => {
   );
 });
 
-let verifyHook: () => void = () => toast("Help › Verification arrives with the solver in 0.1.1.");
-export const setVerification = (f: () => void) => { verifyHook = f; };
-export const verification = () => verifyHook();
+/** Help › Verification: every benchmark solved now by this version, against its reference. */
+export const verification = () => openDialog(() => {
+  const [rows] = createResource(() => call<Check[]>("verification"));
+  const [ver] = createResource(() => call<string>("version"));
+  const val = (q: string, v: number) => (q === "ratio" ? num(v, 7) : fmtQ(q as Q, v));
+  return (
+    <Dialog title="Verification" wide help="verification">
+      <div class="verif">
+        <p>Every check below was solved just now by Datum Pipe {ver()} and compared with a reference worked out independently. A check fails if its error is over the tolerance; the same checks run as tests before every release.</p>
+        <Show when={rows()} fallback={<p class="muted">Solving the benchmarks…</p>}>{r => <>
+          <p classList={{ okline: r().every(x => x.pass), badline: !r().every(x => x.pass) }}><Icon n={r().every(x => x.pass) ? "check" : "info"} /> {r().filter(x => x.pass).length} of {r().length} checks pass.</p>
+          <table class="tbl"><thead><tr><th>#</th><th>Benchmark</th><th>Quantity</th><th class="r">Datum Pipe</th><th class="r">Reference</th><th class="r">Error</th><th>Source</th><th /></tr></thead><tbody>
+            <For each={r()}>{x => <tr><td>{x.bench}</td><td>{x.name}</td><td>{x.quantity}</td><td class="r">{val(x.q, x.result)}</td><td class="r">{val(x.q, x.reference)}</td><td class="r">{x.error < 1e-12 ? "< 1e-12" : x.error.toExponential(1)}</td><td>{x.source}</td><td>{x.pass ? "✓ pass" : "✗ fail"}</td></tr>}</For></tbody></table>
+          <p class="muted small">Coming in 0.2: the public piping benchmark problems published by nuclear regulators.</p>
+        </>}</Show>
+      </div>
+    </Dialog>
+  );
+});
+const fmtQ = (q: Q, v: number) => `${num(toU(q, v), 7)} ${unit(q)}`;

@@ -5,7 +5,7 @@ mod update;
 
 use datum_core::doc::{Doc, Op};
 use datum_core::model::{self, Model};
-use datum_core::{examples, library, units};
+use datum_core::{bench, examples, geom::Geom, library, solve, units};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -68,10 +68,17 @@ struct Out {
     created: Vec<u32>,
     /// What a damaged file lost or changed when it was opened.
     warnings: Vec<String>,
+    /// The analysis geometry (bends as arcs) for the 3D view, or why it cannot be built yet.
+    geom: Option<Geom>,
+    geom_error: Option<String>,
 }
 
 fn out(a: &App) -> Out {
-    Out { m: a.doc.m.clone(), path: a.doc.path.clone(), dirty: a.doc.dirty, undo: a.doc.can_undo(), redo: a.doc.can_redo(), created: vec![], warnings: vec![] }
+    let (geom, geom_error) = match Geom::build(&a.doc.m) {
+        Ok(g) => (Some(g), None),
+        Err(e) => (None, Some(e)),
+    };
+    Out { m: a.doc.m.clone(), path: a.doc.path.clone(), dirty: a.doc.dirty, undo: a.doc.can_undo(), redo: a.doc.can_redo(), created: vec![], warnings: vec![], geom, geom_error }
 }
 
 fn dir(app: &AppHandle, data: bool) -> Option<PathBuf> {
@@ -130,6 +137,20 @@ fn new_model(st: State<St>, example: Option<String>) -> R<Out> {
     let m = fresh(&a, m);
     a.doc = Doc::new(m);
     Ok(out(&a))
+}
+
+/// Analyze the open model: every load case, stresses, support and nozzle loads. Runs off the
+/// window's thread.
+#[tauri::command]
+async fn analyze(st: State<'_, St>) -> R<solve::Results> {
+    let m = st.lock().doc.m.clone();
+    tauri::async_runtime::spawn_blocking(move || solve::analyze(&m)).await.map_err(|e| e.to_string())?
+}
+
+/// The verification benchmarks, solved now by this version's engine.
+#[tauri::command]
+async fn verification() -> R<Vec<bench::Check>> {
+    tauri::async_runtime::spawn_blocking(bench::run).await.map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -400,7 +421,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            state, apply, history, examples_list, new_model, library, unit_table, open, save, save_file,
+            state, apply, history, examples_list, new_model, library, unit_table, analyze, verification, open, save, save_file,
             options, set_options, autosave, recovery, recover, recent, startup_file, open_url, version, quit, check_update, install_update
         ])
         .run(tauri::generate_context!())

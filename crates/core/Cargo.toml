@@ -1,6 +1,6 @@
 [package]
 name = "datum-core"
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT"
 edition = "2021"
 description = "Datum Pipe engine: the piping model and its edits, the pipe library, the 3D pipe element solver, load cases, code checks, isometrics and the verification benchmarks."

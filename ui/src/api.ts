@@ -34,7 +34,24 @@ export interface Model {
   format: number; name: string; notes: string; units: "SI" | "US"; project: Project; settings: Settings;
   nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number;
 }
-export interface Out { m: Model; path: string | null; dirty: boolean; undo: boolean; redo: boolean; created: number[]; warnings: string[] }
+export interface Out { m: Model; path: string | null; dirty: boolean; undo: boolean; redo: boolean; created: number[]; warnings: string[]; geom: Geom | null; geom_error: string | null }
+
+// ---------- analysis geometry and results (crates/core/src/geom.rs, solve.rs) ----------
+export interface GPoint { p: V3; label: string; node: number | null }
+export type GShape = { kind: "straight" } | { kind: "arc"; centre: V3; normal: V3; r: number; angle: number };
+export interface Seg { a: number; b: number; shape: GShape; element: number; pipe: number; pipe_b: number; material: number; cond: number; rigid: [RigidKind, number] | null; bend: number | null; extra: number; length: number }
+export interface GTee { node: number; point: number; kind: TeeKind; pad: number; pipe: number; normal: V3 }
+export interface Geom { points: GPoint[]; segs: Seg[]; tees: GTee[]; node_point: Record<string, number>; warnings: string[] }
+export type Six = [number, number, number, number, number, number];
+export interface Reaction { support: number; node: number; f: Six }
+export interface NozzleLoad { nozzle: number; node: number; local: Six; shear: number; bending: number; ratios: [number, number, number, number]; pass: boolean | null }
+export interface Stress { seg: number; end: number; point: number; stress: number; allow: number; ratio: number; pass: boolean; ii: number; io: number }
+export interface CaseResult { id: number; name: string; kind: CaseKind; disp: Six[]; forces: [Six, Six][]; reactions: Reaction[]; nozzles: NozzleLoad[]; stresses: Stress[]; applied: Six; reacted: Six; imbalance: number; worst: number | null }
+export interface Wall { element: number; case: number; p: number; t: number; s: number; t_design: number; t_min: number; t_nominal_needed: number; t_nominal: number; hoop: number; ratio: number; pass: boolean }
+export interface Sif { ii: number; io: number; k: number; h: number }
+export interface SolveStats { equations: number; nonzeros: number; residual: number; ms: number }
+export interface Results { geom: Geom; cases: CaseResult[]; walls: Wall[]; sifs: [Sif, Sif][]; stats: SolveStats; warnings: string[]; version: string }
+export interface Check { bench: number; name: string; quantity: string; q: string; reference: number; result: number; error: number; tolerance: number; source: string; pass: boolean }
 export interface Example { id: string; name: string; what: string }
 export interface Size { nps: string; od: number; schedules: [string, number][] }
 export interface LibMaterial { id: string; name: string; family: string; rho: number; nu: number; e: [number, number][]; alpha: [number, number][]; allow: [number, number][]; sy: number; su: number; source: string }

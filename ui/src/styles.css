@@ -787,3 +787,37 @@ tr.behind td { background: var(--err-bg); }
 .pmeasure { position: absolute; left: -10000px; top: 0; visibility: hidden; background: #fff; color: #1B2733; }
 .pass { color: var(--ok-fg); background: var(--ok-bg); font: 600 10px var(--mono); padding: 0 5px; }
 .fail { color: var(--err-fg); background: var(--err-bg); font: 600 10px var(--mono); padding: 0 5px; }
+.v3d .labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.nlabel { position: absolute; left: 0; top: 0; font: 500 10.5px var(--mono); color: var(--text2); background: color-mix(in srgb, var(--bg2) 75%, transparent); padding: 0 3px; white-space: nowrap; }
+.nlabel.on { color: var(--bg2); background: var(--blue); }
+.vbar { position: absolute; right: 10px; top: 10px; display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--line); }
+.vbar button { padding: 3px 9px; font: 500 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text2); }
+.vbar button:hover { background: var(--pale); color: var(--blue); }
+.axes3d { position: absolute; left: 10px; bottom: 8px; display: flex; gap: 10px; font: 500 10px var(--mono); pointer-events: none; }
+.legend3d { position: absolute; left: 10px; top: 10px; background: var(--panel); border: 1px solid var(--line); padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; max-width: 420px; }
+.legend3d b { font: 500 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.legend3d input[type=range] { width: 120px; vertical-align: middle; accent-color: var(--blue); }
+.lbar { display: flex; align-items: flex-start; padding-bottom: 12px; }
+.lbar i { position: relative; width: 34px; height: 10px; display: inline-block; }
+.lbar i small { position: absolute; top: 11px; left: 0; transform: translateX(-50%); font: 9.5px var(--mono); color: var(--text2); }
+.lbar em { font: 10px var(--mono); color: var(--muted); margin-left: 6px; font-style: normal; }
+.geoerr, .geowarn, .stalebar3d { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); max-width: 70%; padding: 5px 10px; font-size: 11.5px; }
+.geoerr { color: var(--err-fg); background: var(--err-bg); }
+.geowarn { color: var(--warn-fg); background: var(--warn-bg); bottom: 66px; }
+.stalebar3d { color: var(--warn-fg); background: var(--warn-bg); top: 10px; bottom: auto; }
+.v3d .nogl { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; flex-direction: column; gap: 6px; color: var(--text2); text-align: center; padding: 20px; }
+.v3d .nogl.on { display: flex; }
+.rtabs, .ctabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 6px 0 8px; border-bottom: 1px solid var(--line); }
+.rtabs button { padding: 5px 10px; font: 500 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid transparent; }
+.rtabs button.on { color: var(--blue); border-bottom-color: var(--blue); }
+.ctabs { border-bottom: 0; gap: 6px; }
+.ctabs button { display: flex; gap: 6px; align-items: baseline; padding: 4px 9px; border: 1px solid var(--line); background: var(--bg2); }
+.ctabs button.on { border-color: var(--blue); background: var(--sel); }
+.ctabs small { color: var(--muted); }
+.rtable { overflow: auto; }
+.rtable .tbl, .page.results .tbl { font-size: 12px; }
+.tbl .unit { font: 9.5px var(--mono); color: var(--muted); text-transform: none; }
+.tbl tr.f { cursor: pointer; }
+.tbl tr.f:hover td { background: var(--pale); }
+.tbl td.bad { color: var(--err-fg); }
+.verif .tbl { font-size: 11.5px; }

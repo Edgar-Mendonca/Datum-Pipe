@@ -5,11 +5,17 @@
 // Numerical code reads best with index loops and explicit NaN-rejecting comparisons.
 #![allow(clippy::needless_range_loop, clippy::too_many_arguments, clippy::type_complexity, clippy::neg_cmp_op_on_partial_ord)]
 
+pub mod bench;
 pub mod cases;
+pub mod code;
 pub mod doc;
+pub mod elements;
 pub mod examples;
+pub mod geom;
 mod hardening;
 pub mod library;
+pub mod mat;
 pub mod model;
+pub mod solve;
 pub mod sparse;
 pub mod units;

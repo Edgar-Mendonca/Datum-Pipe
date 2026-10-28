@@ -36,7 +36,7 @@ const shots = process.env.SHOTS;
           if (c === "new_model") { window.__cur = f.models[a.example] ?? f.models.blank; return window.__cur; }
           if (c === "apply") { window.__cur = { ...window.__cur, dirty: true, undo: true, created: [999] }; return window.__cur; }
           if (c === "history") return window.__cur;
-          if (c === "solve") { const r = f.results?.[window.__curId ?? ""]; if (r) return r; throw "The piping can move without resistance: add supports."; }
+          if (c === "analyze") { const r = f.results?.[window.__curId ?? ""]; if (r) return r; throw "The piping can move without resistance: add supports."; }
           if (c === "iso") return f.iso?.[window.__curId ?? ""] ?? { sheets: [] };
           if (c in m) return m[c];
           return null;
@@ -121,6 +121,34 @@ const shots = process.env.SHOTS;
   check("dark theme applies", await p.evaluate(() => document.documentElement.dataset.theme === "dark"));
   if (shots) await p.screenshot({ path: `${shots}/dark.png` });
   await p.click(".theme"); await p.click(".theme"); await p.waitForTimeout(100);
+
+  // 9. The L-bend example: the 3D view draws it, the table lists it, Analyze shows results.
+  await open("lbend");
+  check("the table lists the L-bend's elements", (await p.$$(".egrid tbody tr:not(.newrow)")).length === fix.models.lbend.m.elements.length);
+  check("the 3D view has a canvas", !!(await p.$(".v3d canvas")));
+  check("node numbers are drawn", (await p.$$eval(".nlabel", els => els.map(e => e.textContent))).includes("20"));
+  await p.click('.egrid tbody tr:first-child td.rn'); await p.waitForTimeout(150);
+  check("clicking a row selects the element", (await p.textContent(".insp header")).includes("Element"));
+  if (shots) await p.screenshot({ path: `${shots}/lbend.png` });
+  await p.keyboard.press("F5"); await p.waitForTimeout(500);
+  check("Analyze reports the load cases and the equilibrium", (await p.textContent("#toast")).includes("Reactions balance the loads in every case"));
+  check("the legend shows the stress ratio", !!(await p.$(".legend3d")));
+  if (shots) await p.screenshot({ path: `${shots}/lbend-results.png` });
+  await p.click('.side button[title="Results"]'); await p.waitForTimeout(200);
+  const sumTxt = await p.textContent(".rtable");
+  check("the summary lists SUS and EXP1 with their checks", sumTxt.includes("SUS") && sumTxt.includes("EXP1") && sumTxt.includes("PASS"));
+  await p.click('.rtabs button:text-is("Support loads")'); await p.waitForTimeout(150);
+  check("support loads list both anchors", (await p.$$(".rtable tbody tr")).length === 2);
+  await p.click('.rtabs button:text-is("Equilibrium")'); await p.waitForTimeout(150);
+  check("the equilibrium table ticks every case", (await p.$$eval(".rtable tbody tr td:last-child", els => els.every(e => e.textContent.includes("✓")))));
+  await p.click('.rtabs button:text-is("Code stresses")'); await p.waitForTimeout(150);
+  check("code stresses are shown in MPa", (await p.textContent(".rtable thead")).includes("MPa"));
+  if (shots) await p.screenshot({ path: `${shots}/results.png` });
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+  await p.click('.tabs > button:text-is("Help")');
+  await p.click('.ribbon button[title="Verification"]'); await p.waitForTimeout(400);
+  check("Help › Verification: every check passes", (await p.textContent(".dlg .verif")).includes(`${fix.verification.length} of ${fix.verification.length} checks pass`));
+  await p.keyboard.press("Escape");
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

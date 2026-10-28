@@ -1,13 +1,148 @@
-// Results: the ribbon's Results tab and the Results view (tables per load case). The solver
-// arrives in 0.1.1; until then the tools are shown with the release they arrive in.
-import { G, S, Planned } from "./ribbon";
+// Results: the ribbon's Results tab and the Results view, with a tab per load case and the tables
+// the engine computed: summary, displacements, forces and moments, support loads, nozzle loads,
+// code stresses, minimum wall and the equilibrium check.
+import { For, Show, createSignal, createMemo, JSX } from "solid-js";
+import { CaseResult, Results, num } from "./api";
+import { model, setSel, setView, openMenu } from "./store";
+import { C } from "./cmds";
+import { G, S, B } from "./ribbon";
+import { Help } from "./help";
+import { results, stale, solving, show, setShowPart, curCase, setCaseId } from "./rstate";
+import { unit, toU } from "./units";
+import { supName } from "./panels";
+import { Icon } from "./ui";
 
-export const ResultsRibbon = () => <>
-  <G l="Load Case" h="results"><Planned big i="cases" l="Load Case" v="0.1.2" /></G>
-  <G l="Show" h="results"><S><Planned i="contour" l="Stress Ratio Colours" v="0.1.2" /><Planned i="deform" l="Deformed Shape" v="0.1.2" /><Planned i="play" l="Animate" v="0.1.2" /></S></G>
-  <G l="Tables" h="results"><S><Planned i="table" l="Displacements" v="0.1.2" /><Planned i="table" l="Support Loads" v="0.1.2" /><Planned i="table" l="Code Stresses" v="0.1.2" /></S></G>
-</>;
+export const [tableKind, setTableKind] = createSignal("summary");
+const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["equilibrium", "Equilibrium"]];
+const KIND: Record<string, string> = { sus: "Sustained", ope: "Operating", exp: "Expansion range", hyd: "Hydrotest", occ: "Occasional" };
+const CHECK: Record<string, string> = { sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" };
+const openTable = (k: string) => { setTableKind(k); setView("results"); };
 
-export const ResultsPage = () => (
-  <div class="page"><h1>Results</h1><div class="emptypage"><b>No results yet</b><span>Analysis arrives in Datum Pipe 0.1.1: displacements, forces, support loads and the equilibrium check; code stresses in 0.1.2.</span></div></div>
+export const Badge = (p: { pass: boolean | null | undefined }) => p.pass === null || p.pass === undefined ? <span class="muted">—</span> : <span class={p.pass ? "pass" : "fail"}>{p.pass ? "PASS" : "FAIL"}</span>;
+const casePass = (c: CaseResult) => c.stresses.length ? c.stresses.every(s => s.pass) && c.nozzles.every(z => z.pass !== false) : c.nozzles.some(z => z.pass !== null) ? c.nozzles.every(z => z.pass !== false) : null;
+
+export const ResultsRibbon = () => {
+  const r = () => results();
+  return <>
+    <G l="Analyze" h="analyze"><B big i="solve" l="Analyze" run={C.analyze} off={solving()} title="Solve every load case (F5)" /></G>
+    <G l="Load Case" h="results"><B big i="cases" l={curCase()?.name ?? "Load Case"} off={!r()} dd={e => openMenu(e, (r()?.cases ?? []).map(c => ({ label: `${c.name} · ${KIND[c.kind]}`, on: c.id === curCase()?.id, run: () => setCaseId(c.id) })))} /></G>
+    <G l="Show" h="results"><S><B i="contour" l="Stress Ratio Colours" on={show().colour} off={!r()} run={() => setShowPart({ colour: !show().colour })} /><B i="deform" l="Deformed Shape" on={show().deformed} off={!r()} run={() => setShowPart({ deformed: !show().deformed })} /><B i="play" l="Animate" on={show().anim} off={!r()} run={() => setShowPart({ anim: !show().anim, deformed: true })} /></S></G>
+    <G l="Tables" h="results"><S><B i="table" l="Summary" off={!r()} run={() => openTable("summary")} /><B i="table" l="Code Stresses" off={!r()} run={() => openTable("stress")} /><B i="table" l="Displacements" off={!r()} run={() => openTable("disp")} /></S>
+      <S><B i="table" l="Support Loads" off={!r()} run={() => openTable("supports")} /><B i="nozzle" l="Nozzle Loads" off={!r()} run={() => openTable("nozzles")} /><B i="table" l="Forces" off={!r()} run={() => openTable("forces")} /></S></G>
+    <G l="Overstressed" h="code"><B big i="info" l="Overstressed" off={!r()} dd={e => { const list = over(); openMenu(e, list.length ? list.slice(0, 30).map(o => ({ label: `${o.label} · ${o.case} · ratio ${num(o.ratio, 3)}`, run: () => jump(o.node) })) : [{ label: "Nothing is overstressed", off: true }]); }} /></G>
+  </>;
+};
+
+/** Every failing point, worst first. */
+const over = () => {
+  const r = results(); if (!r) return [];
+  return r.cases.flatMap(c => c.stresses.filter(s => !s.pass).map(s => ({ case: c.name, ratio: s.ratio, label: r.geom.points[s.point]?.label ?? "", node: nodeOf(r, s.point) }))).sort((a, b) => b.ratio - a.ratio);
+};
+/** The model node nearest a point (bends' near and far points belong to the bend's node). */
+const nodeOf = (r: Results, pt: number) => r.geom.points[pt]?.node ?? (parseInt(r.geom.points[pt]?.label ?? "") || null);
+const jump = (node: number | null) => { if (node !== null) { setSel({ kind: "node", id: node }); setView("model"); } };
+
+const Th = (p: { children: JSX.Element; r?: boolean }) => <th class={p.r ? "r" : ""}>{p.children}</th>;
+const u = (q: Parameters<typeof unit>[0]) => <span class="unit">{unit(q)}</span>;
+const v = (q: Parameters<typeof toU>[0], x: number, sig = 4) => num(toU(q, x), sig);
+
+export const ResultsPage = () => {
+  const r = () => results();
+  const c = () => curCase();
+  return (
+    <div class="page results">
+      <h1>Results <Help k="results" /><Show when={r()}><span class="muted">{r()!.cases.length} load cases · {r()!.stats.equations} equations · Datum Pipe {r()!.version}</span></Show></h1>
+      <Show when={r()} fallback={<div class="emptypage"><Icon n="solve" size={30} /><b>No results yet</b><span>Analyze the model (F5): every load case is solved, the stresses are checked and the support and nozzle loads are worked out.</span><button class="btn pri" onClick={C.analyze}>Analyze</button></div>}>
+        <Show when={stale()}><p class="warnline">The model changed since this analysis. Press F5 to analyze again.</p></Show>
+        <Show when={r()!.warnings.length}><p class="warnline">{r()!.warnings.join(" ")}</p></Show>
+        <div class="rtabs"><For each={TABLES}>{([k, l]) => <button classList={{ on: tableKind() === k }} onClick={() => setTableKind(k)}>{l}</button>}</For></div>
+        <Show when={!["summary", "wall", "equilibrium"].includes(tableKind())}>
+          <div class="ctabs"><For each={r()!.cases}>{x => <button classList={{ on: x.id === c()?.id }} onClick={() => setCaseId(x.id)}><b>{x.name}</b><small>{KIND[x.kind]}</small><Badge pass={casePass(x)} /></button>}</For></div>
+        </Show>
+        <div class="rtable">
+          <Show when={tableKind() === "summary"}><Summary r={r()!} /></Show>
+          <Show when={tableKind() === "stress" && c()}><Stresses r={r()!} c={c()!} /></Show>
+          <Show when={tableKind() === "disp" && c()}><Disp r={r()!} c={c()!} /></Show>
+          <Show when={tableKind() === "forces" && c()}><Forces r={r()!} c={c()!} /></Show>
+          <Show when={tableKind() === "supports" && c()}><Supports r={r()!} c={c()!} /></Show>
+          <Show when={tableKind() === "nozzles" && c()}><Nozzles r={r()!} c={c()!} /></Show>
+          <Show when={tableKind() === "wall"}><Walls r={r()!} /></Show>
+          <Show when={tableKind() === "equilibrium"}><Equilibrium r={r()!} /></Show>
+        </div>
+      </Show>
+    </div>
+  );
+};
+
+export const Summary = (p: { r: Results }) => (
+  <table class="tbl"><thead><tr><Th>Case</Th><Th>Kind</Th><Th>Check</Th><Th r>Highest ratio</Th><Th>At</Th><Th r>Stress {u("stress")}</Th><Th r>Allowable</Th><Th>Result</Th><Th r>Equilibrium</Th></tr></thead><tbody>
+    <For each={p.r.cases}>{c => { const w = c.worst !== null ? c.stresses[c.worst] : null; return <tr class="f" onClick={() => { setCaseId(c.id); setTableKind(c.stresses.length ? "stress" : "supports"); }}>
+      <td><b>{c.name}</b></td><td>{KIND[c.kind]}</td><td>{CHECK[c.kind]}</td>
+      <td class="r">{w ? num(w.ratio, 3) : "—"}</td><td>{w ? p.r.geom.points[w.point]?.label : ""}</td><td class="r">{w ? v("stress", w.stress) : ""}</td><td class="r">{w ? v("stress", w.allow) : ""}</td>
+      <td><Badge pass={casePass(c)} /></td><td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)}</td></tr>; }}</For>
+    <Show when={p.r.walls.length}><tr class="f" onClick={() => setTableKind("wall")}><td><b>Pressure</b></td><td>Minimum wall</td><td>Nominal wall ≥ needed</td><td class="r">{num(Math.max(...p.r.walls.map(w => w.ratio)), 3)}</td><td /><td /><td /><td><Badge pass={p.r.walls.every(w => w.pass)} /></td><td /></tr></Show>
+  </tbody></table>
+);
+
+const Stresses = (p: { r: Results; c: CaseResult }) => {
+  const [worst, setWorst] = createSignal(false);
+  const rows = createMemo(() => { const s = [...p.c.stresses]; return worst() ? s.sort((a, b) => b.ratio - a.ratio) : s; });
+  const el = (si: number) => { const e = model()?.elements.find(x => x.id === p.r.geom.segs[si]?.element); return e ? `${e.from}–${e.to}` : ""; };
+  return <Show when={p.c.stresses.length} fallback={<p class="muted">{KIND[p.c.kind]} cases have no code stress check: see the support and nozzle loads.</p>}>
+    <p class="ibtns"><label class="chk"><input type="checkbox" checked={worst()} onChange={e => setWorst(e.currentTarget.checked)} />Worst first</label><span class="muted small">{p.c.kind === "sus" ? "Sustained longitudinal stress SL (pressure and weight, wall less corrosion) against the hot allowable Sh." : p.c.kind === "exp" ? "Displacement stress range SE (nominal wall, in- and out-of-plane SIFs) against the allowable range SA." : "Sustained plus occasional stress against 1.33 Sh."}</span></p>
+    <table class="tbl"><thead><tr><Th>Point</Th><Th>Element</Th><Th r>Stress {u("stress")}</Th><Th r>Allowable</Th><Th r>Ratio</Th><Th r>SIF in / out</Th><Th>Result</Th></tr></thead><tbody>
+      <For each={rows()}>{s => <tr class="f" onClick={() => jump(nodeOf(p.r, s.point))}><td>{p.r.geom.points[s.point]?.label}</td><td>{el(s.seg)}</td><td class="r">{v("stress", s.stress)}</td><td class="r">{v("stress", s.allow)}</td><td class="r"><b>{num(s.ratio, 3)}</b></td><td class="r">{num(s.ii, 3)} / {num(s.io, 3)}</td><td><Badge pass={s.pass} /></td></tr>}</For></tbody></table>
+  </Show>;
+};
+
+const Disp = (p: { r: Results; c: CaseResult }) => (
+  <table class="tbl"><thead><tr><Th>Point</Th><Th r>DX {u("disp")}</Th><Th r>DY</Th><Th r>DZ</Th><Th r>RX {u("rot")}</Th><Th r>RY</Th><Th r>RZ</Th></tr></thead><tbody>
+    <For each={p.c.disp}>{(d, i) => <tr><td>{p.r.geom.points[i()].label}</td><For each={[0, 1, 2]}>{k => <td class="r">{v("disp", Math.abs(d[k]) < 1e-12 ? 0 : d[k], 4)}</td>}</For><For each={[3, 4, 5]}>{k => <td class="r">{v("rot", Math.abs(d[k]) < 1e-14 ? 0 : d[k], 4)}</td>}</For></tr>}</For></tbody></table>
+);
+
+const Forces = (p: { r: Results; c: CaseResult }) => {
+  const el = (si: number) => { const e = model()?.elements.find(x => x.id === p.r.geom.segs[si]?.element); return e ? `${e.from}–${e.to}` : ""; };
+  return <>
+    <p class="muted small">In the pipe's local axes: x along the pipe (from the From node to the To node), y up (across a vertical pipe: towards X), z across. The force and moment the part towards the From node exerts on the rest.</p>
+    <table class="tbl"><thead><tr><Th>Element</Th><Th>Point</Th><Th r>Fx (axial) {u("force")}</Th><Th r>Fy</Th><Th r>Fz</Th><Th r>Mx (torsion) {u("moment")}</Th><Th r>My</Th><Th r>Mz</Th></tr></thead><tbody>
+      <For each={p.c.forces}>{(f, i) => <For each={[0, 1]}>{end => <tr><td>{end === 0 ? el(i()) : ""}</td><td>{p.r.geom.points[end === 0 ? p.r.geom.segs[i()].a : p.r.geom.segs[i()].b]?.label}</td><For each={[0, 1, 2]}>{k => <td class="r">{v("force", f[end][k])}</td>}</For><For each={[3, 4, 5]}>{k => <td class="r">{v("moment", f[end][k])}</td>}</For></tr>}</For>}</For></tbody></table>
+  </>;
+};
+
+export const Supports = (p: { r: Results; c: CaseResult }) => {
+  const m = () => model();
+  return <>
+    <p class="muted small">The force and moment each support puts on the pipe, in global axes (Y up): a rest carrying weight shows a positive FY. The support itself carries the same load the other way.</p>
+    <table class="tbl"><thead><tr><Th>Node</Th><Th>Support</Th><Th>Tag</Th><Th r>FX {u("force")}</Th><Th r>FY</Th><Th r>FZ</Th><Th r>MX {u("moment")}</Th><Th r>MY</Th><Th r>MZ</Th></tr></thead><tbody>
+      <For each={p.c.reactions} fallback={<tr><td colSpan={9} class="muted">No supports.</td></tr>}>{x => { const s = m()?.supports.find(y => y.id === x.support); return <tr class="f" onClick={() => jump(x.node)}><td>{x.node}</td><td>{s ? supName(s.kind) : ""}</td><td>{s?.tag}</td><For each={[0, 1, 2]}>{k => <td class="r">{v("force", x.f[k])}</td>}</For><For each={[3, 4, 5]}>{k => <td class="r">{v("moment", x.f[k])}</td>}</For></tr>; }}</For></tbody></table>
+  </>;
+};
+
+export const Nozzles = (p: { r: Results; c: CaseResult }) => (
+  <Show when={p.c.nozzles.length} fallback={<p class="muted">No nozzle points in the model. Select the node at an equipment nozzle and use Supports › Nozzle Point.</p>}>
+    <p class="muted small">The load the pipe puts on each nozzle, in the nozzle's axes: a along the nozzle, b and c across it. Ratios against the allowables you entered (— where none is given).</p>
+    <table class="tbl"><thead><tr><Th>Nozzle</Th><Th r>Fa {u("force")}</Th><Th r>Fb</Th><Th r>Fc</Th><Th r>Ma (torsion) {u("moment")}</Th><Th r>Mb</Th><Th r>Mc</Th><Th r>Shear</Th><Th r>Bending</Th><Th r>Ratios a · s · t · b</Th><Th>Result</Th></tr></thead><tbody>
+      <For each={p.c.nozzles}>{z => <tr class="f" onClick={() => jump(z.node)}><td>{model()?.nozzles.find(x => x.id === z.nozzle)?.name} ({z.node})</td><For each={[0, 1, 2]}>{k => <td class="r">{v("force", z.local[k])}</td>}</For><For each={[3, 4, 5]}>{k => <td class="r">{v("moment", z.local[k])}</td>}</For>
+        <td class="r">{v("force", z.shear)}</td><td class="r">{v("moment", z.bending)}</td><td class="r">{z.ratios.map(x => x ? num(x, 2) : "—").join(" · ")}</td><td><Badge pass={z.pass} /></td></tr>}</For></tbody></table>
+  </Show>
+);
+
+export const Walls = (p: { r: Results }) => {
+  const el = (id: number) => { const e = model()?.elements.find(x => x.id === id); return e ? `${e.from}–${e.to}` : ""; };
+  return <Show when={p.r.walls.length} fallback={<p class="muted">No element has an internal pressure.</p>}>
+    <p class="muted small">Pressure design thickness t = P D / (2 (S E W + P Y)), plus the corrosion allowance, divided by (1 − mill tolerance), against the nominal wall; the hoop stress on the wall that is left.</p>
+    <table class="tbl"><thead><tr><Th>Element</Th><Th>Case</Th><Th r>P {u("press")}</Th><Th r>T {u("temp")}</Th><Th r>S {u("stress")}</Th><Th r>t {u("len")}</Th><Th r>tm</Th><Th r>Nominal needed</Th><Th r>Nominal</Th><Th r>Hoop {u("stress")}</Th><Th r>Ratio</Th><Th>Result</Th></tr></thead><tbody>
+      <For each={p.r.walls}>{w => <tr><td>{el(w.element)}</td><td>{w.case}</td><td class="r">{v("press", w.p)}</td><td class="r">{v("temp", w.t)}</td><td class="r">{v("stress", w.s)}</td><td class="r">{v("len", w.t_design)}</td><td class="r">{v("len", w.t_min)}</td><td class="r">{v("len", w.t_nominal_needed)}</td><td class="r">{v("len", w.t_nominal)}</td><td class="r">{v("stress", w.hoop)}</td><td class="r">{num(w.ratio, 3)}</td><td><Badge pass={w.pass} /></td></tr>}</For></tbody></table>
+  </Show>;
+};
+
+export const Equilibrium = (p: { r: Results }) => (
+  <>
+    <p class="muted small">For every case, the applied loads (weight, extra loads) and the support reactions are added up independently: they must balance. Moments are about the origin.</p>
+    <table class="tbl"><thead><tr><Th>Case</Th><Th r>Σ FX loads {u("force")}</Th><Th r>Σ FX reactions</Th><Th r>Σ FY loads</Th><Th r>Σ FY reactions</Th><Th r>Σ FZ loads</Th><Th r>Σ FZ reactions</Th><Th r>Σ M loads {u("moment")}</Th><Th r>Σ M reactions</Th><Th r>Imbalance</Th></tr></thead><tbody>
+      <For each={p.r.cases}>{c => <tr><td>{c.name}</td><For each={[0, 1, 2]}>{k => <><td class="r">{v("force", c.applied[k])}</td><td class="r">{v("force", c.reacted[k])}</td></>}</For>
+        <td class="r">{v("moment", Math.hypot(c.applied[3], c.applied[4], c.applied[5]))}</td><td class="r">{v("moment", Math.hypot(c.reacted[3], c.reacted[4], c.reacted[5]))}</td>
+        <td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)} {c.imbalance <= 1e-6 ? "✓" : "✗"}</td></tr>}</For></tbody></table>
+    <p class="muted small">Solver: {p.r.stats.equations} equations, {p.r.stats.nonzeros} stored entries, residual {p.r.stats.residual.toExponential(1)}, {num(p.r.stats.ms, 3)} ms. Datum Pipe {p.r.version}.</p>
+  </>
 );

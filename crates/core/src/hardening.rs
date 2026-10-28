@@ -134,3 +134,76 @@ fn speed_gate_on_a_large_model() {
     let limit = if cfg!(debug_assertions) { 20.0 } else { 4.0 };
     assert!(t.elapsed().as_secs_f64() < limit, "{:?}", t.elapsed());
 }
+
+#[test]
+fn random_models_solve_or_explain_and_always_balance() {
+    for seed in 0..80 {
+        let mut r = Rng::new(1000 + seed);
+        let mut m = random_model(&mut r, 2 + seed as usize % 30);
+        // Heat some of them and give a few bends.
+        if seed % 2 == 0 {
+            m.conds[0].t[0] = model::K0 + 150.0 + seed as f64;
+            m.conds[0].p[0] = 5e5;
+        }
+        if seed % 3 == 0 {
+            for e in m.elements.iter_mut().step_by(3) {
+                e.comp = Comp::Bend { bend: model::BendKind::Short, r: 0.0 };
+            }
+        }
+        crate::cases::rebuild(&mut m);
+        match crate::solve::analyze(&m) {
+            Ok(res) => {
+                for c in &res.cases {
+                    assert!(c.imbalance < 1e-6, "seed {seed}, case {}: imbalance {:e}", c.name, c.imbalance);
+                    assert!(c.disp.iter().flatten().all(|v| v.is_finite()), "seed {seed}");
+                    assert!(c.stresses.iter().all(|s| s.stress.is_finite() && s.stress >= 0.0), "seed {seed}");
+                }
+            }
+            Err(e) => assert!(!e.is_empty()),
+        }
+    }
+}
+
+#[test]
+fn a_free_model_is_a_mechanism_not_a_crash() {
+    let mut r = Rng::new(5);
+    let mut m = random_model(&mut r, 6);
+    m.supports.clear();
+    let e = crate::solve::analyze(&m).unwrap_err();
+    assert!(e.contains("without resistance"), "{e}");
+    assert!(crate::solve::analyze(&Model::new()).is_err());
+}
+
+#[test]
+fn speed_gate_on_a_large_analysis() {
+    let mut r = Rng::new(11);
+    let mut m = random_model(&mut r, 1500);
+    m.conds[0].t[0] = model::K0 + 200.0;
+    crate::cases::rebuild(&mut m);
+    let n0 = m.elements[0].from;
+    m.supports.push(Support { id: m.next, node: n0, ..Default::default() });
+    m.next += 1;
+    let t = std::time::Instant::now();
+    let res = crate::solve::analyze(&m).unwrap();
+    let limit = if cfg!(debug_assertions) { 20.0 } else { 3.0 };
+    assert!(t.elapsed().as_secs_f64() < limit, "{:?} for {} points", t.elapsed(), res.geom.points.len());
+    let _ = SupKind::Anchor;
+}
+
+#[test]
+fn every_example_solves_balances_and_has_no_warnings() {
+    for e in crate::examples::list() {
+        let m = crate::examples::get(e.id).unwrap();
+        if m.elements.is_empty() {
+            continue;
+        }
+        let r = crate::solve::analyze(&m).unwrap_or_else(|x| panic!("{}: {x}", e.id));
+        assert!(r.warnings.is_empty(), "{}: {:?}", e.id, r.warnings);
+        for c in &r.cases {
+            assert!(c.imbalance < 1e-9, "{} {}: {:e}", e.id, c.name, c.imbalance);
+        }
+        let (back, w) = model::from_json(&model::to_json(&m)).unwrap();
+        assert!(w.is_empty() && back == m, "{}", e.id);
+    }
+}
+

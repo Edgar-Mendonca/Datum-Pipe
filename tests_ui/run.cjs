@@ -36,8 +36,9 @@ const shots = process.env.SHOTS;
           if (c === "new_model") { window.__cur = f.models[a.example] ?? f.models.blank; return window.__cur; }
           if (c === "apply") { window.__cur = { ...window.__cur, dirty: true, undo: true, created: [999] }; return window.__cur; }
           if (c === "history") return window.__cur;
-          if (c === "analyze") { const r = f.results?.[window.__curId ?? ""]; if (r) return r; throw "The piping can move without resistance: add supports."; }
-          if (c === "iso") return f.iso?.[window.__curId ?? ""] ?? { sheets: [] };
+          const curKey = () => Object.keys(f.models).find(k => f.models[k] === window.__cur) ?? "";
+          if (c === "analyze") { const r = f.results?.[curKey()]; if (r) return r; throw "The piping can move without resistance: add supports."; }
+          if (c === "isometric") return f.iso?.[curKey()] ?? { sheets: [] };
           if (c in m) return m[c];
           return null;
         },
@@ -149,6 +150,30 @@ const shots = process.env.SHOTS;
   await p.click('.ribbon button[title="Verification"]'); await p.waitForTimeout(400);
   check("Help › Verification: every check passes", (await p.textContent(".dlg .verif")).includes(`${fix.verification.length} of ${fix.verification.length} checks pass`));
   await p.keyboard.press("Escape");
+
+  // 10. The pump example: deformed shape, nozzle loads, the report's results pages.
+  await open("pump");
+  await p.keyboard.press("F5"); await p.waitForTimeout(500);
+  await p.click('.ribbon button[title="Deformed Shape"]'); await p.waitForTimeout(300);
+  check("the deformed shape shows its scale", (await p.textContent(".legend3d")).includes("largest move"));
+  if (shots) await p.screenshot({ path: `${shots}/pump-deformed.png` });
+  await p.click('.ribbon button[title="Nozzle Loads"]'); await p.waitForTimeout(200);
+  check("nozzle loads name the pump nozzle with a result", (await p.textContent(".rtable")).includes("P-101 discharge") && (await p.$$(".rtable .pass")).length >= 1);
+  await p.click('.side button[title="Report"]'); await p.waitForTimeout(300);
+  const rep = await p.textContent(".rsheet");
+  check("the report has the stress summary, support and nozzle loads and the equilibrium", rep.includes("3. Stress summary") && rep.includes("4. Support loads") && rep.includes("5. Nozzle loads") && rep.includes("7. Equilibrium checks"));
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+
+  // 11. The isometric: lines, dimensions, symbols, tags; it prints with the report.
+  await p.click('.side button[title="Isometric"]'); await p.waitForTimeout(400);
+  check("the isometric draws every element's dimension", (await p.$$(".isosvg .dim")).length === fix.models.pump.m.elements.length);
+  check("the isometric shows the stress ratio tags", (await p.textContent(".isosvg")).includes("0.") && (await p.textContent(".isosvg")).includes("P-101"));
+  if (shots) await p.screenshot({ path: `${shots}/iso.png` });
+  await p.keyboard.press("Control+p"); await p.waitForTimeout(700);
+  check("the printout includes the isometric sheet", (await p.$$(".pprev .isosvg")).length >= 1);
+  if (shots) await p.screenshot({ path: `${shots}/print.png` });
+  await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

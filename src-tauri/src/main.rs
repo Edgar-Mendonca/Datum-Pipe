@@ -5,7 +5,7 @@ mod update;
 
 use datum_core::doc::{Doc, Op};
 use datum_core::model::{self, Model};
-use datum_core::{bench, examples, geom::Geom, library, solve, units};
+use datum_core::{bench, examples, geom::Geom, iso, library, solve, units};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -145,6 +145,12 @@ fn new_model(st: State<St>, example: Option<String>) -> R<Out> {
 async fn analyze(st: State<'_, St>) -> R<solve::Results> {
     let m = st.lock().doc.m.clone();
     tauri::async_runtime::spawn_blocking(move || solve::analyze(&m)).await.map_err(|e| e.to_string())?
+}
+
+/// The isometric drawing of the open model, at most `per_sheet` elements a sheet (0: one sheet).
+#[tauri::command]
+fn isometric(st: State<St>, per_sheet: usize) -> R<iso::Iso> {
+    iso::draw(&st.lock().doc.m, per_sheet)
 }
 
 /// The verification benchmarks, solved now by this version's engine.
@@ -421,7 +427,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            state, apply, history, examples_list, new_model, library, unit_table, analyze, verification, open, save, save_file,
+            state, apply, history, examples_list, new_model, library, unit_table, analyze, verification, isometric, open, save, save_file,
             options, set_options, autosave, recovery, recover, recent, startup_file, open_url, version, quit, check_update, install_update
         ])
         .run(tauri::generate_context!())

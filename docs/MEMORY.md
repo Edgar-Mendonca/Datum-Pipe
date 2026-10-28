@@ -6,7 +6,7 @@
 | | |
 | --- | --- |
 | **Product** | Datum Pipe: pipe stress analysis on the desktop (element table, 3D view, linear supports, the process piping code's equations, support and nozzle loads, isometric, stress report) |
-| **Current version** | 0.1.1 (2026-10-28) |
+| **Current version** | 0.1.2 (2026-10-28) |
 | **Repo** | `Edgar-Mendonca/Datum-Pipe` · branch `claude/datum-pipe-setup-1oa8wk` (the first branch pushed, so the default branch) |
 | **Stack** | Rust engine (`crates/core`, own solver with faer), Tauri 2, SolidJS + strict TypeScript, three.js for the 3D view; no Python |
 | **Identifier** | `com.edgarmendonca.datumpipe` · files `.dpipe` (JSON, `format` 1) · installer `DatumPipe-x.y.z-setup.exe` + `SHA256SUMS.txt` |
@@ -37,6 +37,9 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | `crates/core/src/elements.rs` | The 3D pipe element from its exact flexibility ∫ Bᵀ C B ds (axial, shear with κ = 0.5, torsion, bending with the bend's k), inverted and moved to 12×12; uniform loads and thermal growth as equivalent nodal loads; end forces and section resultants |
 | `crates/core/src/code.rs` | The process piping code's equations: pressure design thickness and hoop stress, minimum wall with corrosion and mill tolerance, bend and tee SIFs and flexibility (h, pressure correction), reducer SIF, sustained stress, displacement stress range, allowable range (basic and liberal), f from cycles |
 | `crates/core/src/solve.rs` | The analysis: parts (sections, weights, strains, SIFs), assembly, supports (rigid axis-aligned ones held exactly with imposed displacements as prescribed values; skewed or flexible ones as springs), basic loads, every case solved together, ranges as differences, forces in local axes, reactions, code stresses per segment end, nozzle loads in nozzle axes, minimum wall, the equilibrium check |
+| `crates/core/src/iso.rs` | The isometric: the 30° projection (x = (X − Z) cos 30°, y = (X + Z) sin 30° − Y), lines per segment (arcs sampled), node labels, a dimension per element offset away from the middle, symbols for supports, nozzles and tees, sheets of at most n elements in table order with their joins |
+| `crates/core/src/worked.rs` | Hand-worked cases for every component and support kind (spring, settlement, guide, line stop, rest, skewed restraint, valve weight, constant support, reducer taper and SIF, tee SIF, nozzle axes, liberal allowable and f) |
+| `crates/core/examples/summary.rs` | Every example's worst ratios, imbalances, nozzle ratios and reactions, for tuning examples by hand |
 | `crates/core/src/bench.rs` | The verification benchmarks 1–8 (`run()`), with an independent plane-frame flexibility method by hand for the thermal cases; a test fails on any row over its tolerance |
 | `crates/core/examples/verify.rs` | Writes the verification record (`docs/verification/x.y.z.md`) |
 | `crates/core/src/examples.rs` | The worked examples, built in code; `table()` builds a model from rows |
@@ -58,7 +61,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | `ui/src/print.tsx`, `ui/src/report.tsx` | Print (Plan's page: paper, header and footer codes, preview, the report flowed over pages); the stress report's blocks and the Report view |
 | `ui/src/view3d.tsx` | The 3D view (three.js): pipes at true diameter from the engine's geometry, arcs, insulation, components, support and nozzle symbols, node labels, picking, standard views, fit, stress-ratio colours and legend, the deformed shape (vertices moved by the interpolated displacements, animated) |
 | `ui/src/rstate.ts`, `ui/src/results.tsx` | Results state (last analysis, out of date, case shown, colour and deformation options) and Analyze; the Results tab and view (summary, code stresses, displacements, forces, support loads, nozzle loads, minimum wall, equilibrium) |
-| `ui/src/iso.tsx` | The isometric (placeholder until 0.1.3) |
+| `ui/src/iso.tsx` | The isometric view: each sheet as SVG (symbols, dimensions in mm or ft-in, north arrow, continuation notes, stress ratio and support load tags), sheet tabs, Save as SVG, and the sheets in the printed report |
 | `ui/src/help.tsx` | The `?` cards |
 | `ui/src/roadmap.tsx` | File › Roadmap from `docs/site.json` |
 | `ui/src/styles.css`, `ui/src/ui.tsx`, `ui/index.html` | Plan's styles (moss accent) and components; the icon sprite |
@@ -107,6 +110,9 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | 0.1.1 | The equilibrium check is judged against the larger of the loads, the reactions, the model's weight and 1 N | The hardening test found a thermal range on a model with one anchor (no reactions at all) reported as 79 % "imbalance" of rounding noise |
 | 0.1.1 | The window gets the analysis geometry (arcs, points) with every model, so the 3D view never works out bends itself | The engine is the one owner of geometry and results |
 | 0.1.1 | Releases follow the brief's steps, but 0.1.1 already shows code stresses and the results tables (the engine had them) | Cheap once the solver was there; 0.1.2 is then about the remaining components, results polish and nozzle checks |
+| 0.1.2 | The isometric and the full report (brief step 6) came in 0.1.2, with the four other examples; 0.1.3 is their polish and more checks, 0.1.4 the brief's step 7 | They were built while 0.1.1 was releasing; releasing them at once gives the user more to try |
+| 0.1.2 | Example supports chosen like a designer would: a line stop instead of a second anchor on the rack, a spring next to the settling tank | The first drafts gave a 3 MN axial load on the rack and 4.7 × the tank nozzle's allowable: correct numbers for poor layouts, but examples should show good practice |
+| 0.1.2 | Iso tags: one per element, on its longest line; dimensions node to node (centre to centre), offset away from the drawing's middle | Bends have two arc segments and drew two tags each |
 
 ## 3. Roadmap
 
@@ -117,8 +123,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | plan | Read the hub, Plan, Mesh, Calc and Atlas; PLAN-0.1, MEMORY, CLAUDE, icon | ✅ |
 | 0.1.0 | Shell, updater, File page, Options; model, edits, library, units, cases, hardening tests; element table, Inspector, property dialogs, print of the input; CI and release | ✅ |
 | 0.1.1 | Engine: 3D pipe element, bends, supports, solve, equilibrium, code checks; benchmarks 1–8 (21 checks); 3D view; results tables; examples L-bend and Z-bend; Help › Verification | ✅ |
-| 0.1.2 | Components checked end to end (tees, reducers, valves, flanges), deformed shape and animation, nozzle checks, results in the report, more tests | 🔜 |
-| 0.1.3 | Isometric (view, print, SVG); stress report; the other examples | ⬜ |
+| 0.1.2 | Components checked by hand (worked.rs), deformed shape and animation, nozzle checks, the four other examples, the isometric (view, print, SVG), the results pages of the report | ✅ |
+| 0.1.3 | Polish of the isometric and report; more tests; the verification record | 🔜 |
 | 0.1.4 | Polish: expansion loop wizard, copy/mirror, renumber, keyboard, empty states, help cards; screenshots, README | ⬜ |
 | 0.2 | Nonlinear supports (one-way rests, gaps, friction), spring hanger selection, import of plain-text piping component files, wind and seismic, the public regulator benchmarks | ⬜ |
 | 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust | ⬜ |
@@ -141,7 +147,12 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 - Found by the hardening tests: the equilibrium check reported rounding noise as a 79 % imbalance in a thermal range with one anchor (fixed: judged against the model's loads).
 - Window: three.js 3D view, Analyze (F5), results tables, legend, Help › Verification. Checked in the real app under Xvfb (WebKitGTK renders the WebGL view; the updater found the published 0.1.0).
 
-## 5. Known limits (0.1.1)
+### 2026-10-28: Session 1, continued (0.1.2: components, examples, isometric, report)
+- Released 0.1.1 (Release run 2).
+- Engine: worked.rs (8 hand-worked cases; found my own sign error for a settling anchor's reaction, the engine was right), the four remaining examples (tuned with `examples/summary.rs`), iso.rs.
+- Window: the Isometric view and its print pages, the report's results pages, deformed shape checked by screenshot. 33 UI checks.
+
+## 5. Known limits (0.1.2)
 
 - Rests are two-way (one-way in 0.2); no friction or gaps.
 - No pressure elongation (Bourdon effect) or pressure thrust; no occasional loads yet (the OCC case kind is ready).

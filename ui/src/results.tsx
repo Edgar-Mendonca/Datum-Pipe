@@ -146,3 +146,32 @@ export const Equilibrium = (p: { r: Results }) => (
     <p class="muted small">Solver: {p.r.stats.equations} equations, {p.r.stats.nonzeros} stored entries, residual {p.r.stats.residual.toExponential(1)}, {num(p.r.stats.ms, 3)} ms. Datum Pipe {p.r.version}.</p>
   </>
 );
+
+// ---------- the report's results pages ----------
+import { setResultBlocks } from "./report";
+setResultBlocks(m => {
+  const r = results();
+  if (!r || stale()) return [() => <p class="muted">Analyze the model (F5) to add the stress summary, support loads, nozzle loads and the equilibrium checks to the report.{r && stale() ? " (The model changed since the last analysis.)" : ""}</p>];
+  const exp = r.cases.find(c => c.kind === "exp") ?? r.cases[0];
+  const sus = r.cases.find(c => c.kind === "sus");
+  const ope = r.cases.find(c => c.kind === "ope") ?? r.cases[0];
+  const blocks = [
+    () => <div><h3>3. Stress summary</h3><Summary r={r} />
+      <p class="muted small">Calculated using the equations of the process piping code: sustained stress SL against Sh, displacement stress range SE against SA = f (1.25 Sc + 0.25 Sh){m.settings.liberal ? " with the liberal allowance" : ""}, f = {num(Math.min(1, 6 * Math.pow(Math.max(1, m.settings.cycles), -0.2)), 3)} for {m.settings.cycles} cycles.</p></div>,
+    ...(sus ? [() => <div><h4>Highest sustained stresses ({sus.name})</h4><TopStresses r={r} c={sus} /></div>] : []),
+    ...(exp && exp.stresses.length ? [() => <div><h4>Highest expansion stress ranges ({exp.name})</h4><TopStresses r={r} c={exp} /></div>] : []),
+    () => <div><h3>4. Support loads ({ope.name})</h3><Supports r={r} c={ope} /></div>,
+    ...r.cases.filter(c => c.kind !== "ope" && c.id !== ope.id && c.kind !== "exp").map(c => () => <div><h4>Support loads ({c.name})</h4><Supports r={r} c={c} /></div>),
+    ...(m.nozzles.length ? r.cases.filter(c => c.kind !== "exp").map(c => () => <div><h3>{c === r.cases.find(x => x.kind !== "exp") ? "5. Nozzle loads" : ""}</h3><h4>{c.name}</h4><Nozzles r={r} c={c} /></div>) : []),
+    ...(r.walls.length ? [() => <div><h3>6. Minimum wall</h3><Walls r={r} /></div>] : []),
+    () => <div><h3>7. Equilibrium checks</h3><Equilibrium r={r} /></div>,
+  ];
+  return blocks;
+});
+
+/** The ten highest stress ratios of a case. */
+const TopStresses = (p: { r: Results; c: CaseResult }) => {
+  const top = [...p.c.stresses].sort((a, b) => b.ratio - a.ratio).slice(0, 10);
+  return <table class="tbl"><thead><tr><Th>Point</Th><Th r>Stress {u("stress")}</Th><Th r>Allowable</Th><Th r>Ratio</Th><Th r>SIF in / out</Th><Th>Result</Th></tr></thead><tbody>
+    <For each={top}>{s => <tr><td>{p.r.geom.points[s.point]?.label}</td><td class="r">{v("stress", s.stress)}</td><td class="r">{v("stress", s.allow)}</td><td class="r">{num(s.ratio, 3)}</td><td class="r">{num(s.ii, 3)} / {num(s.io, 3)}</td><td><Badge pass={s.pass} /></td></tr>}</For></tbody></table>;
+};

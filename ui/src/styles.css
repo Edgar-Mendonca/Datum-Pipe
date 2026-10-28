@@ -821,3 +821,7 @@ tr.behind td { background: var(--err-bg); }
 .tbl tr.f:hover td { background: var(--pale); }
 .tbl td.bad { color: var(--err-fg); }
 .verif .tbl { font-size: 11.5px; }
+.isowrap { display: inline-flex; flex-direction: column; gap: 0; background: #fff; padding: 10px; border: 1px solid var(--line); color: #1B2733; }
+.isowrap .tblock { margin-top: 0; }
+.isosvg { display: block; }
+.isowrap .isosvg { max-width: min(100%, calc(100vw - 420px)); height: auto; }

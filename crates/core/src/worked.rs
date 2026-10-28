@@ -269,3 +269,43 @@ fn an_occasional_case_is_checked_against_a_third_more() {
         assert!(close(b.stress, a.stress, 1e-12) && close(b.allow, 1.33 * a.allow, 1e-12));
     }
 }
+
+#[test]
+fn a_range_takes_sh_at_the_hotter_case() {
+    // Found by review: EXP1–2 took Sh at case 2 even when case 1 was hotter. T1 = 400 °C, T2 = 100 °C.
+    let mut m = crate::examples::get("zbend").unwrap();
+    m.conds[0].t = [K0 + 400.0, K0 + 100.0, K0 + 21.0];
+    crate::cases::rebuild(&mut m);
+    let r = analyze(&m).unwrap();
+    let mat = &m.materials[0];
+    let f = crate::code::range_factor(m.settings.cycles);
+    let want = crate::code::allowable_range(f, crate::library::interp(&mat.allow, m.settings.ambient), crate::library::interp(&mat.allow, K0 + 400.0), None);
+    assert!(close(case(&r, "EXP1–2").stresses[0].allow, want, 1e-12) && close(case(&r, "EXP1").stresses[0].allow, want, 1e-12));
+}
+
+#[test]
+fn a_line_stop_at_a_tee_holds_the_run_only() {
+    // Found by review: the axis at a tee averaged in the branch. Run 10–20–30 along X drawn towards
+    // the tee from both ends, branch 20–40 along Z; a line stop at 20 must not take a Z load.
+    let mut d = table("tee stop", &[(10, 20, 3.0, 0.0, 0.0), (30, 20, -3.0, 0.0, 0.0), (20, 40, 0.0, 0.0, 3.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup(&mut d, 40, SupKind::Anchor);
+    sup(&mut d, 20, SupKind::Linestop);
+    load(&mut d, 20, [0.0, 0.0, 1e3]);
+    let r = analyze(&d.m).unwrap();
+    let ls = case(&r, "OPE1").reactions.iter().find(|x| x.node == 20).unwrap().f;
+    assert!(ls[2].abs() < 1e-9 && ls[1].abs() < 1e-9, "{ls:?}");
+}
+
+#[test]
+fn a_tee_marked_on_its_branch_uses_the_run_size() {
+    // Found by review: a 2" branch drawn into a 6" run took h from the 2" pipe.
+    let mut d = table("tee branch", &[(10, 20, 3.0, 0.0, 0.0), (20, 30, 3.0, 0.0, 0.0)]);
+    let o = d.apply(Op::Add { item: Item::Pipe(Pipe::std(0, "2", "40")), after: None }).unwrap();
+    let e = crate::model::Element { from: 40, to: 20, d: [0.0, 0.0, -2.0], pipe: o[0], material: d.m.materials[0].id, cond: d.m.conds[0].id, comp: Comp::Tee { tee: TeeKind::Welding, pad: 0.0 }, ..Default::default() };
+    d.apply(Op::Add { item: Item::Element(e), after: None }).unwrap();
+    let g = crate::geom::Geom::build(&d.m).unwrap();
+    assert_eq!(g.tees[0].pipe, d.m.pipes[0].id);
+    assert!((crate::mat::dot(g.tees[0].normal, [0.0, 1.0, 0.0]).abs() - 1.0).abs() < 1e-12, "{:?}", g.tees[0].normal);
+}

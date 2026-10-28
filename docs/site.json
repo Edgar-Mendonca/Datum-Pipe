@@ -41,19 +41,9 @@
   ],
   "roadmap": [
     {
-      "v": "0.1.4",
-      "title": "Polish",
-      "when": "Next",
-      "items": [
-        "Screenshots, help cards and empty states everywhere",
-        "A final check that every example solves, prints and saves",
-        "Keyboard work in the Inspector and the dialogs"
-      ]
-    },
-    {
       "v": "0.2",
       "title": "Nonlinear supports and more loads",
-      "when": "Later",
+      "when": "Next",
       "items": [
         "One-way rests, gaps and friction (iterative solve)",
         "Spring hanger selection",

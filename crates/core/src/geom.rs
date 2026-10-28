@@ -207,23 +207,37 @@ impl Geom {
             if list.len() < 3 {
                 g.warnings.push(format!("The tee at node {} has {} elements meeting there; it needs three.", e.to, list.len()));
             }
-            // The run: the two directions most nearly opposite; the plane holds the branch too.
-            let mut normal = [0.0, 1.0, 0.0];
+            // The run: two directions that are opposite; the plane holds the branch too. The run's pipe
+            // sets the SIF (found by review: a tee marked on the branch took the branch's size).
+            let mut normal = None;
+            let mut run_pipe = e.pipe;
             'find: for (x, ux) in &list {
                 for (y, uy) in &list {
                     if x < y && dot(*ux, *uy) < -0.99 {
+                        run_pipe = m.elements[*x].pipe;
                         if let Some((_, ub)) = list.iter().find(|(z, _)| z != x && z != y) {
                             let n = cross(*ux, *ub);
                             if norm(n) > 1e-6 {
-                                normal = unit(n);
+                                normal = Some(unit(n));
                             }
                         }
                         break 'find;
                     }
                 }
             }
+            let normal = match normal {
+                Some(n) => n,
+                None => {
+                    // No straight run through it (a lateral, or a corner): the plane of its first two legs.
+                    let n = list.iter().flat_map(|(_, a)| list.iter().map(move |(_, b)| cross(*a, *b))).find(|n| norm(*n) > 1e-6).map(unit);
+                    if list.len() >= 3 {
+                        g.warnings.push(format!("The tee at node {} has no straight run through it: its in-plane direction is taken from its first two legs.", e.to));
+                    }
+                    n.unwrap_or([0.0, 1.0, 0.0])
+                }
+            };
             let point = g.node_point[&e.to];
-            g.tees.push(Tee { node: e.to, point, kind: tee, pad, pipe: e.pipe, normal });
+            g.tees.push(Tee { node: e.to, point, kind: tee, pad, pipe: run_pipe, normal });
         }
         Ok(g)
     }

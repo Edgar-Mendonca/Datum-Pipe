@@ -104,7 +104,8 @@ struct Part {
     strain: [f64; 3],
     e_cold: f64,
     mat: u32,
-    corrosion: f64,
+    /// Corrosion allowance at the start and the end (a reducer's ends may differ).
+    corrosion: [f64; 2],
     /// Pressures in cases 1–3 and the hydrotest.
     p: [f64; 4],
     t: [f64; 3],
@@ -140,31 +141,32 @@ pub fn strain(alpha: &[[f64; 2]], t: f64, t0: f64) -> f64 {
     interp(alpha, t) * (t - T_REF) - interp(alpha, t0) * (t0 - T_REF)
 }
 
-/// The direction of the pipe at a point: the average of the segments meeting there.
-fn pipe_dir(g: &Geom, pt: usize) -> V {
-    let mut d = [0.0; 3];
-    for s in &g.segs {
-        if s.a == pt {
-            d = add(d, g.at(s, 0.0).1);
-        } else if s.b == pt {
-            d = add(d, g.at(s, 1.0).1);
+/// The axis of the pipe at a point, for guides and line stops: the run through it (two directions
+/// that are opposite; at a tee the branch is left out), or the one segment at an end. At a corner
+/// there is no single axis: the first segment's is used and the caller warns (found by review:
+/// averaging every segment skewed a line stop at a tee).
+fn pipe_dir(g: &Geom, pt: usize) -> (V, bool) {
+    let dirs: Vec<V> = g.segs.iter().filter_map(|s| if s.a == pt { Some(g.at(s, 0.0).1) } else if s.b == pt { Some(scale(g.at(s, 1.0).1, -1.0)) } else { None }).collect();
+    for (i, a) in dirs.iter().enumerate() {
+        for b in &dirs[i + 1..] {
+            if dot(*a, *b) < -0.999 {
+                return (unit(*a), true);
+            }
         }
     }
-    if norm(d) < 1e-9 {
-        // A branch end or a tee: take the first segment.
-        if let Some(s) = g.segs.iter().find(|s| s.a == pt || s.b == pt) {
-            return g.at(s, if s.a == pt { 0.0 } else { 1.0 }).1;
-        }
-        return [1.0, 0.0, 0.0];
+    match dirs.len() {
+        0 => ([1.0, 0.0, 0.0], false),
+        1 => (unit(dirs[0]), true),
+        _ => (unit(dirs[0]), false),
     }
-    unit(d)
 }
 
 /// The restraint directions of a support: (direction, rotational, stiffness (0 = rigid)).
 fn restraints(kind: &SupKind, k: f64, t: V) -> Vec<(V, bool, f64)> {
     let ax = |i: usize| { let mut v = [0.0; 3]; v[i] = 1.0; v };
     match kind {
-        SupKind::Anchor => (0..6).map(|i| (ax(i % 3), i >= 3, k)).collect(),
+        // A flexible anchor's stiffness is for its three movements; it holds the rotations rigidly.
+        SupKind::Anchor => (0..6).map(|i| (ax(i % 3), i >= 3, if i >= 3 { 0.0 } else { k })).collect(),
         SupKind::Rest => vec![([0.0, 1.0, 0.0], false, k)],
         SupKind::Guide => {
             let lat = cross([0.0, 1.0, 0.0], t);
@@ -212,6 +214,9 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         let gmod = e_cold / (2.0 * (1.0 + mat.nu));
         let (pa, pb) = (s.pipe, s.pipe_b);
         let pmax = cond.p.iter().cloned().fold(0.0, f64::max);
+        // The flexibility uses the highest pressure (one stiffness for every case); the SIFs the lowest,
+        // which is on the safe side for every case.
+        let pmin = cond.p.iter().cloned().fold(f64::INFINITY, f64::min).max(0.0);
         let mut sif = [Sif::ONE; 2];
         let mut plane = [None; 2];
         let mut kflex = 1.0;
@@ -220,7 +225,9 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
             Shape::Arc { centre, normal, r, angle } => {
                 let ra = unit(sub(g.points[s.a].p, centre));
                 let b = code::bend(pipe.wall, pipe.od, r, if m.settings.bend_pressure { pmax } else { 0.0 }, e_cold);
+                let bi = code::bend(pipe.wall, pipe.od, r, if m.settings.bend_pressure { pmin } else { 0.0 }, e_cold);
                 kflex = b.k;
+                let b = Sif { ii: bi.ii, io: bi.io, ..b };
                 sif = [b, b];
                 plane = [Some(normal), Some(normal)];
                 Line::Arc { centre, ra, tan0: cross(normal, ra), r, angle }
@@ -258,7 +265,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         ww += s.extra;
         let strain3 = [0, 1, 2].map(|i| strain(&mat.alpha, cond.t[i], amb));
         let _ = si;
-        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, e_cold, mat: mat.id, corrosion: pipe.corrosion, p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane });
+        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, e_cold, mat: mat.id, corrosion: [pipe.corrosion, m.pipe(s.pipe_b).map_or(pipe.corrosion, |q| q.corrosion)], p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane });
     }
     // Tees: their SIF at every segment end on the tee's point.
     for t in &g.tees {
@@ -294,7 +301,10 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     let mut springs: Vec<Spring> = vec![];
     for sp in &m.supports {
         let Some(&pt) = g.node_point.get(&sp.node) else { continue };
-        let t = pipe_dir(&g, pt);
+        let (t, clear) = pipe_dir(&g, pt);
+        if !clear && matches!(sp.kind, SupKind::Guide | SupKind::Linestop) {
+            warnings.push(format!("The guide or line stop at node {} is at a corner, where the pipe has no single axis: it uses the first element's direction. Put it a little along the run, or use a restraint with its direction.", sp.node));
+        }
         for (dir, rot, k) in restraints(&sp.kind, sp.k, t) {
             let u0 = [0, 1, 2].map(|c| { let d = &sp.disp[c]; dot(dir, if rot { [d[3], d[4], d[5]] } else { [d[0], d[1], d[2]] }) });
             match (axis_of(dir), k == 0.0) {
@@ -550,12 +560,14 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
             }
             // Pressure and temperature index of the case: SUS uses its pressure case's temperature;
             // a range uses the hotter of its two cases.
-            let (pidx, tid) = match c.recipe {
-                Recipe::Sum { p, .. } => (p, temp_of(c) as usize),
+            // A range takes Sh at the hotter of its two cases' metal temperatures (found by review: it took
+            // the higher-numbered case).
+            let (pidx, tids) = match c.recipe {
+                Recipe::Sum { p, .. } => (p, vec![temp_of(c) as usize]),
                 Recipe::Range { a, b } => {
                     let ca = m.cases.iter().find(|x| x.id == a);
                     let cb = m.cases.iter().find(|x| x.id == b);
-                    (0, ca.map_or(0, |x| temp_of(x) as usize).max(cb.map_or(0, |x| temp_of(x) as usize)))
+                    (0, vec![ca.map_or(0, |x| temp_of(x) as usize), cb.map_or(0, |x| temp_of(x) as usize)])
                 }
             };
             let mut stresses = vec![];
@@ -566,7 +578,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                     continue;
                 }
                 let sc = interp(&mat.allow, m.settings.ambient);
-                let hot = if tid > 0 { p.t[tid - 1].max(m.settings.ambient) } else { p.t.iter().cloned().fold(m.settings.ambient, f64::max) };
+                let hot = if tids.iter().any(|&t| t > 0) { tids.iter().map(|&t| if t > 0 { p.t[t - 1] } else { m.settings.ambient }).fold(m.settings.ambient, f64::max) } else { p.t.iter().cloned().fold(m.settings.ambient, f64::max) };
                 let sh = interp(&mat.allow, hot);
                 let pressure = if pidx >= 1 { p.p[pidx as usize - 1] } else { 0.0 };
                 for end in 0..2 {
@@ -584,7 +596,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                     let sec = if end == 0 { p.sec.0 } else { p.sec.1 };
                     let sif = p.sif[end];
                     let (stress, allow) = if is_sus {
-                        let sl = code::sustained(loads, sif, pressure, sec.od, sec.wall - p.corrosion);
+                        let sl = code::sustained(loads, sif, pressure, sec.od, sec.wall - p.corrosion[end]);
                         if c.kind == CaseKind::Sus {
                             sl_max[i][end] = sl_max[i][end].max(sl);
                         }

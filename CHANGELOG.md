@@ -4,6 +4,14 @@
 
 Polish: the build to start with. Every example analyzes, draws its isometric and prints its report.
 
+**Fixes from an independent review of the engine.**
+- An expansion range between two operating cases now takes the hot allowable Sh at the hotter of the two cases; it took the second case's even when the first was hotter, which was on the unsafe side.
+- Guides and line stops at a tee act along the run; the branch was averaged into the pipe's direction, so a line stop could take loads across the pipe. At a corner, where there is no single direction, Datum Pipe now says so.
+- A tee drawn as the end of its branch takes its stress intensification from the run pipe, and a tee without a straight run gets its plane from its legs (with a warning).
+- Bends' stress intensification factors use the lowest operating pressure for the pressure correction (on the safe side in every case); their flexibility still uses the highest.
+- A flexible anchor's stiffness applies to its three movements; its rotations are held.
+- A reducer's small end uses its own pipe's corrosion allowance in the sustained stress.
+
 **Isometric.** The sheet fills the window at the proportions of a landscape page, with its title block the same width.
 
 **Report.** The title block's labels print in their boxes (they were pushed to the foot of the first page).

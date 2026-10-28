@@ -6,7 +6,7 @@
 | | |
 | --- | --- |
 | **Product** | Datum Pipe: pipe stress analysis on the desktop (element table, 3D view, linear supports, the process piping code's equations, support and nozzle loads, isometric, stress report) |
-| **Current version** | 0.1.3 (2026-10-28) |
+| **Current version** | 0.1.4 (2026-10-28) |
 | **Repo** | `Edgar-Mendonca/Datum-Pipe` · branch `claude/datum-pipe-setup-1oa8wk` (the first branch pushed, so the default branch) |
 | **Stack** | Rust engine (`crates/core`, own solver with faer), Tauri 2, SolidJS + strict TypeScript, three.js for the 3D view; no Python |
 | **Identifier** | `com.edgarmendonca.datumpipe` · files `.dpipe` (JSON, `format` 1) · installer `DatumPipe-x.y.z-setup.exe` + `SHA256SUMS.txt` |
@@ -39,6 +39,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | `crates/core/src/solve.rs` | The analysis: parts (sections, weights, strains, SIFs), assembly, supports (rigid axis-aligned ones held exactly with imposed displacements as prescribed values; skewed or flexible ones as springs), basic loads, every case solved together, ranges as differences, forces in local axes, reactions, code stresses per segment end, nozzle loads in nozzle axes, minimum wall, the equilibrium check |
 | `crates/core/src/iso.rs` | The isometric: the 30° projection (x = (X − Z) cos 30°, y = (X + Z) sin 30° − Y), lines per segment (arcs sampled), node labels, a dimension per element offset away from the middle, symbols for supports, nozzles and tees, sheets of at most n elements in table order with their joins |
 | `crates/core/src/worked.rs` | Hand-worked cases for every component and support kind (spring, settlement, guide, line stop, rest, skewed restraint, valve weight, constant support, reducer taper and SIF, tee SIF, nozzle axes, liberal allowable and f) |
+| `tests_ui/screens.cjs` | The four README and site screenshots (1440×900) from the built window with the engine's real results |
 | `crates/core/examples/summary.rs` | Every example's worst ratios, imbalances, nozzle ratios and reactions, for tuning examples by hand |
 | `crates/core/src/bench.rs` | The verification benchmarks 1–8 (`run()`), with an independent plane-frame flexibility method by hand for the thermal cases; a test fails on any row over its tolerance |
 | `crates/core/examples/verify.rs` | Writes the verification record (`docs/verification/x.y.z.md`) |
@@ -113,6 +114,12 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | 0.1.1 | Releases follow the brief's steps, but 0.1.1 already shows code stresses and the results tables (the engine had them) | Cheap once the solver was there; 0.1.2 is then about the remaining components, results polish and nozzle checks |
 | 0.1.2 | The isometric and the full report (brief step 6) came in 0.1.2, with the four other examples; 0.1.3 is their polish and more checks, 0.1.4 the brief's step 7 | They were built while 0.1.1 was releasing; releasing them at once gives the user more to try |
 | 0.1.2 | Example supports chosen like a designer would: a line stop instead of a second anchor on the rack, a spring next to the settling tank | The first drafts gave a 3 MN axial load on the rack and 4.7 × the tank nozzle's allowable: correct numbers for poor layouts, but examples should show good practice |
+| 0.1.4 | An independent review of the engine (a separate agent, told to report only) before the last release; every confirmed finding fixed with a regression test in worked.rs | Two real bugs no test had caught: an expansion range between cases took Sh at the higher-numbered case, not the hotter one (unsafe), and a line stop or guide at a tee averaged the branch into its direction |
+| 0.1.4 | A guide or line stop takes the run through its node (two opposite directions), or the only segment at an end; at a corner it warns and uses the first element | There is no single axis at a corner; saying so is better than guessing silently |
+| 0.1.4 | Tees take their SIF from the run's pipe and their plane from the run and branch (from the first two legs, with a warning, when there is no straight run) | A tee marked on its branch element used the branch size (unsafe for a small branch) |
+| 0.1.4 | Bend SIF pressure correction with the lowest operating pressure, flexibility with the highest | The SIF correction lowers stresses, so the lowest pressure is safe for every case; one stiffness keeps one factorisation |
+| 0.1.4 | A flexible anchor's stiffness is translational; its rotations stay rigid | One number in N/m cannot also be a rotational stiffness |
+| 0.1.4 | The equilibrium help says what the check proves (loads applied, equations solved) and what it does not (stiffness, SIFs, axes) | The review pointed out that a self-equilibrated element always balances; the benchmarks are what test the physics |
 | 0.1.3 | The element table keys its rows by position (Solid's `Index`), not by item | Every edit returns a new model, so keyed rows were all rebuilt and the cursor was lost after each cell (found by a UI test that types across a row) |
 | 0.1.3 | The loop wizard puts the loop in the middle of a straight element, sideways (horizontal plane) or upwards, with long-radius bends, and refuses a loop that does not fit its bends | The common case in one dialog; anything else is typed in the table |
 | 0.1.3 | Copy Section joins the copy's first node to a chosen node and numbers the rest after the largest node; Mirror flips one axis of every delta (and of skewed restraints) | Simple to explain; covers repeated runs and symmetric layouts |
@@ -129,7 +136,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | 0.1.1 | Engine: 3D pipe element, bends, supports, solve, equilibrium, code checks; benchmarks 1–8 (21 checks); 3D view; results tables; examples L-bend and Z-bend; Help › Verification | ✅ |
 | 0.1.2 | Components checked by hand (worked.rs), deformed shape and animation, nozzle checks, the four other examples, the isometric (view, print, SVG), the results pages of the report | ✅ |
 | 0.1.3 | Loop wizard, copy and mirror, table typing fixes, report and isometric polish, hydrotest and occasional checks | ✅ |
-| 0.1.4 | Polish: keyboard, empty states, help cards; screenshots, README, site; every example solves and prints | 🔜 |
+| 0.1.4 | Polish and the review fixes; screenshots, README, site; every example analyzes, draws and prints in a UI test | ✅ |
 | 0.2 | Nonlinear supports (one-way rests, gaps, friction), spring hanger selection, import of plain-text piping component files, wind and seismic, the public regulator benchmarks | ⬜ |
 | 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum | ⬜ |
@@ -161,9 +168,24 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 - Found by a new UI test: the table lost the cursor after every edit (rows rebuilt); fixed with position-keyed rows. Checked typing rows with the keyboard in the real app.
 - Engine: Loop and Duplicate ops with a test; hydrotest and occasional hand-worked cases. Window: loop wizard, copy and mirror dialogs, report page fit, plain report headings, one iso tag per element.
 
-## 5. Known limits (0.1.3)
+### 2026-10-28: Session 1, continued (0.1.4: polish, review, the build to start with)
+- Released 0.1.3 (Release run 4; CI green).
+- Polish: the isometric fills the window, the report's title block (a stray CSS rule pushed its labels to the foot of page 1, found by inspecting the printed page), stresses in table order, the steam example's nozzle axis, a hydrotest case in the pump example, screenshots (`tests_ui/screens.cjs`), README and site.json.
+- An independent review of the engine found two bugs and four smaller issues (see Decisions 0.1.4); all fixed, each with a regression test. Not changed: Sp added outside |Fa/Ap| (conservative), no t < D/6 check or bend thickness factor in the minimum wall, the reaction of two supports holding the same direction at one node is reported on the first.
+- Checked: clippy, 33 engine tests (benchmarks 25 checks, worked cases, hardening), 48 UI checks, cargo deny, the real app under Xvfb (WebGL 3D view, analysis, isometric, print preview, updater).
+
+### Summary of the overnight run
+- **Released:** 0.1.0 (shell, table, model file), 0.1.1 (solver, 3D view, results, verification), 0.1.2 (components checked, four more examples, isometric, full report), 0.1.3 (loop wizard, copy and mirror, table typing), 0.1.4 (polish and review fixes).
+- **Works:** the whole brief §2 except what is listed below as cut: element table, 3D view, components, pipe library, materials, supports, three operating cases and hydrotest, automatic load cases, the 3D pipe element solver with bends' flexibility, the B31.3 equations (hoop and minimum wall, sustained, expansion range, basic and liberal allowables), results on the model and in tables, support and nozzle loads, the isometric (print and SVG, multi-sheet), the stress report, six worked examples, Help › Verification (benchmarks 1–8, 25 checks).
+- **Cut or partial:** occasional loads (the case kind is there, no loads yet, as planned); PDF export is through the print window's Save as PDF; isometric sheets split by table order, not by drawing area; the deformed shape of arcs is interpolated along the chord; no one-way rests (0.2, as planned).
+- **Try first:** File › Examples › Pump discharge with an expansion loop; press F5; Results › Nozzle Loads; the Isometric view; File › Print. Then type your own line in the table.
+
+## 5. Known limits (0.1.4)
 
 - Rests are two-way (one-way in 0.2); no friction or gaps.
 - No pressure elongation (Bourdon effect) or pressure thrust; no occasional loads yet (the OCC case kind is ready).
 - The deformed shape moves arcs' vertices by the chord-interpolated displacement (fine to 45° per arc segment; bends are split in two).
 - Tee SIFs use each leg's own section modulus (no effective branch section modulus).
+- Minimum wall: no t < D/6 check, no bend thickness factor; reducers are checked at their large end's pipe.
+- Two supports holding the same direction at one node: the reaction is reported on the first.
+- The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

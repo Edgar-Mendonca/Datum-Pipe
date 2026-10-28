@@ -1,0 +1,40 @@
+{
+  "id": "pipe",
+  "name": "Datum Pipe",
+  "accent": "#4D7C0F",
+  "logo": "docs/brand/datum-pipe-icon.svg",
+  "tagline": "Pipe stress analysis on the desktop: displacements, support loads, nozzle loads and code stresses, with an automatic isometric.",
+  "for": "Piping, stress, mechanical, process and plant engineers, consultants and students.",
+  "about": [
+    "Datum Pipe works out how a piping system moves and what it pushes on when it heats up, carries its weight and holds its pressure. You type the piping as a table of elements, the way a stress engineer marks up an isometric, and it appears in 3D as you type: pipes at their true diameter, bends, tees, reducers, valves, flanges and supports.",
+    "Put on the supports, temperatures, pressures and equipment movements; the load cases are built for you. Analyze solves every case with Datum Pipe's own 3D pipe element solver, checks the stresses using the equations of the process piping code (ASME B31.3), and shows the results on the model, in tables of displacements, support loads and nozzle loads, on an automatic isometric drawing and in a printed stress report. Allowable stresses are your inputs, and Help › Verification solves benchmark problems with known answers in front of you."
+  ],
+  "steps": [
+    { "title": "Route the piping", "text": "Type each element's From node, To node and lengths in the table; pick the pipe, material, line conditions and component (bend, tee, reducer, valve, flange). It draws in 3D at once." },
+    { "title": "Support and load it", "text": "Add anchors, rests, guides, line stops, springs and nozzle points; set up to three operating temperatures and pressures, the hydrotest and equipment movements." },
+    { "title": "Check and report", "text": "Analyze, see the stress ratios on the model, read the support and nozzle loads, and print the stress report with the isometric and the equilibrium checks." }
+  ],
+  "highlights": [
+    "An element table that draws the piping in 3D as you type: true diameters, insulation, bends, tees, reducers, valves, flanges and support symbols",
+    "Pipe sizes ½\" to 24\" in every schedule, five piping materials with properties against temperature and their sources, and your own sizes and materials",
+    "Anchors, rests, guides, line stops, skewed restraints, springs, constant-force supports and imposed equipment movements",
+    "Load cases built for you: sustained, operating, expansion range and hydrotest",
+    "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall, sustained stress and the displacement stress range, with PASS or FAIL at every point",
+    "Support loads for the civil team and nozzle loads in the nozzle's own axes, checked against your allowables",
+    "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
+    "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve"
+  ],
+  "screenshots": [],
+  "roadmap": [
+    { "v": "0.1.0", "title": "The window", "when": "Next", "items": ["The family window, File page, Options and updates", "The element table: type the piping, save and open .dpipe files", "Pipe sizes and schedules, materials, line conditions, supports, nozzles and load cases"] },
+    { "v": "0.1.1", "title": "The solver and the 3D view", "when": "Soon", "items": ["3D pipe element solver with an equilibrium check", "The 3D view, the Inspector and the worked L-bend and Z-bend", "Help › Verification"] },
+    { "v": "0.1.2", "title": "Components and code checks", "when": "Soon", "items": ["Bends, tees, reducers, valves and flanges", "Thermal and pressure cases, automatic load cases", "Code stresses, results on the model, tables, support and nozzle loads"] },
+    { "v": "0.1.3", "title": "Isometric and report", "when": "Soon", "items": ["Automatic isometric drawing, printed and as SVG", "The stress report", "Every worked example"] },
+    { "v": "0.1.4", "title": "Polish", "when": "Soon", "items": ["Expansion loop wizard, copy and mirror", "Help cards, empty states, keyboard"] },
+    { "v": "0.2", "title": "Nonlinear supports and more loads", "when": "Later", "items": ["One-way rests, gaps and friction (iterative solve)", "Spring hanger selection", "Import of plain-text piping component files from design tools", "Wind and static seismic loads", "The public piping benchmark problems published by nuclear regulators"] },
+    { "v": "0.3", "title": "Equipment and flanges", "when": "Later", "items": ["Nozzle checks to the published pump, compressor and steam turbine standards", "Flange leakage check", "Local stresses at vessel nozzles", "Relief valve thrust"] },
+    { "v": "0.4", "title": "Dynamics", "when": "Later", "items": ["Natural frequencies and mode shapes", "Harmonic response", "Response spectrum"] },
+    { "v": "0.5", "title": "More codes", "when": "Later", "items": ["Power piping and European piping code equations", "Buried pipe", "Cold spring"] },
+    { "v": "1.0", "title": "Validated", "when": "Goal", "items": ["A validation report covering every analysis type", "A user guide", "A signed installer"] }
+  ]
+}

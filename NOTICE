@@ -1,0 +1,23 @@
+Datum Pipe
+Copyright (c) 2026 Edgar Mendonca. MIT licence.
+
+The window bundles SolidJS (MIT), three.js (MIT, https://threejs.org) for the 3D view, and the IBM
+Plex fonts (SIL Open Font Licence 1.1). The desktop shell uses Tauri (MIT or Apache-2.0) and the
+Rust crates listed in Cargo.lock, each under MIT, Apache-2.0, BSD, ISC, Zlib, MPL-2.0 or Unicode
+licences (checked by cargo deny, deny.toml). The sparse Cholesky solver is faer (MIT,
+https://github.com/sarah-quinones/faer-rs).
+
+The unit table (crates/core/src/units.rs) is copied from Datum Calc (MIT, same author), with
+factors from NIST SP 811 (2008). Densities and room-temperature properties of the materials come
+from Datum Atlas (MIT, https://github.com/Edgar-Mendonca/Datum-Atlas), with each value's source;
+the trends with temperature are typical values for each family from general engineering
+handbooks, and the allowable stresses are typical values worked out from typical strengths (the
+user checks them against their code edition).
+
+Pipe outside diameters and wall thicknesses are the published nominal dimensions of wrought steel
+pipe (ASME B36.10M) and stainless steel pipe (ASME B36.19M). Code checks are calculated using the
+published equations of the process piping code (ASME B31.3); no tables or text of any code or
+standard are reproduced.
+
+The family workflow, ribbon, File page, updater and printing are taken from Datum Plan, by way of
+Datum Mesh (both MIT, same author).

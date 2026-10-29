@@ -26,7 +26,7 @@ export const HELP: Record<string, Topic> = {
     how: ["Load Cases lists them with what each is made of; you can add, edit or remove cases.", "Recommend builds them again from the model and keeps them up to date."] },
   supports: { t: "Supports", what: "Where the pipe is held. Linear in 0.1: each support holds both ways.",
     how: ["Select a node, then pick the support.", "Anchor: all six directions. Rest: up (+Y). Guide: sideways. Line stop: along the pipe.", "Restraint: one direction (X, Y, Z or any). Spring: a stiffness along a direction. Constant: a hanger that carries a set load."],
-    tip: "One-way rests, gaps and friction arrive in 0.2." },
+    tip: "One-way rests and gaps arrive in 0.1.6, friction in 0.1.7." },
   nozzles: { t: "Nozzles", what: "A nozzle point reports the loads on the equipment in the nozzle's own axes (axial, shear, torsion, bending) and compares them with the allowable loads you give.", tip: "Put an anchor at the nozzle too: the anchor carries the load, the nozzle reports it. Pump and compressor standard checks arrive in 0.3." },
   // Analyze and results
   analyze: { t: "Analyze", what: "Builds the stiffness of every element (3D pipe beams with shear deformation; bends with their flexibility factor), solves each load case, and checks the code stresses (F5).",

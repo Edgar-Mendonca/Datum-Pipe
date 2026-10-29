@@ -41,15 +41,73 @@
   ],
   "roadmap": [
     {
-      "v": "0.2",
-      "title": "Nonlinear supports and more loads",
+      "v": "0.1.5",
+      "title": "Code check fixes",
       "when": "Next",
       "items": [
-        "One-way rests, gaps and friction (iterative solve)",
-        "Spring hanger selection",
+        "Minimum wall: the t < D/6 limit and the bend thickness factor",
+        "Reducers checked at both ends",
+        "Tee stress factors with the effective branch section modulus",
+        "Pressure elongation of straight pipe",
+        "Two supports holding one direction: each reports its own share of the reaction"
+      ]
+    },
+    {
+      "v": "0.1.6",
+      "title": "One-way rests and gaps",
+      "when": "Planned",
+      "items": [
+        "Rests that lift off (iterative solve until every support's state settles)",
+        "Gaps on guides and line stops",
+        "Results show which supports lifted off or closed",
+        "Benchmarks for lift-off and a closing gap"
+      ]
+    },
+    {
+      "v": "0.1.7",
+      "title": "Friction",
+      "when": "Planned",
+      "items": [
+        "Friction at rests and guides",
+        "Equilibrium check including friction forces",
+        "A friction benchmark"
+      ]
+    },
+    {
+      "v": "0.1.8",
+      "title": "Wind and seismic",
+      "when": "Planned",
+      "items": [
+        "Wind loads (pressure on the projected area)",
+        "Static seismic loads (g-factors)",
+        "Occasional load cases and the occasional stress check"
+      ]
+    },
+    {
+      "v": "0.1.9",
+      "title": "Spring hangers",
+      "when": "Planned",
+      "items": [
+        "Spring hanger selection from hot load, travel and load variation",
+        "Spring data entered by you (rate, range), with typical values"
+      ]
+    },
+    {
+      "v": "0.1.10",
+      "title": "Import and benchmarks",
+      "when": "Planned",
+      "items": [
         "Import of plain-text piping component files from design tools",
-        "Wind and static seismic loads",
-        "The public piping benchmark problems published by nuclear regulators"
+        "The public piping benchmark problems published by nuclear regulators in Help › Verification"
+      ]
+    },
+    {
+      "v": "0.2.0",
+      "title": "Nonlinear supports and more loads, complete",
+      "when": "Milestone",
+      "items": [
+        "Everything in 0.1.5–0.1.10 reviewed, with the verification record and examples updated",
+        "No new features: 0.2.0 marks the stage as finished"
       ]
     },
     {
@@ -60,7 +118,8 @@
         "Nozzle checks to the published pump, compressor and steam turbine standards",
         "Flange leakage check",
         "Local stresses at vessel nozzles",
-        "Relief valve thrust"
+        "Relief valve thrust",
+        "Broken into small 0.x.y steps before it starts"
       ]
     },
     {
@@ -70,7 +129,8 @@
       "items": [
         "Natural frequencies and mode shapes",
         "Harmonic response",
-        "Response spectrum"
+        "Response spectrum",
+        "Broken into small 0.x.y steps before it starts"
       ]
     },
     {
@@ -80,7 +140,8 @@
       "items": [
         "Power piping and European piping code equations",
         "Buried pipe",
-        "Cold spring"
+        "Cold spring",
+        "Broken into small 0.x.y steps before it starts"
       ]
     },
     {
@@ -90,7 +151,8 @@
       "items": [
         "A validation report covering every analysis type",
         "A user guide",
-        "A signed installer"
+        "A signed installer",
+        "Broken into small 0.x.y steps before it starts"
       ]
     }
   ]

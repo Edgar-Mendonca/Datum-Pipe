@@ -124,14 +124,14 @@ export const Ribbon = () => {
         <G l="Extra Loads" h="loads"><B big i="force" l="Force at Node" run={C.load} /><S><B i="dist" l="Uniform Load" run={() => selEl() ? setTab("element") : C.planned("Select an element, then set its extra load in the Inspector; uniform loads", "this release")} title="Select an element and set its extra load (per length) in the Inspector" /></S></G>
         <G l="Displacements" h="disp"><B big i="disp" l="Imposed Displacement" run={() => C.support("anchor")} title="Put an anchor on the selected node and set its movements per case in the Inspector" /></G>
         <G l="Load Cases" h="cases"><B big i="cases" l="Load Cases" run={() => P.cases()} /><S><B i="check" l="Recommend" run={C.recommendCases} on={!!m()?.settings.auto_cases} /><label class="chk"><input type="checkbox" checked={!!m()?.settings.hydro} onChange={e => C.settings({ hydro: e.currentTarget.checked })} />Hydrotest case</label></S></G>
-        <G l="Occasional" h="cases"><S><Planned i="wind" l="Wind" v="0.2" /><Planned i="seismic" l="Static Seismic" v="0.2" /></S></G>
+        <G l="Occasional" h="cases"><S><Planned i="wind" l="Wind" v="0.1.8" /><Planned i="seismic" l="Static Seismic" v="0.1.8" /></S></G>
       </Show>
       <Show when={tab() === "supports"}>
         <G l="Supports" h="supports"><Sup big k="anchor" i="anchor" /><Sup big k="rest" i="rest" l="Rest" /><Sup big k="guide" i="guide" /><Sup big k="linestop" i="linestop" /></G>
         <G l="Restraints" h="supports"><S><Sup k="rx" i="restraint" /><Sup k="ry" i="restraint" /><Sup k="rz" i="restraint" /></S><S><Sup k="skew" i="restraint" l="Skewed" /><Sup k="spring" i="spring" l="Spring" /><Sup k="rotspring" i="spring" l="Rotational Spring" /></S></G>
-        <G l="Hangers" h="supports"><Sup big k="constant" i="constant" l="Constant Force" /><S><Planned i="spring" l="Spring Hanger Sizing" v="0.2" /></S></G>
+        <G l="Hangers" h="supports"><Sup big k="constant" i="constant" l="Constant Force" /><S><Planned i="spring" l="Spring Hanger Sizing" v="0.1.9" /></S></G>
         <G l="Equipment" h="nozzles"><B big i="nozzle" l="Nozzle Point" run={C.nozzle} /><S><Planned i="nozzle" l="Pump and Compressor Checks" v="0.3" /></S></G>
-        <G l="Nonlinear" h="supports"><S><Planned i="rest" l="One-way Rest" v="0.2" /><Planned i="guide" l="Gaps and Friction" v="0.2" /></S></G>
+        <G l="Nonlinear" h="supports"><S><Planned i="rest" l="One-way Rest" v="0.1.6" /><Planned i="guide" l="Gaps and Friction" v="0.1.6–0.1.7" /></S></G>
       </Show>
       <Show when={tab() === "analyze"}>
         <G l="Analyze" h="analyze"><B big i="solve" l="Analyze" run={C.analyze} title="Solve every load case (F5)" /><S><B i="cases" l="Load Cases" run={() => P.cases()} /><B i="verify" l="Verification" run={() => P.verification()} /></S></G>

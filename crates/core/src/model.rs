@@ -211,7 +211,7 @@ pub enum SupKind {
     /// Holds all six directions.
     #[default]
     Anchor,
-    /// Holds the pipe up (+Y). Two-way in 0.1: it also holds the pipe down (one-way in 0.2).
+    /// Holds the pipe up (+Y). Two-way in 0.1: it also holds the pipe down (one-way in 0.1.6).
     Rest,
     /// Holds the pipe sideways: horizontally across a horizontal pipe, both horizontal directions
     /// on a vertical pipe.

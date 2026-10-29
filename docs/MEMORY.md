@@ -91,6 +91,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| plan | The 0.2 stage is split into the small releases 0.1.5–0.1.10; 0.2.0 is a milestone release with no new features | The owner asked for many small steps instead of one big 0.2 release |
 | plan | Everything in the brief §1 (name, moss accent, identifier, `.dpipe`, stack, own Rust solver, three.js, units, ribbon tabs, logo, codes as published equations, public words) | Made with the user in the hub, session 16 |
 | plan | The shell and window are copied from Datum Mesh (Plan's skeleton by way of Sim, already adapted to an engineering-analysis app) | The brief: copy, don't reinvent; Mesh is the closest app |
 | 0.1.0 | Y is up; X east, Z south (right-handed). The first node of each connected piece starts at the origin unless moved | The usual piping convention; one rule for the table, the 3D view and the isometric |
@@ -127,6 +128,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 ## 3. Roadmap
 
+Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 0.3.0, …) only marks a finished stage. If a step grows, it becomes two steps (0.1.11, …) rather than one big release. Later stages are split the same way before they start.
+
 ✅ done · 🔜 next · ⬜ later
 
 | Version | Item | Status |
@@ -137,7 +140,13 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | 0.1.2 | Components checked by hand (worked.rs), deformed shape and animation, nozzle checks, the four other examples, the isometric (view, print, SVG), the results pages of the report | ✅ |
 | 0.1.3 | Loop wizard, copy and mirror, table typing fixes, report and isometric polish, hydrotest and occasional checks | ✅ |
 | 0.1.4 | Polish and the review fixes; screenshots, README, site; every example analyzes, draws and prints in a UI test | ✅ |
-| 0.2 | Nonlinear supports (one-way rests, gaps, friction), spring hanger selection, import of plain-text piping component files, wind and seismic, the public regulator benchmarks | ⬜ |
+| 0.1.5 | Code check fixes: t < D/6 limit and bend thickness factor, reducers at both ends, tee effective branch section modulus, pressure elongation, each support's own share of a shared reaction | 🔜 |
+| 0.1.6 | One-way rests and gaps (iterative solve), lift-off shown in the results, benchmarks | ⬜ |
+| 0.1.7 | Friction at rests and guides, equilibrium with friction, a friction benchmark | ⬜ |
+| 0.1.8 | Wind and static seismic loads, occasional cases and the occasional stress check | ⬜ |
+| 0.1.9 | Spring hanger selection (spring data entered by the user) | ⬜ |
+| 0.1.10 | Import of plain-text piping component files; the public regulator benchmarks in Help › Verification | ⬜ |
+| 0.2.0 | Milestone: 0.1.5–0.1.10 reviewed, verification record and examples updated; no new features | ⬜ |
 | 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum | ⬜ |
 | 0.5 | Power piping and European piping code equations, buried pipe, cold spring | ⬜ |
@@ -179,6 +188,9 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 - **Works:** the whole brief §2 except what is listed below as cut: element table, 3D view, components, pipe library, materials, supports, three operating cases and hydrotest, automatic load cases, the 3D pipe element solver with bends' flexibility, the B31.3 equations (hoop and minimum wall, sustained, expansion range, basic and liberal allowables), results on the model and in tables, support and nozzle loads, the isometric (print and SVG, multi-sheet), the stress report, six worked examples, Help › Verification (benchmarks 1–8, 25 checks).
 - **Cut or partial:** occasional loads (the case kind is there, no loads yet, as planned); PDF export is through the print window's Save as PDF; isometric sheets split by table order, not by drawing area; the deformed shape of arcs is interpolated along the chord; no one-way rests (0.2, as planned).
 - **Try first:** File › Examples › Pump discharge with an expansion loop; press F5; Results › Nozzle Loads; the Isometric view; File › Print. Then type your own line in the table.
+
+### 2026-10-29: Session 2 (roadmap in small steps)
+- The owner asked for small releases: the 0.2 stage became 0.1.5–0.1.10, with 0.2.0 as the milestone. Updated the roadmap here, `docs/site.json` (File › Roadmap) and the "planned for" labels in the ribbon, File page, help and inspector.
 
 ## 5. Known limits (0.1.4)
 

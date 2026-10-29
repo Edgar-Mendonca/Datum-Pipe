@@ -138,6 +138,8 @@ const ModelPanel = () => {
       <div class="iprow"><label>Displacement cycles over the plant's life</label><input class="mono" value={m().settings.cycles} onChange={numIn(v => C.settings({ cycles: v }), () => m().settings.cycles)} /><span class="hint">Up to 7000 cycles the allowable range factor f is 1.0.</span></div>
       <label class="chk"><input type="checkbox" checked={m().settings.liberal} onChange={e => C.settings({ liberal: e.currentTarget.checked })} />Liberal allowable stress range</label>
       <label class="chk"><input type="checkbox" checked={m().settings.bend_pressure} onChange={e => C.settings({ bend_pressure: e.currentTarget.checked })} />Pressure correction on bends</label>
+      <label class="chk"><input type="checkbox" checked={m().settings.pressure_elongation} onChange={e => C.settings({ pressure_elongation: e.currentTarget.checked })} />Pressure elongation (straight pipe)</label>
+      <label class="chk"><input type="checkbox" checked={m().settings.branch_ze} onChange={e => C.settings({ branch_ze: e.currentTarget.checked })} />Branch section modulus Ze at tees</label>
       <label class="chk"><input type="checkbox" checked={m().settings.hydro} onChange={e => C.settings({ hydro: e.currentTarget.checked })} />Hydrotest case</label>
       <div class="iprow"><label>Node number step</label><input class="mono" value={m().settings.step} onChange={numIn(v => v >= 1 && v % 1 === 0 && C.settings({ step: v }), () => m().settings.step)} /></div>
     </Sec>

@@ -309,3 +309,132 @@ fn a_tee_marked_on_its_branch_uses_the_run_size() {
     assert_eq!(g.tees[0].pipe, d.m.pipes[0].id);
     assert!((crate::mat::dot(g.tees[0].normal, [0.0, 1.0, 0.0]).abs() - 1.0).abs() < 1e-12, "{:?}", g.tees[0].normal);
 }
+
+#[test]
+fn a_reducer_wall_is_checked_at_both_ends() {
+    // 6" Sch 40 to 4" Sch 40 at 50 bar, the small end with its own 3 mm corrosion allowance: one
+    // check per end, each with its own pipe.
+    let mut d = table("reducer wall", &[(10, 20, 1.0, 0.0, 0.0)]);
+    let mut small = Pipe::std(0, "4", "40");
+    small.corrosion = 0.003;
+    let o = d.apply(Op::Add { item: Item::Pipe(small.clone()), after: None }).unwrap();
+    comp(&mut d, 20, Comp::Reducer { to: o[0] });
+    let mut c = d.m.conds[0].clone();
+    c.p[0] = 50e5;
+    d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+    sup(&mut d, 10, SupKind::Anchor);
+    let r = analyze(&d.m).unwrap();
+    let ends: Vec<_> = r.walls.iter().filter(|w| w.case == 1).collect();
+    assert_eq!(ends.len(), 2);
+    let s = ends.iter().find(|w| w.at == "small end").unwrap();
+    let big = ends.iter().find(|w| w.at == "large end").unwrap();
+    assert!((s.od - small.od).abs() < 1e-12 && (big.od - d.m.pipes[0].od).abs() < 1e-12);
+    // The small end: tm = t + 3 mm.
+    assert!((s.t_min - s.t_design - 0.003).abs() < 1e-12);
+}
+
+#[test]
+fn two_rigid_supports_in_one_direction_share_the_load() {
+    // A rest and a vertical restraint both at node 20 of a cantilever: 10 kN down is shared 5 + 5,
+    // with a warning; the total is the one support's.
+    let mut d = table("shared", &[(10, 20, 3.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup(&mut d, 20, SupKind::Rest);
+    load(&mut d, 20, [0.0, -10e3, 0.0]);
+    let one = react(&analyze(&d.m).unwrap(), "OPE1", 20)[1];
+    sup(&mut d, 20, SupKind::Restraint { dir: [0.0, 1.0, 0.0] });
+    let r = analyze(&d.m).unwrap();
+    let each: Vec<f64> = case(&r, "OPE1").reactions.iter().filter(|x| x.node == 20).map(|x| x.f[1]).collect();
+    assert_eq!(each.len(), 2);
+    assert!(close(each[0], one / 2.0, 1e-12) && close(each[1], one / 2.0, 1e-12), "{each:?} {one}");
+    assert!(r.warnings.iter().any(|w| w.contains("node 20")));
+    assert!(case(&r, "OPE1").imbalance < 1e-9);
+}
+
+#[test]
+fn the_branch_section_modulus_can_be_turned_off() {
+    // The same out-of-plane moment on a 2" branch: the stress scales by Z / Ze between the two.
+    let build = |ze: bool| {
+        let mut d = table("ze", &[(10, 20, 3.0, 0.0, 0.0), (20, 30, 3.0, 0.0, 0.0)]);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        s.branch_ze = ze;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        let o = d.apply(Op::Add { item: Item::Pipe(Pipe::std(0, "2", "40")), after: None }).unwrap();
+        let e = crate::model::Element { from: 20, to: 40, d: [0.0, 0.0, 2.0], pipe: o[0], material: d.m.materials[0].id, cond: d.m.conds[0].id, ..Default::default() };
+        d.apply(Op::Add { item: Item::Element(e), after: None }).unwrap();
+        comp(&mut d, 20, Comp::Tee { tee: TeeKind::Welding, pad: 0.0 });
+        sup(&mut d, 10, SupKind::Anchor);
+        sup(&mut d, 30, SupKind::Anchor);
+        load(&mut d, 40, [0.0, 1e3, 0.0]);
+        let r = analyze(&d.m).unwrap();
+        let pt = r.geom.node_point[&20];
+        let br = d.m.elements.iter().find(|e| e.to == 40).unwrap().id;
+        let st = case(&r, "SUS").stresses.iter().find(|x| x.point == pt && r.geom.segs[x.seg].element == br).unwrap().stress;
+        (st, d.m.pipes.clone())
+    };
+    let ((on, pipes), (off, _)) = (build(true), build(false));
+    let (run, b) = (&pipes[0], &pipes[1]);
+    let ii = crate::code::tee(TeeKind::Welding, run.wall, run.od, 0.0).ii;
+    let ratio = crate::code::z(b.od, b.wall) / crate::code::branch_z(b.od, b.wall, run.wall, ii);
+    assert!(close(on / off, ratio, 1e-9), "{} {ratio}", on / off);
+}
+
+#[test]
+fn pressure_elongation_is_off_unless_chosen_and_stays_out_of_sustained() {
+    let build = |on: bool| {
+        let mut d = table("pe", &[(10, 20, 3.0, 0.0, 0.0), (20, 30, 3.0, 0.0, 0.0)]);
+        let mut s = d.m.settings.clone();
+        s.pressure_elongation = on;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        let mut c = d.m.conds[0].clone();
+        c.p[0] = 50e5;
+        d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+        sup(&mut d, 10, SupKind::Anchor);
+        sup(&mut d, 30, SupKind::Anchor);
+        analyze(&d.m).unwrap()
+    };
+    let (off, on) = (build(false), build(true));
+    assert!(react(&off, "OPE1", 30)[0].abs() < 1e-6);
+    assert!(react(&on, "OPE1", 30)[0] < -1e3);
+    assert!(close(react(&on, "SUS", 30)[1], react(&off, "SUS", 30)[1], 1e-12));
+    assert!(react(&on, "SUS", 30)[0].abs() < 1e-6);
+}
+
+#[test]
+fn a_thick_wall_fails_with_a_warning() {
+    // 2" Sch 40 at 1000 bar with 20 MPa allowed: t ≥ D/6.
+    let mut d = table("thick", &[(10, 20, 1.0, 0.0, 0.0)]);
+    let mut p = d.m.pipes[0].clone();
+    let (od, wall) = crate::library::pipe("2", "40").unwrap();
+    p.od = od;
+    p.wall = wall;
+    d.apply(Op::Set { item: Item::Pipe(p) }).unwrap();
+    let mut c = d.m.conds[0].clone();
+    c.p[0] = 1000e5;
+    d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+    sup(&mut d, 10, SupKind::Anchor);
+    let r = analyze(&d.m).unwrap();
+    assert!(r.walls.iter().any(|w| w.thick && !w.pass));
+    assert!(r.warnings.iter().any(|w| w.contains("D/6")));
+}
+
+#[test]
+fn a_bend_wall_is_checked_at_its_intrados() {
+    // An L with a long-radius bend at 20 at 50 bar: the bend has its own check with I > 1, and
+    // needs more wall than the straight pipe.
+    let mut d = table("bend wall", &[(10, 20, 3.0, 0.0, 0.0), (20, 30, 0.0, 3.0, 0.0)]);
+    comp(&mut d, 20, Comp::Bend { bend: crate::model::BendKind::Long, r: 0.0 });
+    let mut c = d.m.conds[0].clone();
+    c.p[0] = 50e5;
+    d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+    sup(&mut d, 10, SupKind::Anchor);
+    let r = analyze(&d.m).unwrap();
+    let e = d.m.elements[0].id;
+    let pipe = r.walls.iter().find(|w| w.element == e && w.at == "pipe").unwrap();
+    let bend = r.walls.iter().find(|w| w.element == e && w.at == "bend").unwrap();
+    let rb = crate::geom::bend_radius(&d.m, crate::model::BendKind::Long, 0.0, d.m.pipes[0].id);
+    assert!(close(bend.i, crate::code::bend_factor(rb, d.m.pipes[0].od).0, 1e-12));
+    assert!(bend.i > 1.0 && bend.t_design > pipe.t_design);
+}

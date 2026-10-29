@@ -112,6 +112,8 @@ struct Part {
     sif: [Sif; 2],
     /// The plane normal for in-plane moments (bends and tees); none on straight pipe.
     plane: [Option<V>; 2],
+    /// At a tee's branch: the effective section modulus on the nominal and the corroded walls.
+    ze: [Option<(f64, f64)>; 2],
 }
 
 /// The section at fraction s of a segment (a reducer's changes along it).
@@ -263,20 +265,33 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         }
         w += s.extra;
         ww += s.extra;
-        let strain3 = [0, 1, 2].map(|i| strain(&mat.alpha, cond.t[i], amb));
+        let mut strain3 = [0, 1, 2].map(|i| strain(&mat.alpha, cond.t[i], amb));
+        // Pressure elongation of straight pipe (not bends, rigid parts or reducers), when chosen.
+        let is_reducer = s.pipe_b != s.pipe;
+        if m.settings.pressure_elongation && matches!(s.shape, Shape::Straight) && !rigid && !is_reducer {
+            for i in 0..3 {
+                strain3[i] += code::pressure_strain(cond.p[i], pipe.od, pipe.wall, e_cold, mat.nu);
+            }
+        }
         let _ = si;
-        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, e_cold, mat: mat.id, corrosion: [pipe.corrosion, m.pipe(s.pipe_b).map_or(pipe.corrosion, |q| q.corrosion)], p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane });
+        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, e_cold, mat: mat.id, corrosion: [pipe.corrosion, m.pipe(s.pipe_b).map_or(pipe.corrosion, |q| q.corrosion)], p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane, ze: [None; 2] });
     }
     // Tees: their SIF at every segment end on the tee's point.
     for t in &g.tees {
         let Some(p) = m.pipe(t.pipe) else { continue };
         let s = code::tee(t.kind, p.wall, p.od, t.pad);
+        let branch = t.branch.filter(|_| m.settings.branch_ze).and_then(|(el, bp)| Some((el, m.pipe(bp)?)));
         for (i, seg) in g.segs.iter().enumerate() {
             for (end, pt) in [(0, seg.a), (1, seg.b)] {
                 if pt == t.point {
                     let cur = parts[i].sif[end];
                     parts[i].sif[end] = Sif { ii: cur.ii.max(s.ii), io: cur.io.max(s.io), k: cur.k, h: s.h };
                     parts[i].plane[end] = Some(t.normal);
+                    if let Some((_, b)) = branch.filter(|(el, _)| *el == seg.element) {
+                        let nominal = code::branch_z(b.od, b.wall, p.wall, s.ii);
+                        let corroded = code::branch_z(b.od, b.wall - b.corrosion, p.wall - p.corrosion, s.ii);
+                        parts[i].ze[end] = Some((nominal, corroded));
+                    }
                 }
             }
         }
@@ -296,7 +311,10 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     }
     // Supports: held degrees of freedom, and springs.
     let mut held = vec![false; n];
-    let mut hold_owner: HashMap<usize, u32> = HashMap::new();
+    // Every support that holds a degree of freedom rigidly; two or more share its reaction equally
+    // (the split between rigid supports in the same direction cannot be calculated).
+    let mut hold_owner: HashMap<usize, Vec<u32>> = HashMap::new();
+    let mut shared: Vec<u32> = vec![];
     let mut prescribed: [Vec<f64>; 3] = [vec![0.0; n], vec![0.0; n], vec![0.0; n]];
     let mut springs: Vec<Spring> = vec![];
     for sp in &m.supports {
@@ -311,7 +329,13 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                 (Some(ax), true) => {
                     let dof = 6 * pt + ax + if rot { 3 } else { 0 };
                     held[dof] = true;
-                    hold_owner.entry(dof).or_insert(sp.id);
+                    let owners = hold_owner.entry(dof).or_default();
+                    if !owners.contains(&sp.id) {
+                        owners.push(sp.id);
+                    }
+                    if owners.len() > 1 && !shared.contains(&sp.node) {
+                        shared.push(sp.node);
+                    }
                     for c in 0..3 {
                         prescribed[c][dof] = u0[c] * dir[ax];
                     }
@@ -456,9 +480,11 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                 }
                 // Reactions: held degrees of freedom (K u − f), and springs (−k (u − u0)).
                 let mut reac: HashMap<u32, [f64; 6]> = HashMap::new();
-                for (&dof, &sid) in &hold_owner {
-                    let r = ku[k][dof] - f[dof];
-                    reac.entry(sid).or_insert([0.0; 6])[dof % 6] += r;
+                for (&dof, owners) in &hold_owner {
+                    let r = (ku[k][dof] - f[dof]) / owners.len() as f64;
+                    for &sid in owners {
+                        reac.entry(sid).or_insert([0.0; 6])[dof % 6] += r;
+                    }
                 }
                 let dcase = match c.recipe { Recipe::Sum { d, .. } => d, _ => 0 };
                 for sp in &springs {
@@ -596,13 +622,13 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                     let sec = if end == 0 { p.sec.0 } else { p.sec.1 };
                     let sif = p.sif[end];
                     let (stress, allow) = if is_sus {
-                        let sl = code::sustained(loads, sif, pressure, sec.od, sec.wall - p.corrosion[end]);
+                        let sl = code::sustained(loads, sif, pressure, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1));
                         if c.kind == CaseKind::Sus {
                             sl_max[i][end] = sl_max[i][end].max(sl);
                         }
                         (sl, if c.kind == CaseKind::Occ { 1.33 * sh } else { sh })
                     } else {
-                        let se = code::expansion(loads, sif, sec.od, sec.wall);
+                        let se = code::expansion(loads, sif, sec.od, sec.wall, p.ze[end].map(|z| z.0));
                         (se, code::allowable_range(f_range, sc, sh, m.settings.liberal.then_some(sl_max[i][end])))
                     };
                     let ratio = if allow > 0.0 { stress / allow } else { f64::INFINITY };
@@ -646,17 +672,43 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     }
     // ---------------------------------------------------------------- minimum wall
     let mut walls = vec![];
+    // Straight pipe; a bend at its intrados (the bend factor I); a reducer at both ends, each with
+    // its own pipe.
     for e in &m.elements {
         let (Some(p), Some(mat), Some(cond)) = (m.pipe(e.pipe), m.material(e.material), m.cond(e.cond)) else { continue };
         if mat.allow.is_empty() {
             continue;
         }
+        let mut checks: Vec<(&crate::model::Pipe, f64, &'static str)> = vec![];
+        match &e.comp {
+            Comp::Reducer { to } => {
+                let q = m.pipe(*to).unwrap_or(p);
+                let (big, small) = if q.od < p.od { ("large end", "small end") } else { ("small end", "large end") };
+                checks.push((p, 1.0, big));
+                checks.push((q, 1.0, small));
+            }
+            Comp::Bend { bend, r } => {
+                checks.push((p, 1.0, "pipe"));
+                let rb = crate::geom::bend_radius(m, *bend, *r, e.pipe);
+                checks.push((p, code::bend_factor(rb, p.od).0, "bend"));
+            }
+            _ => checks.push((p, 1.0, "pipe")),
+        }
         for c in 0..3 {
             if cond.p[c] > 0.0 {
                 let s = interp(&mat.allow, cond.t[c].max(m.settings.ambient));
-                walls.push(code::wall(e.id, c as u8 + 1, cond.p[c], cond.t[c], s, p.od, p.wall, p.corrosion, p.mill, mat.quality, mat.weld, mat.y));
+                for &(q, i, at) in &checks {
+                    let w = code::wall_at(e.id, c as u8 + 1, cond.p[c], cond.t[c], s, q.od, q.wall, q.corrosion, q.mill, mat.quality, mat.weld, mat.y, i, at);
+                    if w.thick && !warnings.iter().any(|x| x.contains(&format!("element {}–{} ", e.from, e.to))) {
+                        warnings.push(format!("The pressure design thickness of element {}–{} is D/6 or more: the thin-wall equation does not apply, so its wall check fails. It needs a thick-wall design.", e.from, e.to));
+                    }
+                    walls.push(w);
+                }
             }
         }
+    }
+    for n in &shared {
+        warnings.push(format!("Two or more supports at node {n} hold the same direction rigidly: they share its load equally, since the split between rigid supports cannot be calculated. Keep one, or make one flexible."));
     }
     let mut stats = stats;
     stats.ms = t0.elapsed().as_secs_f64() * 1e3;

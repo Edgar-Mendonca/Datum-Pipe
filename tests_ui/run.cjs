@@ -75,6 +75,10 @@ const shots = process.env.SHOTS;
   check("ribbon tabs", JSON.stringify(await p.$$eval(".tabs > button:not(.file)", els => els.map(e => e.textContent))) === JSON.stringify(["Home", "Model", "Loads", "Supports", "Analyze", "Results", "Isometric", "View", "Help"]));
   check("the table says where to start", (await p.textContent(".etable")).includes("Start here"));
   check("the Inspector shows the model's settings", (await p.textContent(".insp")).includes("Installed temperature"));
+  await p.click('.insp label.chk:has-text("Pressure elongation") input'); await p.waitForTimeout(200);
+  check("the pressure elongation setting sends one settings edit", (await lastOp())?.SetSettings?.s?.pressure_elongation === true);
+  await p.click('.insp label.chk:has-text("Branch section modulus") input'); await p.waitForTimeout(200);
+  check("the branch section modulus setting sends one settings edit", (await lastOp())?.SetSettings?.s?.branch_ze === false);
   check("the installed temperature is shown in °C", (await p.textContent(".insp")).includes("°C"));
 
   // 3. Typing 3000 (mm) in DX adds an element of 3 m from node 10 to node 20.
@@ -158,6 +162,10 @@ const shots = process.env.SHOTS;
   await p.click('.tabs > button:text-is("Help")');
   await p.click('.ribbon button[title="Verification"]'); await p.waitForTimeout(400);
   check("Help › Verification: every check passes", (await p.textContent(".dlg .verif")).includes(`${fix.verification.length} of ${fix.verification.length} checks pass`));
+  await p.keyboard.press("Escape");
+  await p.click('.ribbon button[title="Where each equation is published"]'); await p.waitForTimeout(300);
+  const src = await p.textContent(".dlg");
+  check("Help › Sources lists where each equation is published", src.includes("not affiliated with or endorsed by ASME") && src.includes("Markl") && (await p.$$(".dlg .tbl tbody tr")).length >= 10);
   await p.keyboard.press("Escape");
 
   // The expansion loop wizard sends one Loop edit for the selected straight element.

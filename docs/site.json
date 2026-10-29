@@ -28,10 +28,10 @@
     "Pipe sizes ½\" to 24\" in every schedule, five piping materials with properties against temperature and their sources, and your own sizes and materials",
     "Anchors, rests, guides, line stops, skewed restraints, springs, constant-force supports and imposed equipment movements",
     "Load cases built for you: sustained, operating, expansion range and hydrotest",
-    "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall, sustained stress and the displacement stress range, with PASS or FAIL at every point",
+    "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall (straight pipe, bends at their intrados, both ends of reducers), sustained stress and the displacement stress range, with PASS or FAIL at every point",
     "Support loads for the civil team and nozzle loads in the nozzle's own axes, checked against your allowables",
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
-    "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve"
+    "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published"
   ],
   "screenshots": [
     "docs/images/model-stress.png",
@@ -43,7 +43,7 @@
     {
       "v": "0.1.5",
       "title": "Code check fixes",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Minimum wall: the t < D/6 limit and the bend thickness factor",
         "Reducers checked at both ends",
@@ -55,7 +55,7 @@
     {
       "v": "0.1.6",
       "title": "One-way rests and gaps",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Rests that lift off (iterative solve until every support's state settles)",
         "Gaps on guides and line stops",

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.5 — 2026-10-29
+
+Code check fixes, and where every equation comes from.
+
+**Minimum wall.**
+- A bend is also checked at its intrados, where the wall needs most metal: the design thickness uses the bend factor I = (4R/D − 1)/(4R/D − 2).
+- A pressure design thickness of D/6 or more now fails, with a warning: the thin-wall equation does not apply there.
+- A reducer is checked at both ends, each with its own pipe (diameter, wall, corrosion and mill tolerance); it was checked at its large end only.
+
+**Tees.** The branch of a tee uses the effective section modulus Ze = π r₂² Ts, with Ts the lesser of the run's wall and ii × the branch's wall. Analysis Settings can turn it off for code editions that use the branch pipe's own section modulus.
+
+**Pressure elongation.** Straight pipe can grow with its pressure in the operating cases (ε = (σL − ν σh)/E). Off unless you choose it in Analysis Settings; the sustained case never includes it.
+
+**Shared supports.** Two rigid supports holding the same direction at one node now share its load equally, with a warning; the first one took it all.
+
+**Sources.** Help › Sources lists every equation with where it is published in the open engineering literature: Barlow and Lamé, the membrane theory of a torus, von Kármán, Clark and Reissner, Markl, Rodabaugh and George, and beam theory. The README, NOTICE and report say that Datum Pipe contains none of the code's text, tables or figures and is not affiliated with or endorsed by ASME.
+
+**Verification.** Three new benchmarks: a bend's wall at its intrados, pressure elongation between two anchors, and a tee branch's effective section modulus (29 checks).
+
 ## 0.1.4 — 2026-10-28
 
 Polish: the build to start with. Every example analyzes, draws its isometric and prints its report.

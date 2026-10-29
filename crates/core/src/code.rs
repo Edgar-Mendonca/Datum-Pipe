@@ -1,10 +1,11 @@
 //! The code checks, calculated using the published equations of the process piping code
-//! (ASME B31.3). Each function names the equation it follows; no tables or text of the code are
-//! reproduced. Allowable stresses come from the user's material tables.
+//! (ASME B31.3). Each function gives the equation as mathematics and points to where the code uses
+//! it by number; no tables, figures or text of the code are reproduced. Allowable stresses come
+//! from the user's material tables. Where each equation is published in the open engineering
+//! literature is listed in Help › Sources (`ui/src/help.tsx`).
 //!
-//! Stress intensification and flexibility factors for bends and tees are the textbook
-//! expressions in the flexibility characteristic h, as published in the code's appendix on
-//! flexibility and stress intensification factors.
+//! Stress intensification and flexibility factors for bends and tees are expressions in the
+//! flexibility characteristic h, from Markl's fatigue tests and the theory of curved tubes.
 
 use serde::Serialize;
 
@@ -19,15 +20,29 @@ pub fn area(od: f64, t: f64) -> f64 {
 }
 
 /// Pressure design thickness of straight pipe under internal pressure (para. 304.1.2, eq. 3a):
-/// t = P D / (2 (S E W + P Y)).
+/// t = P D / (2 (S E W + P Y)); for a bend (para. 304.2.1) S E W is divided by the bend factor I.
 pub fn pressure_thickness(p: f64, d: f64, s: f64, e: f64, w: f64, y: f64) -> f64 {
-    if p <= 0.0 { 0.0 } else { p * d / (2.0 * (s * e * w + p * y)) }
+    pressure_thickness_i(p, d, s, e, w, y, 1.0)
+}
+pub fn pressure_thickness_i(p: f64, d: f64, s: f64, e: f64, w: f64, y: f64, i: f64) -> f64 {
+    if p <= 0.0 { 0.0 } else { p * d / (2.0 * (s * e * w / i + p * y)) }
 }
 
 /// The hoop stress the same equation gives for an available thickness t:
-/// S = P (D − 2 Y t) / (2 E W t).
+/// S = I P (D − 2 Y t) / (2 E W t) (I = 1 on straight pipe).
 pub fn hoop_stress(p: f64, d: f64, t: f64, e: f64, w: f64, y: f64) -> f64 {
-    if t <= 0.0 { f64::INFINITY } else { p * (d - 2.0 * y * t) / (2.0 * e * w * t) }
+    hoop_stress_i(p, d, t, e, w, y, 1.0)
+}
+pub fn hoop_stress_i(p: f64, d: f64, t: f64, e: f64, w: f64, y: f64, i: f64) -> f64 {
+    if t <= 0.0 { f64::INFINITY } else { i * p * (d - 2.0 * y * t) / (2.0 * e * w * t) }
+}
+
+/// The bend factor at the intrados and the extrados: I = (4R/D ∓ 1) / (4R/D ∓ 2). It is the ratio of
+/// the hoop stress of a pressurised torus to that of a straight pipe, from the membrane
+/// equilibrium of a torus, σ = (P r / 2t)(2R + r sin φ)/(R + r sin φ), at r = D/2, sin φ = ∓1.
+pub fn bend_factor(rb: f64, d: f64) -> (f64, f64) {
+    let x = 4.0 * rb / d;
+    ((x - 1.0) / (x - 2.0), (x + 1.0) / (x + 2.0))
 }
 
 /// The minimum wall check of one element in one operating case.
@@ -47,16 +62,29 @@ pub struct Wall {
     pub hoop: f64,
     pub ratio: f64,
     pub pass: bool,
+    /// Where on the element: "pipe", "bend" (at the intrados, with the factor `i`), or a
+    /// reducer's "large end" and "small end"; and the pipe checked there.
+    pub at: &'static str,
+    pub i: f64,
+    pub od: f64,
+    /// The pressure design thickness is D/6 or more: the thin-wall equation does not apply and the
+    /// check fails (para. 304.1.2 asks for special consideration then).
+    pub thick: bool,
 }
 
+/// One wall check. `i` is the bend factor (1 on straight pipe).
 pub fn wall(element: u32, case: u8, p: f64, t_metal: f64, s: f64, od: f64, wall: f64, c: f64, mill: f64, e: f64, w: f64, y: f64) -> Wall {
-    let td = pressure_thickness(p, od, s, e, w, y);
+    wall_at(element, case, p, t_metal, s, od, wall, c, mill, e, w, y, 1.0, "pipe")
+}
+pub fn wall_at(element: u32, case: u8, p: f64, t_metal: f64, s: f64, od: f64, wall: f64, c: f64, mill: f64, e: f64, w: f64, y: f64, i: f64, at: &'static str) -> Wall {
+    let td = pressure_thickness_i(p, od, s, e, w, y, i);
     let tm = td + c;
     let need = tm / (1.0 - mill);
     let avail = wall * (1.0 - mill) - c;
-    let hoop = if p > 0.0 { hoop_stress(p, od, avail, e, w, y) } else { 0.0 };
+    let hoop = if p > 0.0 { hoop_stress_i(p, od, avail, e, w, y, i) } else { 0.0 };
     let ratio = if wall > 0.0 { need / wall } else { f64::INFINITY };
-    Wall { element, case, p, t: t_metal, s, t_design: td, t_min: tm, t_nominal_needed: need, t_nominal: wall, hoop, ratio, pass: ratio <= 1.0 + 1e-12 }
+    let thick = td >= od / 6.0;
+    Wall { element, case, p, t: t_metal, s, t_design: td, t_min: tm, t_nominal_needed: need, t_nominal: wall, hoop, ratio, pass: ratio <= 1.0 + 1e-12 && !thick, at, i, od, thick }
 }
 
 /// Stress intensification and flexibility at a point: in-plane and out-of-plane SIFs and the
@@ -111,6 +139,26 @@ pub fn reducer(alpha_deg: f64, d2: f64, t2: f64) -> Sif {
     Sif { ii: i, io: i, k: 1.0, h: 0.0 }
 }
 
+/// The effective section modulus of a tee's branch: Ze = π r₂² Ts, with r₂ the branch's mean
+/// radius and Ts the lesser of the run's wall Th and ii × the branch's wall Tb.
+pub fn branch_z(od_b: f64, t_b: f64, t_h: f64, ii: f64) -> f64 {
+    let r2 = (od_b - t_b) / 2.0;
+    std::f64::consts::PI * r2 * r2 * t_h.min(ii * t_b)
+}
+
+/// The axial strain of a closed straight pipe under internal pressure (Hooke's law with the
+/// longitudinal stress P di²/(Do² − di²) and the hoop stress P (Do − t)/(2t)):
+/// ε = (σL − ν σh) / E.
+pub fn pressure_strain(p: f64, od: f64, t: f64, e: f64, nu: f64) -> f64 {
+    if p <= 0.0 || t <= 0.0 || e <= 0.0 {
+        return 0.0;
+    }
+    let di = od - 2.0 * t;
+    let sl = p * di * di / (od * od - di * di);
+    let sh = p * (od - t) / (2.0 * t);
+    (sl - nu * sh) / e
+}
+
 /// The allowable stress range factor f = 6.0 N^(−0.2), at most 1.0 and at least 0.15 (eq. 1c).
 pub fn range_factor(cycles: f64) -> f64 {
     (6.0 * cycles.max(1.0).powf(-0.2)).clamp(0.15, 1.0)
@@ -138,9 +186,9 @@ pub struct Loads {
 /// Sustained longitudinal stress (para. 320.2): SL = √((|Ia Fa/Ap| + Sb + Sp)² + (2 St)²), with
 /// Sb = √((Ii Mi)² + (Io Mo)²) / Z, St = It Mt / (2 Z), Sp = P di² / (Do² − di²), the sustained
 /// factors Ii = 0.75 ii and Io = 0.75 io (at least 1), Ia = It = 1, and Z, Ap and di for the wall
-/// less the corrosion allowance.
-pub fn sustained(l: Loads, sif: Sif, p: f64, od: f64, t_corroded: f64) -> f64 {
-    let (zz, ap) = (z(od, t_corroded), area(od, t_corroded));
+/// less the corrosion allowance. `ze` replaces Z at a tee's branch.
+pub fn sustained(l: Loads, sif: Sif, p: f64, od: f64, t_corroded: f64, ze: Option<f64>) -> f64 {
+    let (zz, ap) = (ze.unwrap_or_else(|| z(od, t_corroded)), area(od, t_corroded));
     let di = od - 2.0 * t_corroded;
     let (ii, io) = ((0.75 * sif.ii).max(1.0), (0.75 * sif.io).max(1.0));
     let sb = ((ii * l.mi).powi(2) + (io * l.mo).powi(2)).sqrt() / zz;
@@ -150,9 +198,10 @@ pub fn sustained(l: Loads, sif: Sif, p: f64, od: f64, t_corroded: f64) -> f64 {
 }
 
 /// Displacement stress range (para. 319.4.4): SE = √((|Sa| + Sb)² + (2 St)²), with Sa = Fa/Ap,
-/// Sb = √((ii Mi)² + (io Mo)²) / Z and St = Mt / (2 Z), on the nominal wall.
-pub fn expansion(l: Loads, sif: Sif, od: f64, t: f64) -> f64 {
-    let (zz, ap) = (z(od, t), area(od, t));
+/// Sb = √((ii Mi)² + (io Mo)²) / Z and St = Mt / (2 Z), on the nominal wall (Ze at a tee's
+/// branch).
+pub fn expansion(l: Loads, sif: Sif, od: f64, t: f64, ze: Option<f64>) -> f64 {
+    let (zz, ap) = (ze.unwrap_or_else(|| z(od, t)), area(od, t));
     let sb = ((sif.ii * l.mi).powi(2) + (sif.io * l.mo).powi(2)).sqrt() / zz;
     let st = l.mt.abs() / (2.0 * zz);
     ((l.fa.abs() / ap + sb).powi(2) + (2.0 * st).powi(2)).sqrt()
@@ -182,7 +231,24 @@ mod tests {
         assert!((allowable_range(1.0, 138e6, 138e6, None) - 207e6).abs() < 1.0);
         // Pure bending on straight pipe: SE = M / Z.
         let zz = z(0.168_275, 0.007_112);
-        let se = expansion(Loads { mi: 1000.0, ..Default::default() }, Sif::ONE, 0.168_275, 0.007_112);
+        let se = expansion(Loads { mi: 1000.0, ..Default::default() }, Sif::ONE, 0.168_275, 0.007_112, None);
         assert!((se - 1000.0 / zz).abs() < 1e-6);
+        // Bend factor of a long-radius elbow (R = 1.5 D roughly): 4R/D = 6 gives 5/4 and 7/8.
+        let (bi, bo) = bend_factor(1.5, 1.0);
+        assert!((bi - 1.25).abs() < 1e-12 && (bo - 0.875).abs() < 1e-12);
+        // At I = 1.25 the design thickness is the straight pipe's with S/1.25.
+        let tb = pressure_thickness_i(10e6, 0.168_275, 138e6, 1.0, 1.0, 0.4, 1.25);
+        assert!((tb - pressure_thickness(10e6, 0.168_275, 138e6 / 1.25, 1.0, 1.0, 0.4)).abs() < 1e-15);
+        // D/6: a thick wall fails whatever its nominal.
+        let w = wall(1, 1, 100e6, 300.0, 138e6, 0.1, 0.05, 0.0, 0.0, 1.0, 1.0, 0.4);
+        assert!(w.thick && !w.pass);
+        // Ze of a 4" branch (114.3 × 6.02) on a 6" run (7.11), ii = 2: Ts = min(7.11, 12.04) = 7.11.
+        let ze = branch_z(0.1143, 0.006_02, 0.007_11, 2.0);
+        assert!((ze - std::f64::consts::PI * ((0.1143 - 0.006_02) / 2.0f64).powi(2) * 0.007_11).abs() < 1e-15);
+        // Pressure strain of 6" Sch 40 at 10 MPa, from its two stresses by hand.
+        let (od, t, p) = (0.168_275, 0.007_112, 10e6);
+        let di = od - 2.0 * t;
+        let want = (p * di * di / (od * od - di * di) - 0.3 * p * (od - t) / (2.0 * t)) / 2.0e11;
+        assert!((pressure_strain(p, od, t, 2.0e11, 0.3) - want).abs() < 1e-18);
     }
 }

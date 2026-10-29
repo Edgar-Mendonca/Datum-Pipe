@@ -59,6 +59,9 @@ pub struct Tee {
     pub pipe: u32,
     /// The plane of the tee (normal), for in-plane and out-of-plane moments.
     pub normal: V,
+    /// The branch: the element that is not part of the straight run, and its pipe (none when the
+    /// tee has no straight run through it).
+    pub branch: Option<(u32, u32)>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -211,11 +214,13 @@ impl Geom {
             // sets the SIF (found by review: a tee marked on the branch took the branch's size).
             let mut normal = None;
             let mut run_pipe = e.pipe;
+            let mut branch = None;
             'find: for (x, ux) in &list {
                 for (y, uy) in &list {
                     if x < y && dot(*ux, *uy) < -0.99 {
                         run_pipe = m.elements[*x].pipe;
-                        if let Some((_, ub)) = list.iter().find(|(z, _)| z != x && z != y) {
+                        if let Some((zi, ub)) = list.iter().find(|(z, _)| z != x && z != y) {
+                            branch = Some((m.elements[*zi].id, m.elements[*zi].pipe));
                             let n = cross(*ux, *ub);
                             if norm(n) > 1e-6 {
                                 normal = Some(unit(n));
@@ -237,7 +242,7 @@ impl Geom {
                 }
             };
             let point = g.node_point[&e.to];
-            g.tees.push(Tee { node: e.to, point, kind: tee, pad, pipe: run_pipe, normal });
+            g.tees.push(Tee { node: e.to, point, kind: tee, pad, pipe: run_pipe, normal, branch });
         }
         Ok(g)
     }

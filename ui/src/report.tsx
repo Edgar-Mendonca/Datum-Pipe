@@ -25,7 +25,7 @@ export const ReportBody = (p: { m: Model }): Block[] => {
   const name = (l: { id: number; name: string }[], id: number) => l.find(x => x.id === id)?.name ?? "?";
   return [
     () => <div><h2>{m.project.project || m.name}</h2><TitleBlock m={m} /><Show when={m.notes}><p>{m.notes}</p></Show>
-      <p class="muted small">Calculated using the equations of the process piping code (ASME B31.3). Allowable stresses are the user's inputs. Results must be checked by a qualified engineer.</p></div>,
+      <p class="muted small">Calculated using the published equations of the process piping code (ASME B31.3); not affiliated with or endorsed by ASME. Allowable stresses are the user's inputs. Results must be checked by a qualified engineer against the code edition that applies to the project.</p></div>,
     () => <div><h3>1. Input</h3><h4>Pipes</h4>
       <table class="tbl"><thead><tr><th>Pipe</th><th class="r">OD ({unit("len")})</th><th class="r">Wall</th><th class="r">Corrosion</th><th class="r">Mill tol.</th><th class="r">Insulation</th><th class="r">Ins. density ({unit("density")})</th><th class="r">Contents ({unit("density")})</th></tr></thead><tbody>
         <For each={m.pipes}>{x => <tr><td>{x.name}</td><td class="r">{v("len", x.od)}</td><td class="r">{v("len", x.wall)}</td><td class="r">{v("len", x.corrosion)}</td><td class="r">{num(x.mill * 100, 3)} %</td><td class="r">{v("len", x.ins_t)}</td><td class="r">{v("density", x.ins_rho)}</td><td class="r">{v("density", x.fluid_rho)}</td></tr>}</For></tbody></table></div>,
@@ -41,7 +41,7 @@ export const ReportBody = (p: { m: Model }): Block[] => {
     () => <div><h4>Line conditions</h4>
       <table class="tbl"><thead><tr><th>Conditions</th><th class="r">T1</th><th class="r">T2</th><th class="r">T3</th><th class="r">P1</th><th class="r">P2</th><th class="r">P3</th><th class="r">Hydrotest</th></tr></thead><tbody>
         <For each={m.conds}>{c => <tr><td>{c.name}</td><For each={c.t}>{t => <td class="r">{fmt("temp", t)}</td>}</For><For each={c.p}>{q => <td class="r">{fmt("press", q)}</td>}</For><td class="r">{fmt("press", c.hydro)}</td></tr>}</For></tbody></table>
-      <p class="muted small">Installed temperature {fmt("temp", m.settings.ambient)}; {m.settings.cycles} displacement cycles; {m.settings.liberal ? "liberal" : "basic"} allowable stress range; bend pressure correction {m.settings.bend_pressure ? "on" : "off"}.</p></div>,
+      <p class="muted small">Installed temperature {fmt("temp", m.settings.ambient)}; {m.settings.cycles} displacement cycles; {m.settings.liberal ? "liberal" : "basic"} allowable stress range; bend pressure correction {m.settings.bend_pressure ? "on" : "off"}; pressure elongation {m.settings.pressure_elongation ? "on" : "off"}; branch section modulus {m.settings.branch_ze ? "effective (Ze)" : "of the branch pipe"}.</p></div>,
     () => <div><h4>Elements</h4>
       <table class="tbl small"><thead><tr><th>From</th><th>To</th><th class="r">DX ({unit("coord")})</th><th class="r">DY</th><th class="r">DZ</th><th>Pipe</th><th>Material</th><th>Conditions</th><th>Component</th></tr></thead><tbody>
         <For each={m.elements}>{e => <tr><td>{e.from}</td><td>{e.to}</td><For each={e.d}>{d => <td class="r">{d ? v("coord", d) : ""}</td>}</For><td>{name(m.pipes, e.pipe)}</td><td>{name(m.materials, e.material).split(",")[0]}</td><td>{name(m.conds, e.cond)}</td><td>{compName(e.comp)}</td></tr>}</For></tbody></table></div>,

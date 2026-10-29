@@ -10,7 +10,7 @@ import * as D from "./dialogs";
 import * as P from "./props";
 import * as T from "./tools";
 import { Icon } from "./ui";
-import { Help, helpCard, HELP } from "./help";
+import { Help, helpCard, HELP, sourcesDialog } from "./help";
 import { invoke, Example } from "./api";
 import { COMPS, compFrom, compKey } from "./table";
 
@@ -159,7 +159,7 @@ export const Ribbon = () => {
       </Show>
       <Show when={tab() === "help"}>
         <G l="Learn"><B big i="report" l="Getting Started" run={() => D.gettingStarted()} /><B big i="info" l="Glossary" run={() => D.glossary()} /><B big i="help" l="What Is This Tool?" dd={e => openMenu(e, Object.entries(HELP).map(([k, h]) => ({ label: h.t, run: () => helpCard(k) })))} /><B big i="keys" l="Shortcuts" run={() => D.shortcuts()} /><B big i="search" l="Tell Me" run={palette} /></G>
-        <G l="Trust"><B big i="verify" l="Verification" run={() => P.verification()} /></G>
+        <G l="Trust"><B big i="verify" l="Verification" run={() => P.verification()} /><B big i="info" l="Sources" run={sourcesDialog} title="Where each equation is published" /></G>
         <G l="Datum Pipe on GitHub"><B big i="github" l="GitHub" run={() => call("open_url", { url: GH })} /><B big i="tag" l="Releases" run={() => call("open_url", { url: `${GH}/releases` })} /><B big i="bug" l="Report an Issue" run={() => call("open_url", { url: `${GH}/issues/new` })} /></G>
         <G l="Updates"><B big i="upd" l="Check for Updates" run={() => setBackstage("about")} /><B big i="list" l="Roadmap" run={() => setBackstage("roadmap")} /></G>
       </Show>

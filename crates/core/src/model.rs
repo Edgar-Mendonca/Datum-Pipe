@@ -359,13 +359,18 @@ pub struct Settings {
     pub bend_pressure: bool,
     /// Build the load cases from the model after every edit.
     pub auto_cases: bool,
+    /// Add the axial growth of straight pipe under pressure to the operating cases.
+    pub pressure_elongation: bool,
+    /// Use the effective section modulus Ze = π r² Ts at a tee's branch (earlier code editions);
+    /// off: the branch pipe's own section modulus.
+    pub branch_ze: bool,
     /// Number new nodes in steps of this.
     pub step: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, step: 10 }
+        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10 }
     }
 }
 

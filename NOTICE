@@ -16,8 +16,10 @@ user checks them against their code edition).
 
 Pipe outside diameters and wall thicknesses are the published nominal dimensions of wrought steel
 pipe (ASME B36.10M) and stainless steel pipe (ASME B36.19M). Code checks are calculated using the
-published equations of the process piping code (ASME B31.3); no tables or text of any code or
-standard are reproduced.
+published equations of the process piping code (ASME B31.3); no tables, figures or text of any
+code or standard are reproduced, and Datum Pipe is not affiliated with or endorsed by ASME. Where
+each equation is published in the open literature is listed in Help › Sources (ui/src/help.tsx).
+ASME and B31.3 are trademarks of the American Society of Mechanical Engineers.
 
 The family workflow, ribbon, File page, updater and printing are taken from Datum Plan, by way of
 Datum Mesh (both MIT, same author).

@@ -25,7 +25,7 @@
 
 Route a piping system in a table, the way a stress engineer marks up an isometric; put on its supports, temperatures and pressures; and Datum Pipe works out the displacements, support loads, equipment nozzle loads and code stresses, shows them on the 3D model and on an isometric drawing, and prints a stress report. It is for piping, stress, mechanical, process and plant engineers, consultants and students. It is free and open source (MIT), Windows first, installs in seconds and updates itself. More on the family site: [edgar-mendonca.github.io/Datum/apps/pipe](https://edgar-mendonca.github.io/Datum/apps/pipe).
 
-> **Results must be checked by a qualified engineer.** Datum Pipe calculates using the published equations of the process piping code (ASME B31.3). Allowable stresses are your inputs: the values it fills in are typical, and must be checked against the edition of the code you work to.
+> **Results must be checked by a qualified engineer.** Datum Pipe is a tool to help engineers. Before its results are used for design, fabrication or approval, a qualified engineer must check them against the edition of the code that applies to the project.
 
 ## What it does
 
@@ -38,7 +38,7 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 - **Results**: displacements, forces and moments, support loads for the civil team, nozzle loads in the nozzle's axes, and an equilibrium check after every solve.
 - **Isometric and report**: an automatic 30° isometric with dimensions, symbols and result tags (print or SVG), and a printed stress report with the title block, input echo, stress summary, support and nozzle loads, the isometric and the equilibrium checks.
 - **Editing tools**: an expansion loop wizard, copy and mirror a section, insert a node, renumber, undo and redo everything.
-- **Verified**: Help › Verification solves benchmark problems with known answers in front of you: beam theory, heated L-bends, Z-bends and an expansion loop against the flexibility method by hand, a bend's flexibility, the minimum wall equation and the equilibrium of every example.
+- **Verified**: Help › Verification solves benchmark problems with known answers in front of you: beam theory, heated L-bends, Z-bends and an expansion loop against the flexibility method by hand, a bend's flexibility, the minimum wall equation on straight pipe and at a bend's intrados, pressure elongation, a tee branch's effective section modulus and the equilibrium of every example.
 - **Worked examples**: a pump discharge with an expansion loop, a compressor suction line, a steam line on a pipe rack, a tank outlet with settlement, and an L-bend and a Z-bend to check by hand.
 
 | | |
@@ -47,6 +47,16 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 | The isometric, drawn from the table | Code stresses at every point |
 | ![The printed stress report](docs/images/report.png) | |
 | The stress report, ready to print or save as PDF | |
+
+## About the code checks
+
+Datum Pipe calculates stresses using the published equations of ASME B31.3 (Process Piping). It does not contain the text, tables or figures of the standard. It is not affiliated with or endorsed by ASME.
+
+The equations come from openly published engineering work: Barlow's thin-wall pressure formula and Lamé's thick-cylinder solution, the membrane theory of a torus for the wall of a bend, von Kármán's and Clark and Reissner's theory of curved tubes, A. R. C. Markl's fatigue tests of piping components (1952), Rodabaugh and George's work on pressure in bends (1957), and standard beam theory. Help › Sources in the app lists each equation with its reference.
+
+Some values are tabulated in the standard, such as allowable stresses. In Datum Pipe these are inputs you enter. They are pre-filled with typical values worked out from published minimum material strengths and are marked "check against your code edition".
+
+ASME and B31.3 are trademarks of the American Society of Mechanical Engineers.
 
 ## Build it yourself
 

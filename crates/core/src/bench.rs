@@ -1,12 +1,13 @@
 //! The verification benchmarks (brief §4): each is a model solved by the engine and compared with a
 //! reference worked out independently: beam theory, the flexibility (elastic centre) method by hand
 //! for heated L-bends, Z-bends and expansion loops, a bend's closed-form end rotation, and the
-//! minimum wall equation. `run()` gives the rows of Help › Verification; the test fails on any row
+//! minimum wall equation (straight pipe and a bend's intrados), a tee branch's effective section
+//! modulus, and the axial force of pressure elongation between anchors. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
 use crate::examples::table;
-use crate::model::{BendKind, Comp, Load, Model, SupKind, Support, K0};
+use crate::model::{BendKind, Comp, Load, Model, Pipe, SupKind, Support, TeeKind, K0};
 use crate::solve::{analyze, Results};
 use serde::Serialize;
 
@@ -241,6 +242,65 @@ pub fn run() -> Vec<Check> {
         out.push(row(7, "Expansion loop between two anchors, heated", "Anchor force along the line", "force", want[0], ra[0], TOL, src));
         out.push(row(7, "Expansion loop between two anchors, heated", "Anchor moment", "moment", want[2], ra[5], TOL, src));
     }
+    // 9. A bend's minimum wall at its intrados: 6" Sch 40 long-radius elbow (R = 228.6 mm),
+    //    P = 10 MPa, S = 138 MPa, E = W = 1, Y = 0.4, no corrosion.
+    {
+        // By hand: 4R/D = 914.4 / 168.275 = 5.433962; I = 4.433962 / 3.433962 = 1.291209;
+        // t = 10 × 168.275 / (2 (138 / 1.291209 + 4)) = 7.588391 mm.
+        let i = crate::code::bend_factor(0.2286, 0.168_275).0;
+        let w = crate::code::wall_at(0, 1, 10e6, K0 + 21.0, 138e6, 0.168_275, 0.007_112, 0.0, 0.125, 1.0, 1.0, 0.4, i, "bend");
+        let src = "Bend factor from the membrane equilibrium of a torus, by hand";
+        out.push(row(9, "Minimum wall of a bend at its intrados", "Bend factor I at the intrados", "ratio", 1.291_208_791, i, 1e-9, src));
+        out.push(row(9, "Minimum wall of a bend at its intrados", "Pressure design thickness", "len", 0.007_588_391, w.t_design, 1e-6, src));
+    }
+    // 10. Pressure elongation: 6 m of 6" Sch 40 between two anchors at 10 MPa, no weight, no heat.
+    //     The anchors hold the free growth back: N = E A ε, ε = (σL − ν σh) / E.
+    {
+        let rows: Vec<(u32, u32, f64, f64, f64)> = (0..6).map(|k| (10 * (k + 1), 10 * (k + 2), 1.0, 0.0, 0.0)).collect();
+        let mut d = table("Pressure elongation", &rows);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        s.pressure_elongation = true;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        let mut c = d.m.conds[0].clone();
+        c.p[0] = 10e6;
+        d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+        anchor(&mut d, 10);
+        anchor(&mut d, 70);
+        let h = hand(&d.m);
+        let p = &d.m.pipes[0];
+        let di = p.od - 2.0 * p.wall;
+        let (sl, sh) = (10e6 * di * di / (p.od * p.od - di * di), 10e6 * (p.od - p.wall) / (2.0 * p.wall));
+        let want = h.e * h.a * (sl - d.m.materials[0].nu * sh) / h.e;
+        let r = analyze(&d.m).unwrap();
+        out.push(row(10, "Pressure elongation between two anchors", "Anchor force along the line", "force", -want, reaction(&r, "OPE1", 70)[0], TOL, "Hooke's law: N = E A (σL − ν σh) / E"));
+    }
+    // 11. A tee branch's effective section modulus: 6" Sch 40 run 10–20–30 along X with a welding
+    //     tee at 20, a 2" Sch 40 branch 20–40 of 2 m along Z, 1 kN up at its end, no weight.
+    {
+        let mut d = table("Tee branch", &[(10, 20, 3.0, 0.0, 0.0), (20, 30, 3.0, 0.0, 0.0)]);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        let o = d.apply(Op::Add { item: Item::Pipe(Pipe::std(0, "2", "40")), after: None }).unwrap();
+        let e = crate::model::Element { from: 20, to: 40, d: [0.0, 0.0, 2.0], pipe: o[0], material: d.m.materials[0].id, cond: d.m.conds[0].id, ..Default::default() };
+        add(&mut d, Item::Element(e));
+        let mut e = d.m.elements[0].clone();
+        e.comp = Comp::Tee { tee: TeeKind::Welding, pad: 0.0 };
+        d.apply(Op::Set { item: Item::Element(e) }).unwrap();
+        anchor(&mut d, 10);
+        anchor(&mut d, 30);
+        add(&mut d, Item::Load(Load { node: 40, f: [0.0, 1e3, 0.0], m: [0.0; 3], ..Default::default() }));
+        // By hand: h = 3.1 T / r = 0.273601, io = 0.9 / h^⅔ = 2.135488, ii = 0.75 io + 0.25 =
+        // 1.851616; Ts = min(7.112, 1.851616 × 3.9116) = 7.112 mm; Ze = π (28.2067 mm)² × 7.112 mm =
+        // 1.777650e-5 m³; the out-of-plane moment 2 kN·m with Io = 0.75 io = 1.601616:
+        // SL = 1.601616 × 2000 / 1.777650e-5 = 180.1948 MPa.
+        let r = analyze(&d.m).unwrap();
+        let pt = r.geom.node_point[&20];
+        let br = d.m.elements.iter().find(|e| e.to == 40).unwrap().id;
+        let sl = case(&r, "SUS").stresses.iter().find(|x| x.point == pt && r.geom.segs[x.seg].element == br).map_or(f64::NAN, |x| x.stress);
+        out.push(row(11, "A tee branch's effective section modulus", "Sustained stress in the branch at the tee", "stress", 180.194_774_5e6, sl, 1e-6, "Ze = π r₂² Ts with Markl's tee factors, by hand"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -265,7 +325,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in [1, 2, 3, 4, 5, 6, 7, 8] {
+        for b in 1..=11 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

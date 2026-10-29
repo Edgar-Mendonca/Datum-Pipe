@@ -55,7 +55,9 @@ fn bend(d: &mut Doc, at: u32) {
     d.apply(Op::Set { item: Item::Element(e) }).expect("bend");
 }
 pub(crate) fn support(d: &mut Doc, node: u32, kind: SupKind, tag: &str) {
-    d.apply(Op::Add { item: Item::Support(Support { node, kind, tag: tag.into(), ..Default::default() }), after: None }).expect("support");
+    // Rests are one-way, as new rests are in the window.
+    let one_way = kind == SupKind::Rest;
+    d.apply(Op::Add { item: Item::Support(Support { node, kind, tag: tag.into(), one_way, ..Default::default() }), after: None }).expect("support");
 }
 fn conditions(d: &mut Doc, name: &str, t: [f64; 3], p: [f64; 3], hydro: f64) {
     let mut c = d.m.conds[0].clone();
@@ -185,12 +187,16 @@ fn steam() -> Model {
     }
     support(&mut d, 10, SupKind::Guide, "G-10");
     support(&mut d, 30, SupKind::Guide, "G-30");
+    // The guides have 3 mm of clearance on each side, as rack guides usually do.
+    for g in d.m.supports.iter().filter(|s| s.kind == SupKind::Guide).cloned().collect::<Vec<_>>() {
+        d.apply(Op::Set { item: Item::Support(Support { gap: 0.003, ..g }) }).expect("guide gap");
+    }
     support(&mut d, 65, SupKind::Rest, "S-65");
     support(&mut d, 20, SupKind::Linestop, "LS-20");
     support(&mut d, 70, SupKind::Anchor, "T-301 inlet");
     displace(&mut d, 70, 0, [0.0, 0.002, 0.0, 0.0, 0.0, 0.0]);
     nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, -1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
-    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on rests, with guides at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot.");
+    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests, with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot.");
     d.m
 }
 

@@ -22,7 +22,7 @@ export interface Cond { id: number; name: string; t: V3; p: V3; hydro: number }
 export type SupKind =
   | { kind: "anchor" } | { kind: "rest" } | { kind: "guide" } | { kind: "linestop" } | { kind: "restraint"; dir: V3 }
   | { kind: "spring"; dir: V3; k: number } | { kind: "rotspring"; dir: V3; k: number } | { kind: "constant"; load: number };
-export interface Support { id: number; node: number; kind: SupKind; k: number; disp: [number[], number[], number[]]; tag: string }
+export interface Support { id: number; node: number; kind: SupKind; k: number; disp: [number[], number[], number[]]; tag: string; one_way: boolean; gap: number }
 export interface Nozzle { id: number; node: number; name: string; axis: V3; allow: [number, number, number, number] }
 export interface Load { id: number; node: number; f: V3; m: V3 }
 export type CaseKind = "sus" | "ope" | "exp" | "hyd" | "occ";
@@ -46,7 +46,8 @@ export type Six = [number, number, number, number, number, number];
 export interface Reaction { support: number; node: number; f: Six }
 export interface NozzleLoad { nozzle: number; node: number; local: Six; shear: number; bending: number; ratios: [number, number, number, number]; pass: boolean | null }
 export interface Stress { seg: number; end: number; point: number; stress: number; allow: number; ratio: number; pass: boolean; ii: number; io: number }
-export interface CaseResult { id: number; name: string; kind: CaseKind; disp: Six[]; forces: [Six, Six][]; reactions: Reaction[]; nozzles: NozzleLoad[]; stresses: Stress[]; applied: Six; reacted: Six; imbalance: number; worst: number | null }
+export interface CaseResult { id: number; name: string; kind: CaseKind; disp: Six[]; forces: [Six, Six][]; reactions: Reaction[]; nozzles: NozzleLoad[]; stresses: Stress[]; applied: Six; reacted: Six; imbalance: number; worst: number | null; contacts: Contact[]; iterations: number }
+export interface Contact { support: number; node: number; dir: V3; state: "touching" | "open" | "lifted off"; movement: number; gap: number }
 export interface Wall { element: number; case: number; p: number; t: number; s: number; t_design: number; t_min: number; t_nominal_needed: number; t_nominal: number; hoop: number; ratio: number; pass: boolean; at: string; i: number; od: number; thick: boolean }
 export interface Sif { ii: number; io: number; k: number; h: number }
 export interface SolveStats { equations: number; nonzeros: number; residual: number; ms: number }

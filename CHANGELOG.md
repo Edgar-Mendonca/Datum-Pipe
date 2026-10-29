@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.7 — 2026-10-29
+
+One-way rests and gaps.
+
+**One-way rests.** A rest can let the pipe lift off: it pushes the pipe up but never pulls it down. New rests are one-way; the Inspector switches it. Rests in files from earlier versions stay two-way, so their results do not change.
+
+**Gaps.** Rests, guides, line stops and restraints can have a gap: below the pipe for a rest, on each side for the others. The support takes no load until the pipe has moved across it.
+
+**How it is solved.** With one-way rests or gaps, each load case is solved again until every such support has settled as touching or open: a touching support must push the pipe, not pull it, and an open one must not be passed. The expansion range is still the difference of the operating and sustained results. If only open gaps hold the piping in some direction, they keep a light stiffness (1 N/mm) so the case can be solved, with a warning.
+
+**Results.** Support Loads shows each one-way or gapped support as touching, open or lifted off, with the pipe's movement and the gap, and how many solves the case took.
+
+**Examples.** The examples' rests are one-way, and the steam line's guides have 3 mm gaps.
+
+**Verification.** Two new benchmarks: a one-way rest under a cantilever (lifting off when pushed up, carrying the load when pushed down) and a gap closing at a cantilever's tip (34 checks).
+
 ## 0.1.6 — 2026-10-29
 
 Windows now lists the publisher as Datum.

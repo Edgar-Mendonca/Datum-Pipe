@@ -91,6 +91,11 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.1.7 | `Support.one_way` (rests) and `Support.gap` (rests, guides, line stops, restraints); new rests from the window and the examples are one-way, files without the field stay two-way | Lift-off is the realistic default, and old files keep their results |
+| 0.1.7 | Each Sum case is solved by iteration with its own support states (start: touching for a one-way rest without a gap, open for a gap; change every wrong state each solve, at most 100); ranges stay OPE − SUS of the settled results | The usual practice; ranges as differences keep the code's displacement range meaning |
+| 0.1.7 | A touching rigid support along a global axis is held exactly at its gap (prescribed value); flexible or skewed ones are springs with an offset | Same exactness as linear supports, so the benchmarks match to rounding |
+| 0.1.7 | When open gaps leave a mechanism, the open supports get 1 N/mm and the case is solved again, with a warning; the small loads are reported | A straight run held sideways only by gapped guides is common and must solve |
+| 0.1.7 | Linear-only models keep the one-factorisation path, bit for bit | No change to results or speed for models without one-way or gapped supports |
 | 0.1.6 | The Windows publisher is "Datum" (`bundle.publisher` in `src-tauri/tauri.conf.json`); the copyright stays "© 2026 Edgar Mendonca" | A family-wide change (FAMILY §9 in the hub); nothing else in the repo names the publisher |
 | 0.1.5 | Public words about the code: "calculates using the published equations of ASME B31.3", "contains none of the code's text, tables or figures", "not affiliated with or endorsed by ASME", ASME and B31.3 named as trademarks; Help › Sources (`SOURCES` in `ui/src/help.tsx`) lists each equation with an open-literature reference, and says plainly where an equation is the code's own (reducer SIF, the 1.25/0.25 range factors, Ts) | The owner asked to be safe from any use of copyrighted material: equations and physical facts are not protected, the code's wording, tables and figures are, and none is in the app. Citations were checked against library and journal records before use; Lorenz (1910) was left out as unconfirmed, the bend factor is derived from the torus instead |
 | 0.1.5 | Bend wall: an extra check per bend at its intrados with I = (4R/D − 1)/(4R/D − 2); the extrados (I < 1) is not listed, the straight check covers it | The intrados governs; one line per bend keeps the table short |
@@ -149,8 +154,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.1.4 | Polish and the review fixes; screenshots, README, site; every example analyzes, draws and prints in a UI test | ✅ |
 | 0.1.5 | Code check fixes: t < D/6 limit and bend thickness factor, reducers at both ends, tee effective branch section modulus, pressure elongation, each support's own share of a shared reaction; Help › Sources and the legal wording | ✅ |
 | 0.1.6 | Windows publisher "Datum" (family-wide) | ✅ |
-| 0.1.7 | One-way rests and gaps (iterative solve), lift-off shown in the results, benchmarks | 🔜 |
-| 0.1.8 | Friction at rests and guides, equilibrium with friction, a friction benchmark | ⬜ |
+| 0.1.7 | One-way rests and gaps (iterative solve), lift-off shown in the results, benchmarks | ✅ |
+| 0.1.8 | Friction at rests and guides, equilibrium with friction, a friction benchmark | 🔜 |
 | 0.1.9 | Wind and static seismic loads, occasional cases and the occasional stress check | ⬜ |
 | 0.1.10 | Spring hanger selection (spring data entered by the user) | ⬜ |
 | 0.1.11 | Import of plain-text piping component files; the public regulator benchmarks in Help › Verification | ⬜ |
@@ -208,9 +213,15 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 ### 2026-10-29: Session 2, continued (0.1.6: publisher)
 - The Windows publisher became "Datum" across the family; released as 0.1.6. The roadmap's one-way rests and gaps move to the next release number.
 
-## 5. Known limits (0.1.5)
+### 2026-10-29: Session 2, continued (0.1.7: one-way rests and gaps)
+- Engine: `Support.one_way`, `Support.gap`, `Support::conditional`; `solve_conditional` (per-case iteration, exact holds, springs with offsets, 1 N/mm fallback); `CaseResult.contacts` and `iterations`. Benchmarks 12–13 (34 checks), four worked cases, random hardening models with one-way rests and gaps.
+- Examples: rests one-way, steam guides with 3 mm gaps (all settle with no warnings; results otherwise unchanged).
+- UI: Inspector one-way switch and gap; Support Loads state column and solve count; help; ribbon's Nonlinear group now only plans friction. Three UI checks; the mock bridge adds supports.
 
-- Rests are two-way (one-way in 0.1.7); no friction (0.1.8) or gaps (0.1.7).
+## 5. Known limits (0.1.7)
+
+- No friction yet (0.1.8). One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
+- Each case finds its own support states; there is no option to use the operating states for the sustained case.
 - No pressure thrust; no occasional loads yet (0.1.9; the OCC case kind is ready).
 - The deformed shape moves arcs' vertices by the chord-interpolated displacement (fine to 45° per arc segment; bends are split in two).
 - Bends' pressure opening (Bourdon effect of curved pipe) is not modelled; pressure elongation is for straight pipe only and off by default.

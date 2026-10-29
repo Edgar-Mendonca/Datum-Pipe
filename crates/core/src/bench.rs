@@ -2,7 +2,8 @@
 //! reference worked out independently: beam theory, the flexibility (elastic centre) method by hand
 //! for heated L-bends, Z-bends and expansion loops, a bend's closed-form end rotation, and the
 //! minimum wall equation (straight pipe and a bend's intrados), a tee branch's effective section
-//! modulus, and the axial force of pressure elongation between anchors. `run()` gives the rows of Help › Verification; the test fails on any row
+//! modulus, the axial force of pressure elongation between anchors, and a one-way rest and a gap
+//! (the cantilever by beam theory, with the support touching or open). `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -301,6 +302,47 @@ pub fn run() -> Vec<Check> {
         let sl = case(&r, "SUS").stresses.iter().find(|x| x.point == pt && r.geom.segs[x.seg].element == br).map_or(f64::NAN, |x| x.stress);
         out.push(row(11, "A tee branch's effective section modulus", "Sustained stress in the branch at the tee", "stress", 180.194_774_5e6, sl, 1e-6, "Ze = π r₂² Ts with Markl's tee factors, by hand"));
     }
+    // 12. A one-way rest under a cantilever's tip: 3 m of 6" Sch 40 anchored at 10, the rest at 60,
+    //     10 kN at the tip. Pushed up, the pipe lifts off and the tip moves as a free cantilever;
+    //     pushed down, the rest carries the whole load and the tip stays put.
+    {
+        let tip = |p: f64| {
+            let mut d = table("One-way rest", &[(10, 20, 0.6, 0.0, 0.0), (20, 30, 0.6, 0.0, 0.0), (30, 40, 0.6, 0.0, 0.0), (40, 50, 0.6, 0.0, 0.0), (50, 60, 0.6, 0.0, 0.0)]);
+            let mut s = d.m.settings.clone();
+            s.g = 0.0;
+            d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+            anchor(&mut d, 10);
+            add(&mut d, Item::Support(Support { node: 60, kind: SupKind::Rest, one_way: true, ..Default::default() }));
+            add(&mut d, Item::Load(Load { node: 60, f: [0.0, p, 0.0], m: [0.0; 3], ..Default::default() }));
+            let h = hand(&d.m);
+            (analyze(&d.m).unwrap(), h)
+        };
+        let (r, h) = tip(10e3);
+        let free = 10e3 * 27.0 / (3.0 * h.e * h.i) + 10e3 * 3.0 / (crate::elements::KAPPA * h.g * h.a);
+        let name = "A one-way rest under a cantilever's tip";
+        out.push(row(12, name, "Pushed up: tip lifts as a free cantilever", "disp", free, disp(&r, "OPE1", 60)[1], TOL, "Beam theory: PL³/3EI + PL/κGA, rest open"));
+        out.push(row(12, name, "Pushed up: rest load", "force", 0.0, reaction(&r, "OPE1", 60)[1], 1e-9, "The rest cannot pull"));
+        let (r, _) = tip(-10e3);
+        out.push(row(12, name, "Pushed down: rest load", "force", 10e3, reaction(&r, "OPE1", 60)[1], TOL, "Statics: the rest carries P"));
+    }
+    // 13. A gap closing: the same cantilever with a Z restraint at the tip that has a 5 mm gap on each
+    //     side, and 10 kN along Z. The free tip would move P c (c = L³/3EI + L/κGA, about 38 mm), so
+    //     the gap closes: the tip stops at 5 mm and the restraint takes P − g / c.
+    {
+        let mut d = table("Gap", &[(10, 20, 0.6, 0.0, 0.0), (20, 30, 0.6, 0.0, 0.0), (30, 40, 0.6, 0.0, 0.0), (40, 50, 0.6, 0.0, 0.0), (50, 60, 0.6, 0.0, 0.0)]);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        anchor(&mut d, 10);
+        add(&mut d, Item::Support(Support { node: 60, kind: SupKind::Restraint { dir: [0.0, 0.0, 1.0] }, gap: 0.005, ..Default::default() }));
+        add(&mut d, Item::Load(Load { node: 60, f: [0.0, 0.0, 10e3], m: [0.0; 3], ..Default::default() }));
+        let h = hand(&d.m);
+        let c = 27.0 / (3.0 * h.e * h.i) + 3.0 / (crate::elements::KAPPA * h.g * h.a);
+        let r = analyze(&d.m).unwrap();
+        let name = "A gap closing at a cantilever's tip";
+        out.push(row(13, name, "Tip movement (the gap)", "disp", 0.005, disp(&r, "OPE1", 60)[2], TOL, "The gap: 5 mm"));
+        out.push(row(13, name, "Restraint load", "force", -(10e3 - 0.005 / c), reaction(&r, "OPE1", 60)[2], TOL, "Beam theory: P − g / c, c = L³/3EI + L/κGA"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -325,7 +367,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=11 {
+        for b in 1..=13 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

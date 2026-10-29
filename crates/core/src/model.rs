@@ -211,7 +211,8 @@ pub enum SupKind {
     /// Holds all six directions.
     #[default]
     Anchor,
-    /// Holds the pipe up (+Y). Two-way in 0.1: it also holds the pipe down (one-way in 0.1.7).
+    /// Holds the pipe up (+Y). One-way when the support says so (the pipe can lift off), otherwise
+    /// it also holds the pipe down (rests in files from before 0.1.7).
     Rest,
     /// Holds the pipe sideways: horizontally across a horizontal pipe, both horizontal directions
     /// on a vertical pipe.
@@ -241,11 +242,25 @@ pub struct Support {
     pub disp: [[f64; 6]; 3],
     /// A tag for the support loads table ("PS-101").
     pub tag: String,
+    /// A rest that only pushes up: the pipe can lift off it (rests only).
+    pub one_way: bool,
+    /// Clearance before the support takes load (m): on each side for a guide, line stop or
+    /// restraint, below the pipe for a rest.
+    pub gap: f64,
 }
 
 impl Default for Support {
     fn default() -> Self {
-        Support { id: 0, node: 10, kind: SupKind::Anchor, k: 0.0, disp: [[0.0; 6]; 3], tag: String::new() }
+        Support { id: 0, node: 10, kind: SupKind::Anchor, k: 0.0, disp: [[0.0; 6]; 3], tag: String::new(), one_way: false, gap: 0.0 }
+    }
+}
+
+impl Support {
+    /// Whether the support's state depends on the solution (one-way, or with a gap): those are
+    /// solved by iteration.
+    pub fn conditional(&self) -> bool {
+        let gappable = matches!(self.kind, SupKind::Rest | SupKind::Guide | SupKind::Linestop | SupKind::Restraint { .. });
+        (self.one_way && self.kind == SupKind::Rest) || (gappable && self.gap > 0.0)
     }
 }
 
@@ -610,6 +625,9 @@ impl Model {
                 SupKind::Constant { load } => fin(*load) && *load >= 0.0,
                 _ => true,
             };
+            if !(s.gap >= 0.0 && fin(s.gap)) {
+                return Err(format!("The support at node {}: the gap must be 0 or more.", s.node));
+            }
             if !ok || !(s.k >= 0.0 && fin(s.k)) || s.disp.iter().flatten().any(|v| !fin(*v)) {
                 return Err(format!("The support at node {} needs a direction and a stiffness above 0.", s.node));
             }

@@ -51,7 +51,9 @@ pub fn random_model(r: &mut Rng, n: usize) -> Model {
             2 => SupKind::Guide,
             _ => SupKind::Restraint { dir: [r.f() - 0.5, r.f() - 0.5, r.f() - 0.5 + 1e-3] },
         };
-        let _ = d.apply(Op::Add { item: Item::Support(Support { node, kind, ..Default::default() }), after: None });
+        // Some rests one-way and some supports with a gap, so the iteration is tried on every shape.
+        let (one_way, gap) = (r.int(2) == 0, if r.int(4) == 0 { r.f() * 0.01 } else { 0.0 });
+        let _ = d.apply(Op::Add { item: Item::Support(Support { node, kind, one_way, gap, ..Default::default() }), after: None });
     }
     d.m
 }

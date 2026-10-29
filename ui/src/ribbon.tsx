@@ -131,7 +131,7 @@ export const Ribbon = () => {
         <G l="Restraints" h="supports"><S><Sup k="rx" i="restraint" /><Sup k="ry" i="restraint" /><Sup k="rz" i="restraint" /></S><S><Sup k="skew" i="restraint" l="Skewed" /><Sup k="spring" i="spring" l="Spring" /><Sup k="rotspring" i="spring" l="Rotational Spring" /></S></G>
         <G l="Hangers" h="supports"><Sup big k="constant" i="constant" l="Constant Force" /><S><Planned i="spring" l="Spring Hanger Sizing" v="0.1.10" /></S></G>
         <G l="Equipment" h="nozzles"><B big i="nozzle" l="Nozzle Point" run={C.nozzle} /><S><Planned i="nozzle" l="Pump and Compressor Checks" v="0.3" /></S></G>
-        <G l="Nonlinear" h="supports"><S><Planned i="rest" l="One-way Rest" v="0.1.7" /><Planned i="guide" l="Gaps and Friction" v="0.1.7–0.1.8" /></S></G>
+        <G l="Nonlinear" h="supports"><S><Planned i="guide" l="Friction" v="0.1.8" /></S></G>
       </Show>
       <Show when={tab() === "analyze"}>
         <G l="Analyze" h="analyze"><B big i="solve" l="Analyze" run={C.analyze} title="Solve every load case (F5)" /><S><B i="cases" l="Load Cases" run={() => P.cases()} /><B i="verify" l="Verification" run={() => P.verification()} /></S></G>

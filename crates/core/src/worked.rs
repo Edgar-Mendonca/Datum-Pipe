@@ -438,3 +438,88 @@ fn a_bend_wall_is_checked_at_its_intrados() {
     assert!(close(bend.i, crate::code::bend_factor(rb, d.m.pipes[0].od).0, 1e-12));
     assert!(bend.i > 1.0 && bend.t_design > pipe.t_design);
 }
+
+fn sup_with(d: &mut Doc, node: u32, kind: SupKind, one_way: bool, gap: f64) {
+    d.apply(Op::Add { item: Item::Support(Support { node, kind, one_way, gap, ..Default::default() }), after: None }).unwrap();
+}
+
+#[test]
+fn a_hot_riser_lifts_the_pipe_off_its_rest() {
+    // A 5 m riser anchored at the bottom (10), then 6 m along X to an anchor (30), with a one-way
+    // rest in the middle (25). Cold, the rest carries weight; at 300 °C the riser grows about 18 mm
+    // and lifts the pipe off the rest, which then carries nothing.
+    let mut d = table("riser", &[(10, 20, 0.0, 5.0, 0.0), (20, 25, 3.0, 0.0, 0.0), (25, 30, 3.0, 0.0, 0.0)]);
+    let mut c = d.m.conds[0].clone();
+    c.t[0] = K0 + 300.0;
+    d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+    sup(&mut d, 10, SupKind::Anchor);
+    sup(&mut d, 30, SupKind::Anchor);
+    sup_with(&mut d, 25, SupKind::Rest, true, 0.0);
+    let r = analyze(&d.m).unwrap();
+    let state = |c: &str| case(&r, c).contacts.iter().find(|x| x.node == 25).unwrap().clone();
+    assert_eq!(state("SUS").state, "touching");
+    assert!(react(&r, "SUS", 25)[1] > 0.0);
+    let ope = state("OPE1");
+    assert_eq!(ope.state, "lifted off");
+    assert!(ope.movement > 0.005 && react(&r, "OPE1", 25)[1] == 0.0, "{ope:?}");
+    assert!(case(&r, "OPE1").iterations >= 2);
+    for c in &r.cases {
+        assert!(c.imbalance < 1e-9, "{} {:e}", c.name, c.imbalance);
+    }
+    // The range is still OPE − SUS.
+    let (o, s, e) = (react(&r, "OPE1", 25)[1], react(&r, "SUS", 25)[1], react(&r, "EXP1", 25)[1]);
+    assert!(close(e, o - s, 1e-12));
+}
+
+#[test]
+fn a_guide_gap_stays_open_under_a_small_push() {
+    // 3 m cantilever, a Z restraint with a 50 mm gap at the tip, 1 kN along Z: the tip moves about
+    // 3.8 mm, well inside the gap, so the restraint carries nothing.
+    let mut d = table("gap open", &[(10, 20, 3.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup_with(&mut d, 20, SupKind::Restraint { dir: [0.0, 0.0, 1.0] }, false, 0.05);
+    load(&mut d, 20, [0.0, 0.0, 1e3]);
+    let (e, i, a, g) = props(&d);
+    let c = 27.0 / (3.0 * e * i) + 3.0 / (KAPPA * g * a);
+    let r = analyze(&d.m).unwrap();
+    assert!(close(at(&r, "OPE1", 20)[2], 1e3 * c, 1e-10));
+    assert_eq!(case(&r, "OPE1").contacts[0].state, "open");
+    assert_eq!(react(&r, "OPE1", 20)[2], 0.0);
+}
+
+#[test]
+fn a_rest_from_an_older_file_still_holds_both_ways() {
+    // Without one_way (files from before 0.1.7) a rest pulls the pipe down too.
+    let mut d = table("two-way", &[(10, 20, 3.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup(&mut d, 20, SupKind::Rest);
+    load(&mut d, 20, [0.0, 10e3, 0.0]);
+    let r = analyze(&d.m).unwrap();
+    assert!(close(react(&r, "OPE1", 20)[1], -10e3, 1e-9));
+    assert!(case(&r, "OPE1").contacts.is_empty());
+}
+
+#[test]
+fn gapped_guides_alone_still_solve() {
+    // An L on rests: 10–20 along X, 20–30 along Z. A line stop at 10 (along X) and one at 30 (along Z)
+    // leave the L free to turn about node 20 in plan, which only the gapped guides at 10 and 30
+    // resist: while their gaps are open they keep a light stiffness so the case can be solved.
+    let mut d = table("guides", &[(10, 20, 6.0, 0.0, 0.0), (20, 30, 0.0, 0.0, 6.0)]);
+    for n in [10, 20, 30] {
+        sup_with(&mut d, n, SupKind::Rest, true, 0.0);
+    }
+    sup(&mut d, 10, SupKind::Linestop);
+    sup(&mut d, 30, SupKind::Linestop);
+    sup_with(&mut d, 10, SupKind::Guide, false, 0.003);
+    sup_with(&mut d, 30, SupKind::Guide, false, 0.003);
+    let mut c = d.m.conds[0].clone();
+    c.t[0] = K0 + 150.0;
+    d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+    let r = analyze(&d.m).unwrap();
+    assert!(r.warnings.iter().any(|w| w.contains("light stiffness")), "{:?}", r.warnings);
+    for c in &r.cases {
+        assert!(c.imbalance < 1e-9, "{} {:e}", c.name, c.imbalance);
+    }
+}

@@ -7,6 +7,11 @@
 //! restraint is a spring of 1e12 N/m). Load cases are linear sums of basic loads (weight, thermal,
 //! imposed displacements), and ranges are differences of two cases, so everything is exact for
 //! linear supports.
+//!
+//! One-way rests and supports with a gap are solved by iteration, case by case: each is either
+//! touching (held at its gap, like a linear support) or open (no load), and the case is solved
+//! again until no support changes state: a touching one must push the pipe, not pull it, and an
+//! open one must not be passed by the pipe. Ranges stay differences of the two cases' results.
 
 use crate::code::{self, Loads, Sif};
 use crate::elements::{Elem, Line, Props, Section};
@@ -45,6 +50,19 @@ pub struct NozzleLoad {
     pub pass: Option<bool>,
 }
 
+/// The state of a one-way or gapped support in one case.
+#[derive(Clone, Debug, Serialize)]
+pub struct Contact {
+    pub support: u32,
+    pub node: u32,
+    pub dir: V,
+    /// "touching", "open", or "lifted off" (a one-way rest that is open).
+    pub state: &'static str,
+    /// The pipe's movement along the support's direction, relative to the support (m).
+    pub movement: f64,
+    pub gap: f64,
+}
+
 /// The code stress at one point of one case.
 #[derive(Clone, Debug, Serialize)]
 pub struct Stress {
@@ -79,6 +97,9 @@ pub struct CaseResult {
     pub imbalance: f64,
     /// The worst stress ratio and where.
     pub worst: Option<usize>,
+    /// One-way and gapped supports: their state, and the solves it took to settle them.
+    pub contacts: Vec<Contact>,
+    pub iterations: u32,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -185,6 +206,124 @@ fn restraints(kind: &SupKind, k: f64, t: V) -> Vec<(V, bool, f64)> {
 /// Which global axis a direction is along, if any.
 fn axis_of(d: V) -> Option<usize> {
     (0..3).find(|&i| (d[i].abs() - 1.0).abs() < 1e-12)
+}
+
+/// A one-way or gapped restraint direction.
+struct Cond {
+    support: u32,
+    node: u32,
+    pt: usize,
+    dir: V,
+    /// 0 = rigid.
+    k: f64,
+    gap: f64,
+    one_way: bool,
+    u0: [f64; 3],
+}
+
+/// The most solves of one case while one-way and gapped supports settle.
+const MAX_ITER: u32 = 100;
+
+/// The light stiffness an open support keeps when nothing else holds the piping in its direction
+/// (1 N/mm): only used when the case could not be solved without it.
+const K_OPEN: f64 = 1e3;
+
+/// One case solved with its one-way and gapped supports.
+struct CondSolve {
+    u: Vec<f64>,
+    ku: Vec<f64>,
+    f: Vec<f64>,
+    /// −1 touching on the minus side (pushing the pipe along +dir), +1 on the plus side, 0 open.
+    state: Vec<i8>,
+    /// The stiffness each support was given as a spring (0: held exactly, or open).
+    spring_k: Vec<f64>,
+    iterations: u32,
+    stats: Stats,
+    settled: bool,
+    soft: bool,
+}
+
+/// Solve one case with its one-way and gapped supports: start touching (a one-way rest without a
+/// gap) or open (a gap), solve, and change every support whose state is wrong, until none changes.
+/// If the open supports leave the piping free to move, they keep a light stiffness (K_OPEN).
+fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], conds: &[Cond], dcase: u8) -> Result<CondSolve, String> {
+    let mut state: Vec<i8> = conds.iter().map(|c| if c.gap == 0.0 { -1 } else { 0 }).collect();
+    let u0 = |c: &Cond| if dcase > 0 { c.u0[dcase as usize - 1] } else { 0.0 };
+    let fscale = f.iter().map(|v| v.abs()).fold(0.0, f64::max).max(1.0);
+    let (mut iter, mut soft) = (0, false);
+    loop {
+        iter += 1;
+        let (mut s2, mut h2, mut x2, mut f2) = (System { n: sys.n, k: sys.k.clone(), f: vec![] }, held.to_vec(), fixed.to_vec(), f.to_vec());
+        let mut spring_k = vec![0.0; conds.len()];
+        for (i, c) in conds.iter().enumerate() {
+            if state[i] == 0 && !soft {
+                continue;
+            }
+            let target = state[i] as f64 * c.gap + u0(c);
+            match (axis_of(c.dir), c.k == 0.0, state[i]) {
+                (Some(ax), true, s) if s != 0 && !held[6 * c.pt + ax] => {
+                    let dof = 6 * c.pt + ax;
+                    h2[dof] = true;
+                    x2[dof] = target * c.dir[ax];
+                }
+                (_, _, s) => {
+                    let kk = if s == 0 { K_OPEN } else if c.k == 0.0 { RIGID } else { c.k };
+                    spring_k[i] = kk;
+                    for a in 0..3 {
+                        for b in 0..3 {
+                            s2.add(6 * c.pt + a, 6 * c.pt + b, kk * c.dir[a] * c.dir[b]);
+                        }
+                        f2[6 * c.pt + a] += kk * target * c.dir[a];
+                    }
+                }
+            }
+        }
+        let (mut sol, stats) = match s2.solve_many(&h2, &[(f2.clone(), x2)]) {
+            Ok(x) => x,
+            Err(e) if !soft && e.contains("without resistance") && state.contains(&0) => {
+                soft = true;
+                iter -= 1;
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
+        let u = sol.remove(0);
+        let ku = s2.mul(&u);
+        let mut changed = false;
+        for (i, c) in conds.iter().enumerate() {
+            let v = dot(c.dir, [u[6 * c.pt], u[6 * c.pt + 1], u[6 * c.pt + 2]]) - u0(c);
+            let r = conds_reaction(c, state[i], spring_k[i], &u, &ku, &f2, u0(c));
+            let next = match state[i] {
+                0 if v < -c.gap - 1e-9 => -1,
+                0 if v > c.gap + 1e-9 && !c.one_way => 1,
+                -1 if r < -1e-9 * fscale => 0,
+                1 if r > 1e-9 * fscale => 0,
+                s => s,
+            };
+            if next != state[i] {
+                state[i] = next;
+                changed = true;
+            }
+        }
+        if !changed || iter >= MAX_ITER {
+            return Ok(CondSolve { u, ku, f: f2, state, spring_k, iterations: iter, stats, settled: !changed, soft });
+        }
+    }
+}
+
+/// The force a support puts on the pipe along its direction: held exactly (K u − f at its unknown),
+/// as a spring (−k (u − target)), or nothing when open.
+fn conds_reaction(c: &Cond, state: i8, spring_k: f64, u: &[f64], ku: &[f64], f: &[f64], u0: f64) -> f64 {
+    if spring_k > 0.0 {
+        let v = dot(c.dir, [u[6 * c.pt], u[6 * c.pt + 1], u[6 * c.pt + 2]]);
+        return -spring_k * (v - (state as f64 * c.gap + u0));
+    }
+    if state == 0 {
+        return 0.0;
+    }
+    let ax = axis_of(c.dir).unwrap_or(0);
+    let dof = 6 * c.pt + ax;
+    (ku[dof] - f[dof]) * c.dir[ax]
 }
 
 struct Spring {
@@ -317,6 +456,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     let mut shared: Vec<u32> = vec![];
     let mut prescribed: [Vec<f64>; 3] = [vec![0.0; n], vec![0.0; n], vec![0.0; n]];
     let mut springs: Vec<Spring> = vec![];
+    let mut conds: Vec<Cond> = vec![];
     for sp in &m.supports {
         let Some(&pt) = g.node_point.get(&sp.node) else { continue };
         let (t, clear) = pipe_dir(&g, pt);
@@ -325,6 +465,10 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         }
         for (dir, rot, k) in restraints(&sp.kind, sp.k, t) {
             let u0 = [0, 1, 2].map(|c| { let d = &sp.disp[c]; dot(dir, if rot { [d[3], d[4], d[5]] } else { [d[0], d[1], d[2]] }) });
+            if sp.conditional() && !rot {
+                conds.push(Cond { support: sp.id, node: sp.node, pt, dir, k, gap: sp.gap, one_way: sp.one_way && sp.kind == SupKind::Rest, u0 });
+                continue;
+            }
             match (axis_of(dir), k == 0.0) {
                 (Some(ax), true) => {
                     let dof = 6 * pt + ax + if rot { 3 } else { 0 };
@@ -442,8 +586,43 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         };
         rhs.push((f, fixed));
     }
-    let (sols, stats) = sys.solve_many(&held, &rhs)?;
-    let ku: Vec<Vec<f64>> = sols.iter().map(|u| sys.mul(u)).collect();
+    // Linear supports only: every case with one factorisation. With one-way or gapped supports,
+    // each case is solved by iteration with its own support states.
+    let dcases: Vec<u8> = sums.iter().map(|c| match c.recipe { Recipe::Sum { d, .. } => d, _ => 0 }).collect();
+    let (sols, ku, rhs_f, states, springs_k, iters, stats) = if conds.is_empty() {
+        let (sols, stats) = sys.solve_many(&held, &rhs)?;
+        let ku: Vec<Vec<f64>> = sols.iter().map(|u| sys.mul(u)).collect();
+        let n_c = sols.len();
+        (sols, ku, rhs.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![vec![]; n_c], vec![vec![]; n_c], vec![1u32; n_c], stats)
+    } else {
+        let (mut sols, mut kus, mut fs, mut sts, mut sks, mut its) = (vec![], vec![], vec![], vec![], vec![], vec![]);
+        let mut stats = Stats::default();
+        for (k, (f, fixed)) in rhs.iter().enumerate() {
+            let cs = solve_conditional(&sys, &held, f, fixed, &conds, dcases[k]).map_err(|e| {
+                if e.contains("without resistance") {
+                    format!("In case {}, with the one-way rests that lift off and the gaps that stay open, the piping can move without resistance. Add a support that holds it both ways, such as a guide or an anchor.", sums[k].name)
+                } else {
+                    e
+                }
+            })?;
+            if cs.soft {
+                warnings.push(format!("In case {}, nothing but open gaps holds the piping in some direction: the open supports were given a light stiffness of 1 N/mm so the case could be solved. Their small loads are in the support loads.", sums[k].name));
+            }
+            if !cs.settled {
+                warnings.push(format!("In case {} the one-way and gapped supports did not settle after {MAX_ITER} solves: its results are not reliable. Check for supports that fight each other.", sums[k].name));
+            }
+            stats.equations = cs.stats.equations;
+            stats.nonzeros = cs.stats.nonzeros;
+            stats.residual = stats.residual.max(cs.stats.residual);
+            sols.push(cs.u);
+            kus.push(cs.ku);
+            fs.push(cs.f);
+            sts.push(cs.state);
+            sks.push(cs.spring_k);
+            its.push(cs.iterations);
+        }
+        (sols, kus, fs, sts, sks, its, stats)
+    };
     // ---------------------------------------------------------------- results per case
     let mut by_id: HashMap<u32, CaseResult> = HashMap::new();
     let mut raw: HashMap<u32, Vec<[[f64; 6]; 2]>> = HashMap::new();
@@ -463,7 +642,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         let r = match c.recipe {
             Recipe::Sum { w, water, t, .. } => {
                 let k = sums.iter().position(|x| x.id == c.id).unwrap();
-                let (u, f) = (&sols[k], &rhs[k].0);
+                let (u, f) = (&sols[k], &rhs_f[k]);
                 let disp: Vec<[f64; 6]> = (0..np).map(|p| std::array::from_fn(|d| u[6 * p + d])).collect();
                 // Forces in the pipe: global resultants at each segment's ends.
                 let mut glob = vec![[[0.0; 6]; 2]; parts.len()];
@@ -497,6 +676,20 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                         e[off + i] += force * sp.dir[i];
                     }
                 }
+                // One-way and gapped supports: the force of each touching one, and every state.
+                let mut contacts = vec![];
+                for (i, cd) in conds.iter().enumerate() {
+                    let s = states[k][i];
+                    let u0 = if dcase > 0 { cd.u0[dcase as usize - 1] } else { 0.0 };
+                    let r = conds_reaction(cd, s, springs_k[k][i], u, &ku[k], f, u0);
+                    let e = reac.entry(cd.support).or_insert([0.0; 6]);
+                    for d in 0..3 {
+                        e[d] += r * cd.dir[d];
+                    }
+                    let mv = dot(cd.dir, [u[6 * cd.pt], u[6 * cd.pt + 1], u[6 * cd.pt + 2]]) - u0;
+                    let state = match (s, cd.one_way) { (0, true) => "lifted off", (0, false) => "open", _ => "touching" };
+                    contacts.push(Contact { support: cd.support, node: cd.node, dir: cd.dir, state, movement: mv, gap: cd.gap });
+                }
                 // Constant-force supports carry their load in every case with weight.
                 for sp in &m.supports {
                     if let SupKind::Constant { load } = sp.kind {
@@ -528,7 +721,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                     }
                 }
                 let reacted = sum_reactions(&g, &reactions);
-                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None });
+                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k] });
                 raw.insert(c.id, std::mem::take(&mut raw_glob));
                 cr
             }
@@ -544,7 +737,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                 let applied: [f64; 6] = std::array::from_fn(|d| ra.applied[d] - rb.applied[d]);
                 let reacted = sum_reactions(&g, &reactions);
                 raw.insert(c.id, glob);
-                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None }
+                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0 }
             }
         };
         by_id.insert(c.id, r.clone());

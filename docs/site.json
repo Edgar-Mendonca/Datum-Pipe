@@ -26,7 +26,7 @@
   "highlights": [
     "An element table that draws the piping in 3D as you type: true diameters, insulation, bends, tees, reducers, valves, flanges and support symbols",
     "Pipe sizes ½\" to 24\" in every schedule, five piping materials with properties against temperature and their sources, and your own sizes and materials",
-    "Anchors, rests, guides, line stops, skewed restraints, springs, constant-force supports and imposed equipment movements",
+    "Anchors, one-way rests, guides, line stops and restraints with gaps, skewed restraints, springs, constant-force supports and imposed equipment movements",
     "Load cases built for you: sustained, operating, expansion range and hydrotest",
     "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall (straight pipe, bends at their intrados, both ends of reducers), sustained stress and the displacement stress range, with PASS or FAIL at every point",
     "Support loads for the civil team and nozzle loads in the nozzle's own axes, checked against your allowables",
@@ -55,7 +55,7 @@
     {
       "v": "0.1.7",
       "title": "One-way rests and gaps",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Rests that lift off (iterative solve until every support's state settles)",
         "Gaps on guides and line stops",
@@ -66,7 +66,7 @@
     {
       "v": "0.1.8",
       "title": "Friction",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Friction at rests and guides",
         "Equilibrium check including friction forces",

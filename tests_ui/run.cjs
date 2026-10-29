@@ -38,6 +38,7 @@ const shots = process.env.SHOTS;
           if (c === "apply") {
             const nx = { ...JSON.parse(JSON.stringify(window.__cur)), dirty: true, undo: true, created: [999] };
             if (a.op.SetSettings) { nx.m.units = a.op.SetSettings.units; nx.m.settings = a.op.SetSettings.s; }
+            if (a.op.Add?.item?.Support) nx.m.supports.push({ ...a.op.Add.item.Support, id: 999 });
             window.__cur = nx; return nx;
           }
           if (c === "history") return window.__cur;
@@ -153,6 +154,7 @@ const shots = process.env.SHOTS;
   check("the summary lists SUS and EXP1 with their checks", sumTxt.includes("SUS") && sumTxt.includes("EXP1") && sumTxt.includes("PASS"));
   await p.click('.rtabs button:text-is("Support loads")'); await p.waitForTimeout(150);
   check("support loads list both anchors", (await p.$$(".rtable tbody tr")).length === 2);
+  check("support loads show the state of one-way and gapped supports", (await p.textContent(".rtable thead")).includes("State"));
   await p.click('.rtabs button:text-is("Equilibrium")'); await p.waitForTimeout(150);
   check("the equilibrium table ticks every case", (await p.$$eval(".rtable tbody tr td:last-child", els => els.every(e => e.textContent.includes("✓")))));
   await p.click('.rtabs button:text-is("Code stresses")'); await p.waitForTimeout(150);
@@ -179,6 +181,15 @@ const shots = process.env.SHOTS;
   await p.click('.ribbon button[title="Copy Section"]'); await p.waitForTimeout(250);
   await p.click('.dlg .btn.pri'); await p.waitForTimeout(250);
   check("copy a section sends a Duplicate edit", !!(await lastOp())?.Duplicate);
+  // A new rest is one-way; its Inspector offers the one-way switch and the gap.
+  await p.click('.egrid tbody tr:nth-child(2) td.rn'); await p.waitForTimeout(150);
+  await p.click('.tabs > button:text-is("Supports")');
+  await p.click('.ribbon button[title="Rest"]'); await p.waitForTimeout(250);
+  const rest = (await lastOp())?.Add?.item?.Support;
+  check("a new rest is one-way with no gap", rest?.kind?.kind === "rest" && rest.one_way === true && rest.gap === 0, JSON.stringify(rest));
+  const ins = await p.textContent(".insp");
+  check("the rest's Inspector offers one-way and the gap", ins.includes("One-way: the pipe can lift off") && ins.includes("Gap below the pipe"), ins.slice(0, 200));
+  await p.click('.tabs > button:text-is("Model")');
 
   // US units: lengths in feet, stresses in psi, the isometric in feet and inches.
   await p.click('.tabs > button:text-is("Home")');

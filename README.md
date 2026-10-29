@@ -32,13 +32,13 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 - **An element table that draws as you type**: From node, To node, DX, DY, DZ, pipe, material, line conditions and component. Node numbers step by 10; new rows copy the row above.
 - **Pipe data**: nominal sizes ½" to 24" in every schedule, your own sizes, corrosion allowance, mill tolerance, insulation, cladding and contents; carbon, low-alloy, stainless 304 and 316 and duplex steels with modulus and expansion against temperature and their sources.
 - **Components**: long and short radius bends or your own radius, welding, fabricated and reinforced tees, concentric reducers, valves and flanged joints with their weight.
-- **Supports**: anchors, rests, guides, line stops, restraints in any direction, springs, constant-force supports, nozzle points and imposed equipment movements.
+- **Supports**: anchors, one-way rests the pipe can lift off, guides, line stops, restraints in any direction (rests, guides, line stops and restraints with gaps), springs, constant-force supports, nozzle points and imposed equipment movements.
 - **Load cases built for you**: sustained, operating, expansion range and hydrotest, editable.
 - **Code stresses**: hoop stress and minimum wall, sustained longitudinal stress and the displacement stress range, PASS or FAIL at every point.
 - **Results**: displacements, forces and moments, support loads for the civil team, nozzle loads in the nozzle's axes, and an equilibrium check after every solve.
 - **Isometric and report**: an automatic 30° isometric with dimensions, symbols and result tags (print or SVG), and a printed stress report with the title block, input echo, stress summary, support and nozzle loads, the isometric and the equilibrium checks.
 - **Editing tools**: an expansion loop wizard, copy and mirror a section, insert a node, renumber, undo and redo everything.
-- **Verified**: Help › Verification solves benchmark problems with known answers in front of you: beam theory, heated L-bends, Z-bends and an expansion loop against the flexibility method by hand, a bend's flexibility, the minimum wall equation on straight pipe and at a bend's intrados, pressure elongation, a tee branch's effective section modulus and the equilibrium of every example.
+- **Verified**: Help › Verification solves benchmark problems with known answers in front of you: beam theory, heated L-bends, Z-bends and an expansion loop against the flexibility method by hand, a bend's flexibility, the minimum wall equation on straight pipe and at a bend's intrados, pressure elongation, a tee branch's effective section modulus, a one-way rest lifting off, a gap closing and the equilibrium of every example.
 - **Worked examples**: a pump discharge with an expansion loop, a compressor suction line, a steam line on a pipe rack, a tank outlet with settlement, and an L-bend and a Z-bend to check by hand.
 
 | | |

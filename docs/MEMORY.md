@@ -91,13 +91,14 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.1.6 | The Windows publisher is "Datum" (`bundle.publisher` in `src-tauri/tauri.conf.json`); the copyright stays "© 2026 Edgar Mendonca" | A family-wide change (FAMILY §9 in the hub); nothing else in the repo names the publisher |
 | 0.1.5 | Public words about the code: "calculates using the published equations of ASME B31.3", "contains none of the code's text, tables or figures", "not affiliated with or endorsed by ASME", ASME and B31.3 named as trademarks; Help › Sources (`SOURCES` in `ui/src/help.tsx`) lists each equation with an open-literature reference, and says plainly where an equation is the code's own (reducer SIF, the 1.25/0.25 range factors, Ts) | The owner asked to be safe from any use of copyrighted material: equations and physical facts are not protected, the code's wording, tables and figures are, and none is in the app. Citations were checked against library and journal records before use; Lorenz (1910) was left out as unconfirmed, the bend factor is derived from the torus instead |
 | 0.1.5 | Bend wall: an extra check per bend at its intrados with I = (4R/D − 1)/(4R/D − 2); the extrados (I < 1) is not listed, the straight check covers it | The intrados governs; one line per bend keeps the table short |
 | 0.1.5 | t ≥ D/6 fails the wall check, with a warning, rather than switching to a thick-wall equation | The code asks for special consideration there; the app says so instead of guessing |
 | 0.1.5 | Ze = π r₂² Ts at a tee's branch end (setting `branch_ze`, on), for both sustained (corroded walls) and expansion (nominal) | The earlier editions' rule; editions that use the branch pipe's own Z turn it off |
 | 0.1.5 | Pressure elongation (setting `pressure_elongation`, off) is added to the thermal strain of straight, non-rigid, non-reducer segments in cases 1–3, so it is in OPE and in EXP = OPE − SUS, never in SUS; bends' Bourdon opening is not modelled | Off keeps every earlier model's results unchanged; the strain-in-OPE convention is the usual one |
 | 0.1.5 | Two rigid supports holding one direction at a node share its reaction equally, with a warning | The split between rigid supports is statically indeterminate; equal shares keep each support's load plausible and the sum right |
-| plan | The 0.2 stage is split into the small releases 0.1.5–0.1.10; 0.2.0 is a milestone release with no new features | The owner asked for many small steps instead of one big 0.2 release |
+| plan | The 0.2 stage is split into the small releases 0.1.5–0.1.11; 0.2.0 is a milestone release with no new features | The owner asked for many small steps instead of one big 0.2 release |
 | plan | Everything in the brief §1 (name, moss accent, identifier, `.dpipe`, stack, own Rust solver, three.js, units, ribbon tabs, logo, codes as published equations, public words) | Made with the user in the hub, session 16 |
 | plan | The shell and window are copied from Datum Mesh (Plan's skeleton by way of Sim, already adapted to an engineering-analysis app) | The brief: copy, don't reinvent; Mesh is the closest app |
 | 0.1.0 | Y is up; X east, Z south (right-handed). The first node of each connected piece starts at the origin unless moved | The usual piping convention; one rule for the table, the 3D view and the isometric |
@@ -147,12 +148,13 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.1.3 | Loop wizard, copy and mirror, table typing fixes, report and isometric polish, hydrotest and occasional checks | ✅ |
 | 0.1.4 | Polish and the review fixes; screenshots, README, site; every example analyzes, draws and prints in a UI test | ✅ |
 | 0.1.5 | Code check fixes: t < D/6 limit and bend thickness factor, reducers at both ends, tee effective branch section modulus, pressure elongation, each support's own share of a shared reaction; Help › Sources and the legal wording | ✅ |
-| 0.1.6 | One-way rests and gaps (iterative solve), lift-off shown in the results, benchmarks | 🔜 |
-| 0.1.7 | Friction at rests and guides, equilibrium with friction, a friction benchmark | ⬜ |
-| 0.1.8 | Wind and static seismic loads, occasional cases and the occasional stress check | ⬜ |
-| 0.1.9 | Spring hanger selection (spring data entered by the user) | ⬜ |
-| 0.1.10 | Import of plain-text piping component files; the public regulator benchmarks in Help › Verification | ⬜ |
-| 0.2.0 | Milestone: 0.1.5–0.1.10 reviewed, verification record and examples updated; no new features | ⬜ |
+| 0.1.6 | Windows publisher "Datum" (family-wide) | ✅ |
+| 0.1.7 | One-way rests and gaps (iterative solve), lift-off shown in the results, benchmarks | 🔜 |
+| 0.1.8 | Friction at rests and guides, equilibrium with friction, a friction benchmark | ⬜ |
+| 0.1.9 | Wind and static seismic loads, occasional cases and the occasional stress check | ⬜ |
+| 0.1.10 | Spring hanger selection (spring data entered by the user) | ⬜ |
+| 0.1.11 | Import of plain-text piping component files; the public regulator benchmarks in Help › Verification | ⬜ |
+| 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | ⬜ |
 | 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum | ⬜ |
 | 0.5 | Power piping and European piping code equations, buried pipe, cold spring | ⬜ |
@@ -203,10 +205,13 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Legal: README "About the code checks", Help › Sources, NOTICE, report wording; every comment that mentions the code was read again: they give equations as mathematics and point to paragraph numbers only.
 - UI: the wall table shows where each check is (pipe, bend, large or small end) with I and the D/6 flag; settings in the Inspector; Sources on the Help tab; four new UI checks.
 
+### 2026-10-29: Session 2, continued (0.1.6: publisher)
+- The Windows publisher became "Datum" across the family; released as 0.1.6. The roadmap's one-way rests and gaps move to the next release number.
+
 ## 5. Known limits (0.1.5)
 
-- Rests are two-way (one-way in 0.1.6); no friction (0.1.7) or gaps (0.1.6).
-- No pressure thrust; no occasional loads yet (0.1.8; the OCC case kind is ready).
+- Rests are two-way (one-way in 0.1.7); no friction (0.1.8) or gaps (0.1.7).
+- No pressure thrust; no occasional loads yet (0.1.9; the OCC case kind is ready).
 - The deformed shape moves arcs' vertices by the chord-interpolated displacement (fine to 45° per arc segment; bends are split in two).
 - Bends' pressure opening (Bourdon effect of curved pipe) is not modelled; pressure elongation is for straight pipe only and off by default.
 - Minimum wall: t ≥ D/6 fails rather than using a thick-wall equation; bends are checked at the intrados only.

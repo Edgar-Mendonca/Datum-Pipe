@@ -85,7 +85,7 @@ const SupportPanel = (p: { s: Support }) => {
     <Show when={k().kind === "rotspring"}><F l="Rotational stiffness" q="rstiff" v={k().k} set={kk => put({ kind: { ...k(), k: kk } })} /></Show>
     <Show when={k().kind === "constant"}><F l="Load carried (up)" q="force" v={k().load} set={load => put({ kind: { ...k(), load } })} /></Show>
     <Show when={!["spring", "rotspring", "constant"].includes(k().kind)}><F l="Stiffness (0 = rigid)" q="tstiff" v={s().k} set={kk => put({ k: kk })} /></Show>
-    <Show when={k().kind === "rest"}><p class="muted small">Two-way in 0.1: the rest also holds the pipe down. One-way rests that let the pipe lift arrive in 0.1.6.</p></Show>
+    <Show when={k().kind === "rest"}><p class="muted small">Two-way in 0.1: the rest also holds the pipe down. One-way rests that let the pipe lift arrive in 0.1.7.</p></Show>
     <Show when={k().kind === "anchor" || k().kind === "restraint"}><Sec t="Imposed displacements" h="disp">
       <For each={[0, 1, 2]}>{c => <><V3In l={`Case ${c + 1}: movement`} q="disp" v={s().disp[c].slice(0, 3) as V3} set={v => put({ disp: s().disp.map((d, i) => i === c ? [...v, ...d.slice(3)] : d) as any })} />
         <Show when={k().kind === "anchor"}><V3In l={`Case ${c + 1}: rotation`} q="rot" v={s().disp[c].slice(3) as V3} set={v => put({ disp: s().disp.map((d, i) => i === c ? [...d.slice(0, 3), ...v] : d) as any })} /></Show></>}</For>

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6 — 2026-10-29
+
+Windows now lists the publisher as Datum.
+
 ## 0.1.5 — 2026-10-29
 
 Code check fixes, and where every equation comes from.

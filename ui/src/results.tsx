@@ -13,7 +13,7 @@ import { supName } from "./panels";
 import { Icon } from "./ui";
 
 export const [tableKind, setTableKind] = createSignal("summary");
-const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["equilibrium", "Equilibrium"]];
+const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equilibrium", "Equilibrium"]];
 const KIND: Record<string, string> = { sus: "Sustained", ope: "Operating", exp: "Expansion range", hyd: "Hydrotest", occ: "Occasional" };
 const CHECK: Record<string, string> = { sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" };
 const openTable = (k: string) => { setTableKind(k); setView("results"); };
@@ -67,6 +67,7 @@ export const ResultsPage = () => {
           <Show when={tableKind() === "supports" && c()}><Supports r={r()!} c={c()!} /></Show>
           <Show when={tableKind() === "nozzles" && c()}><Nozzles r={r()!} c={c()!} /></Show>
           <Show when={tableKind() === "wall"}><Walls r={r()!} /></Show>
+          <Show when={tableKind() === "hangers"}><Hangers r={r()!} /></Show>
           <Show when={tableKind() === "equilibrium"}><Equilibrium r={r()!} /></Show>
         </div>
       </Show>
@@ -139,6 +140,12 @@ export const Nozzles = (p: { r: Results; c: CaseResult }) => (
   </Show>
 );
 
+export const Hangers = (p: { r: Results }) => <Show when={p.r.hangers?.length} fallback={<p class="muted">No spring hangers. Put one on a node from Supports › Spring Hanger; Analyze sizes it.</p>}>
+  <p class="muted small">Hot load H: the weight the hanger carries with the pipe held level there. Travel Δ: its movement from cold to operating case 1 (up positive). The spring is the first in the spring table whose working range takes H and the cold load C = H + k Δ, with the load variation |k Δ| / H within {num(100 * (model()?.settings.variability ?? 0.25), 3)} %. Set the spring to C when installing.</p>
+  <table class="tbl"><thead><tr><Th>Node</Th><Th>Tag</Th><Th>Size</Th><Th r>Rate {u("tstiff")}</Th><Th r>Hot load {u("force")}</Th><Th r>Travel {u("disp")}</Th><Th r>Cold load {u("force")}</Th><Th r>Variation</Th><Th r>Range {u("force")}</Th></tr></thead><tbody>
+    <For each={p.r.hangers}>{h => <tr class="f" onClick={() => jump(h.node)}><td>{h.node}</td><td>{model()?.supports.find(s => s.id === h.support)?.tag}</td><td>{h.size === "constant" ? "constant-force" : h.size}</td><td class="r">{h.k ? v("tstiff", h.k) : "—"}</td><td class="r">{v("force", h.hot)}</td><td class="r">{v("disp", h.travel)}</td><td class="r">{v("force", h.cold)}</td><td class="r">{h.k ? `${num(100 * h.variability, 3)} %` : "—"}</td><td class="r">{h.k ? `${v("force", h.range[0])}–${v("force", h.range[1])}` : "—"}</td></tr>}</For></tbody></table>
+</Show>;
+
 export const Walls = (p: { r: Results }) => {
   const el = (id: number) => { const e = model()?.elements.find(x => x.id === id); return e ? `${e.from}–${e.to}` : ""; };
   return <Show when={p.r.walls.length} fallback={<p class="muted">No element has an internal pressure.</p>}>
@@ -173,6 +180,7 @@ setResultBlocks(m => {
     ...(sus ? [() => <div><h4>Highest sustained stresses ({sus.name})</h4><TopStresses r={r} c={sus} /></div>] : []),
     ...(exp && exp.stresses.length ? [() => <div><h4>Highest expansion stress ranges ({exp.name})</h4><TopStresses r={r} c={exp} /></div>] : []),
     () => <div><h3>4. Support loads ({ope.name})</h3><Supports r={r} c={ope} /></div>,
+    ...(r.hangers?.length ? [() => <div><h4>Spring hangers</h4><Hangers r={r} /></div>] : []),
     ...r.cases.filter(c => c.kind !== "ope" && c.id !== ope.id && c.kind !== "exp").map(c => () => <div><h4>Support loads ({c.name})</h4><Supports r={r} c={c} /></div>),
     ...(m.nozzles.length ? r.cases.filter(c => c.kind !== "exp").map(c => () => <div><h3>{c === r.cases.find(x => x.kind !== "exp") ? "5. Nozzle loads" : ""}</h3><h4>{c.name}</h4><Nozzles r={r} c={c} /></div>) : []),
     ...(r.walls.length ? [() => <div><h3>6. Minimum wall</h3><Walls r={r} /></div>] : []),

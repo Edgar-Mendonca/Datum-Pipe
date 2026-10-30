@@ -164,12 +164,13 @@ struct Library {
     sizes: Vec<library::Size>,
     materials: Vec<library::LibMaterial>,
     source: &'static str,
+    springs: Vec<datum_core::model::SpringSize>,
 }
 
 /// The pipe sizes and schedules, and the materials library.
 #[tauri::command]
 fn library() -> Library {
-    Library { sizes: library::sizes(), materials: library::materials(), source: library::SIZE_SOURCE }
+    Library { sizes: library::sizes(), materials: library::materials(), source: library::SIZE_SOURCE, springs: datum_core::model::typical_springs() }
 }
 
 /// How every quantity is shown in SI and US units (from the engine's unit table).

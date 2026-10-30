@@ -2,7 +2,7 @@
 // against temperature and allowables, with sources), line conditions (T1–T3, P1–P3, hydrotest)
 // and the load cases. Each edit goes to the engine as one operation.
 import { For, Show, createSignal, createResource, JSX } from "solid-js";
-import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, num, parseNum } from "./api";
+import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, num, parseNum } from "./api";
 import { openDialog, act, call, model, toast } from "./store";
 import { C } from "./cmds";
 import { Dialog, Icon } from "./ui";
@@ -153,6 +153,26 @@ export const cases = () => openDialog(() => {
       <p class="ibtns"><button class="btn sm" onClick={() => set([...list(), { id: 0, name: `L${list().length + 1}`, kind: "ope", recipe: { kind: "sum", w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false } }])}>Add a case</button>
         <button class="btn sm" onClick={() => { const a = list()[0], b = list()[1]; if (!a || !b) return toast("A range needs two cases."); set([...list(), { id: 0, name: `EXP${list().length + 1}`, kind: "exp", recipe: { kind: "range", a: a.id, b: b.id } }]); }}>Add a range</button>
         <button class="btn sm pri" onClick={C.recommendCases}>Recommend</button></p>
+    </Dialog>
+  );
+});
+
+/** The spring table hangers are sized from: your supplier's sizes, in order of preference. */
+export const springTable = () => openDialog(() => {
+  const s = () => model()!.settings;
+  const set = (springs: SpringSize[]) => C.settings({ springs });
+  const put = (i: number, x: Partial<SpringSize>) => set(s().springs.map((r, k) => k === i ? { ...r, ...x } : r));
+  const [L] = createResource(library);
+  const cell = (q: "tstiff" | "force", val: number, f: (v: number) => void) => <input class="mono" value={num(toU(q, val), 6)} onChange={e => { const v = parseNum(e.currentTarget.value); if (v !== null && v >= 0) f(fromU(q, v)); }} />;
+  return (
+    <Dialog title="Spring table" wide help="hangers">
+      <p class="muted">Spring hangers are sized from these springs, in this order: the first whose working range takes both the hot and the cold load, with the load variation within the limit, is chosen. The table filled in is generic: replace it with your supplier's sizes and check the result against their catalogue.</p>
+      <div class="iprow"><label>Load variation allowed (|k Δ| / hot load), %</label><input class="mono" value={num(100 * s().variability, 4)} onChange={e => { const v = parseNum(e.currentTarget.value); if (v !== null && v > 0 && v <= 100) C.settings({ variability: v / 100 }); }} /></div>
+      <table class="tbl"><thead><tr><th>Size</th><th>Rate ({unit("tstiff")})</th><th>Working from ({unit("force")})</th><th>to ({unit("force")})</th><th /></tr></thead><tbody>
+        <For each={s().springs}>{(r, i) => <tr><td><input value={r.name} onChange={e => put(i(), { name: e.currentTarget.value })} /></td><td>{cell("tstiff", r.k, k => k > 0 && put(i(), { k }))}</td><td>{cell("force", r.min, min => put(i(), { min }))}</td><td>{cell("force", r.max, max => put(i(), { max }))}</td>
+          <td><button class="x" title="Remove this size" onClick={() => set(s().springs.filter((_, k) => k !== i()))}>×</button></td></tr>}</For></tbody></table>
+      <p class="ibtns"><button class="btn sm" onClick={() => set([...s().springs, { name: `S-${s().springs.length + 1}`, k: 1e5, min: 1000, max: 2000 }])}>Add a size</button>
+        <button class="btn sm" onClick={() => L() && set(L()!.springs)}>Back to the generic table</button></p>
     </Dialog>
   );
 });

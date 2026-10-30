@@ -190,6 +190,7 @@ pub fn draw(m: &Model, per_sheet: usize) -> Result<Iso, String> {
                 SupKind::Spring { .. } => "spring",
                 SupKind::Rotspring { .. } => "rotspring",
                 SupKind::Constant { .. } => "constant",
+                SupKind::Hanger { .. } => "spring",
             };
             sh.syms.push(Sym { p: project(g.points[pi].p), along: along_at(pi), kind, node: s.node, tag: s.tag.clone(), id: s.id });
         }

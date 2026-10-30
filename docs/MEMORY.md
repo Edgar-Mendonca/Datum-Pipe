@@ -91,6 +91,10 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.1.10 | `SupKind::Hanger { k, cold }` (0 in the file); `analyze` sizes hangers first (`solve_model` is the plain solve): weight alone with hangers as rigid Y restraints → H; OPE1 recipe with hangers as constant H → Δ; then `choose_spring` | The usual hanger design runs, kept inside the engine so the window never calculates |
+| 0.1.10 | Choice: the first table row (in the user's order) with H and C = H + kΔ inside [min, max] and |kΔ|/H ≤ variability (25 %); none → constant-force of H with a warning; H ≤ 0 → constant 0 with a warning | Simple, predictable, and the user controls preference by ordering the table |
+| 0.1.10 | The final solve models a hanger as a Y spring of rate k plus its cold load as an upward force in every case with weight (like a constant support), reported together on the hanger | Then OPE1 gives C − kΔ = H, which benchmark 18 checks |
+| 0.1.10 | `Settings.springs` (default `typical_springs()`: series A/B/C with 25/50/100 mm travel, 20 sizes, max from 400 N ×1.5 each, min = max/1.8, k = (max − min)/travel) and `Settings.variability`; generic, not a catalogue; the library command returns the generic table for "Back to the generic table" | No maker's data; the user replaces it |
 | 0.1.9 | Wind and seismic are model settings (`wind_q`, `wind_cd`, `wind_dir`, `seis`): one uniform design pressure (no height profile, no shielding) and one seismic vector in g; both user inputs, no standard's tables | Simple, honest inputs; the site standards stay with the user |
 | 0.1.9 | Wind per metre = q Cd D (w − (w·t) t) with D over insulation and cladding and t the segment's chord (arcs use their chord); seismic per metre = the operating weight × the factors | Drag on a cylinder across the flow; chord keeps one uniform load per segment |
 | 0.1.9 | Recommended: OPE1+WIN / OPE1+SEIS (Sum with `wind`/`seis`) and OCC WIN / OCC SEIS as ranges from OPE1, with case 1 only | The occasional effect from the operating state (supports as in operation), the usual practice |
@@ -168,8 +172,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.1.7 | One-way rests and gaps (iterative solve), lift-off shown in the results, benchmarks | ✅ |
 | 0.1.8 | Friction at rests and guides, equilibrium with friction, a friction benchmark | ✅ |
 | 0.1.9 | Wind and static seismic loads, occasional cases and the occasional stress check | ✅ |
-| 0.1.10 | Spring hanger selection (spring data entered by the user) | 🔜 |
-| 0.1.11 | Import of plain-text piping component files; the public regulator benchmarks in Help › Verification | ⬜ |
+| 0.1.10 | Spring hanger selection (spring data entered by the user) | ✅ |
+| 0.1.11 | Import of plain-text piping component files; the public regulator benchmarks in Help › Verification | 🔜 |
 | 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | ⬜ |
 | 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum | ⬜ |
@@ -240,7 +244,11 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Example: the steam rack has wind 0.8 kPa from the south and 0.15 g sideways (OCC WIN 0.49, OCC SEIS 0.39, balanced).
 - UI: Occasional loads in the model Inspector, Loads › Wind and Static Seismic go there, an Occasional column in Load Cases, help topic, Sources rows, report settings line; one UI check.
 
-## 5. Known limits (0.1.9)
+### 2026-10-30: Session 2, continued (0.1.10: spring hangers)
+- Engine: `SupKind::Hanger`, `SpringSize`, `typical_springs`, settings `springs`/`variability` (checked and repaired); `analyze` → design runs + `choose_spring` + `solve_model`; `Results.hangers`. Benchmark 18 (48 checks), three worked cases. The tank example's SH-40 is now a sized hanger (A-03).
+- UI: Supports › Spring Hanger and Spring Table (dialog with the variation limit and "Back to the generic table"), Results › Hangers and its report block, hanger in the Inspector, 3D and isometric (spring symbol), help and Sources. Two UI checks.
+
+## 5. Known limits (0.1.10)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
 - Friction is the same in every direction across a support (no separate coefficients), and is path-independent: each case slides from the installed position.
@@ -250,4 +258,5 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Bends' pressure opening (Bourdon effect of curved pipe) is not modelled; pressure elongation is for straight pipe only and off by default.
 - Minimum wall: t ≥ D/6 fails rather than using a thick-wall equation; bends are checked at the intrados only.
 - Two rigid supports holding the same direction at one node share the reaction equally (the true split is indeterminate).
+- Spring hangers are sized from operating case 1 only, hold vertically only, and use one spring each (no double springs or load-to-travel charts).
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

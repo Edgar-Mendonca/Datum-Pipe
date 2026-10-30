@@ -5,7 +5,8 @@
 //! modulus, the axial force of pressure elongation between anchors, and a one-way rest and a gap
 //! (the cantilever by beam theory, with the support touching or open), and friction at a rest
 //! (sliding and sticking, by statics and Hooke's law), and wind, static seismic and the
-//! occasional stress on a cantilever (beam theory). `run()` gives the rows of Help › Verification; the test fails on any row
+//! occasional stress on a cantilever (beam theory), and a spring hanger sized by statics and free
+//! thermal growth. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -407,6 +408,33 @@ pub fn run() -> Vec<Check> {
         let s = case(&r, "OCC SEIS").stresses.iter().find(|x| x.point == pt).map_or(f64::NAN, |x| x.stress);
         out.push(row(17, "Occasional stress at the root of the cantilever", "Sustained plus seismic stress", "stress", 1.3 * w * 9.0 / (2.0 * z), s, TOL, "Para. 302.3.6: SL + S_occ, beam theory M/Z"));
     }
+    // 18. A spring hanger: anchored at 10, a 4 m riser to 20, 6 m along X to 30 with a hanger at 30
+    //     carrying 20 kN (no weight), heated to 200 °C. Held rigidly, the hanger carries the load:
+    //     H = 20 kN. Carrying H, the line is free to grow from its one anchor: 30 rises with the
+    //     riser, Δ = 4 m × ε. The generic table's first fit: A-10 and A-11 fail (range, variation),
+    //     B-10 (12 820–23 070 N over 50 mm: k = 205 000 N/m) fits, so C = H + k Δ. In operation the
+    //     spring carries C − k Δ = H again.
+    {
+        let mut d = table("Hanger", &[(10, 20, 0.0, 4.0, 0.0), (20, 30, 6.0, 0.0, 0.0)]);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        let mut c = d.m.conds[0].clone();
+        c.t[0] = K0 + 200.0;
+        d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+        anchor(&mut d, 10);
+        add(&mut d, Item::Support(Support { node: 30, kind: SupKind::Hanger { k: 0.0, cold: 0.0 }, ..Default::default() }));
+        add(&mut d, Item::Load(Load { node: 30, f: [0.0, -20e3, 0.0], m: [0.0; 3], ..Default::default() }));
+        let r = analyze(&d.m).unwrap();
+        let h = &r.hangers[0];
+        let (k, travel) = (205_000.0, 4.0 * STRAIN_200);
+        let name = "A spring hanger on a heated riser and run";
+        out.push(row(18, name, "Hot load H", "force", 20e3, h.hot, TOL, "Statics: the load at the held hanger"));
+        out.push(row(18, name, "Travel Δ", "disp", travel, h.travel, TOL, "Free thermal growth of the 4 m riser"));
+        out.push(row(18, name, "Spring rate chosen (B-10)", "tstiff", k, h.k, 0.0, "The table's first size that fits"));
+        out.push(row(18, name, "Cold load C = H + k Δ", "force", 20e3 + k * travel, h.cold, TOL, "Hooke's law"));
+        out.push(row(18, name, "Hanger load in operation (OPE1)", "force", 20e3, reaction(&r, "OPE1", 30)[1], TOL, "C − k Δ = H"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -431,7 +459,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=17 {
+        for b in 1..=18 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

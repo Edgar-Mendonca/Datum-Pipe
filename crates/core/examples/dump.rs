@@ -26,7 +26,7 @@ fn main() {
         "iso": isos,
         "verification": bench::run(),
         "unit_table": (units::shown(false), units::shown(true)),
-        "library": { "sizes": library::sizes(), "materials": library::materials(), "source": library::SIZE_SOURCE },
+        "library": { "sizes": library::sizes(), "materials": library::materials(), "source": library::SIZE_SOURCE, "springs": datum_core::model::typical_springs() },
     });
     println!("{}", serde_json::to_string(&fix).unwrap());
 }

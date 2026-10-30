@@ -227,6 +227,48 @@ pub enum SupKind {
     Rotspring { dir: [f64; 3], k: f64 },
     /// A constant-force support carrying the given load upwards (N).
     Constant { load: f64 },
+    /// A variable spring hanger (holds up, +Y), sized by the analysis from the spring table: its
+    /// rate `k` (N/m) and cold (installed) load `cold` (N) are filled in on the copy that is solved
+    /// (0 in the file). A spring that cannot be found becomes a constant-force support (k = 0).
+    Hanger {
+        #[serde(default)]
+        k: f64,
+        #[serde(default)]
+        cold: f64,
+    },
+}
+
+/// One spring size of the spring table: its name, rate (N/m) and working load range (N).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SpringSize {
+    pub name: String,
+    pub k: f64,
+    pub min: f64,
+    pub max: f64,
+}
+
+impl Default for SpringSize {
+    fn default() -> Self {
+        SpringSize { name: String::new(), k: 1e5, min: 1000.0, max: 2000.0 }
+    }
+}
+
+/// A generic spring table to start from: three series with working travels of 25, 50 and 100 mm,
+/// each of twenty sizes whose top load grows by half each size from 400 N, working from 1/1.8 of
+/// that, so the rate is (max − min) / travel. Not any maker's catalogue: replace it with your
+/// supplier's sizes.
+pub fn typical_springs() -> Vec<SpringSize> {
+    let mut out = vec![];
+    for (series, travel) in [("A", 0.025), ("B", 0.05), ("C", 0.1)] {
+        for i in 0..20 {
+            let max = 400.0 * 1.5f64.powi(i);
+            let max = (max / 10.0).round() * 10.0;
+            let min = (max / 1.8 / 10.0).round() * 10.0;
+            out.push(SpringSize { name: format!("{series}-{:02}", i + 1), k: ((max - min) / travel).round(), min, max });
+        }
+    }
+    out
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -407,11 +449,15 @@ pub struct Settings {
     pub wind_dir: [f64; 3],
     /// Static seismic: the acceleration along X, Y and Z as a fraction of g (all 0 = none).
     pub seis: [f64; 3],
+    /// Spring hangers: the spring table (in order of preference) and the largest load variation
+    /// allowed, |k Δ| / hot load.
+    pub springs: Vec<SpringSize>,
+    pub variability: f64,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3] }
+        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3], springs: typical_springs(), variability: 0.25 }
     }
 }
 
@@ -584,6 +630,9 @@ impl Model {
         if !s.seis.iter().all(|v| fin(*v) && v.abs() <= 10.0) {
             return Err("The seismic factors must be numbers of g between −10 and 10.".into());
         }
+        if !(s.variability > 0.0 && s.variability <= 1.0) || s.springs.iter().any(|x| !(x.k > 0.0 && fin(x.k) && x.min >= 0.0 && x.max > x.min && fin(x.max))) {
+            return Err("Each spring needs a rate above 0 and a working range from a load to a larger one; the load variation allowed is from 0 to 100 %.".into());
+        }
         for p in &self.pipes {
             if !(p.od > 0.0 && fin(p.od) && p.wall > 0.0 && p.wall < p.od / 2.0) {
                 return Err(format!("{}: the wall must be thinner than half the outside diameter.", p.name));
@@ -656,6 +705,7 @@ impl Model {
                 SupKind::Restraint { dir } => dir_ok(dir),
                 SupKind::Spring { dir, k } | SupKind::Rotspring { dir, k } => dir_ok(dir) && *k > 0.0 && fin(*k),
                 SupKind::Constant { load } => fin(*load) && *load >= 0.0,
+                SupKind::Hanger { k, cold } => fin(*k) && *k >= 0.0 && fin(*cold) && *cold >= 0.0,
                 _ => true,
             };
             if !(s.gap >= 0.0 && fin(s.gap)) {
@@ -921,6 +971,10 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     if !s.seis.iter().all(|v| fin(*v) && v.abs() <= 10.0) {
         s.seis = [0.0; 3];
     }
+    s.springs.retain(|x| x.k > 0.0 && x.k.is_finite() && x.min >= 0.0 && x.max > x.min && x.max.is_finite());
+    if !(s.variability > 0.0 && s.variability <= 1.0) {
+        s.variability = 0.25;
+    }
     if m.units != "SI" && m.units != "US" {
         m.units = "SI".into();
     }
@@ -989,6 +1043,10 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
                 }
             }
             SupKind::Constant { load } if !(fin(*load) && *load >= 0.0) => *load = 0.0,
+            SupKind::Hanger { k, cold } if !(fin(*k) && *k >= 0.0 && fin(*cold) && *cold >= 0.0) => {
+                *k = 0.0;
+                *cold = 0.0;
+            }
             _ => {}
         }
         if !(s.k >= 0.0 && fin(s.k)) {

@@ -21,7 +21,7 @@ export interface Material { id: number; name: string; rho: number; nu: number; e
 export interface Cond { id: number; name: string; t: V3; p: V3; hydro: number }
 export type SupKind =
   | { kind: "anchor" } | { kind: "rest" } | { kind: "guide" } | { kind: "linestop" } | { kind: "restraint"; dir: V3 }
-  | { kind: "spring"; dir: V3; k: number } | { kind: "rotspring"; dir: V3; k: number } | { kind: "constant"; load: number };
+  | { kind: "spring"; dir: V3; k: number } | { kind: "rotspring"; dir: V3; k: number } | { kind: "constant"; load: number } | { kind: "hanger"; k: number; cold: number };
 export interface Support { id: number; node: number; kind: SupKind; k: number; disp: [number[], number[], number[]]; tag: string; one_way: boolean; gap: number; mu: number }
 export interface Nozzle { id: number; node: number; name: string; axis: V3; allow: [number, number, number, number] }
 export interface Load { id: number; node: number; f: V3; m: V3 }
@@ -29,7 +29,7 @@ export type CaseKind = "sus" | "ope" | "exp" | "hyd" | "occ";
 export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean } | { kind: "range"; a: number; b: number };
 export interface LoadCase { id: number; name: string; kind: CaseKind; recipe: Recipe }
 export interface Project { project: string; line: string; calc: string; by: string; checked: string; rev: string; client: string }
-export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3 }
+export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3; springs: SpringSize[]; variability: number }
 export interface Model {
   format: number; name: string; notes: string; units: "SI" | "US"; project: Project; settings: Settings;
   nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number;
@@ -52,12 +52,14 @@ export interface Contact { support: number; node: number; dir: V3; state: "touch
 export interface Wall { element: number; case: number; p: number; t: number; s: number; t_design: number; t_min: number; t_nominal_needed: number; t_nominal: number; hoop: number; ratio: number; pass: boolean; at: string; i: number; od: number; thick: boolean }
 export interface Sif { ii: number; io: number; k: number; h: number }
 export interface SolveStats { equations: number; nonzeros: number; residual: number; ms: number }
-export interface Results { geom: Geom; cases: CaseResult[]; walls: Wall[]; sifs: [Sif, Sif][]; stats: SolveStats; warnings: string[]; version: string }
+export interface Results { geom: Geom; cases: CaseResult[]; walls: Wall[]; sifs: [Sif, Sif][]; stats: SolveStats; warnings: string[]; version: string; hangers: HangerDesign[] }
 export interface Check { bench: number; name: string; quantity: string; q: string; reference: number; result: number; error: number; tolerance: number; source: string; pass: boolean }
 export interface Example { id: string; name: string; what: string }
 export interface Size { nps: string; od: number; schedules: [string, number][] }
 export interface LibMaterial { id: string; name: string; family: string; rho: number; nu: number; e: [number, number][]; alpha: [number, number][]; allow: [number, number][]; sy: number; su: number; source: string }
-export interface Library { sizes: Size[]; materials: LibMaterial[]; source: string }
+export interface Library { sizes: Size[]; materials: LibMaterial[]; source: string; springs: SpringSize[] }
+export interface SpringSize { name: string; k: number; min: number; max: number }
+export interface HangerDesign { support: number; node: number; hot: number; travel: number; size: string; k: number; cold: number; variability: number; range: [number, number] }
 export interface Shown { q: string; label: string; factor: number; offset: number }
 export interface Options {
   autosave: number; beta: boolean; theme: string; openLast: boolean; units: "SI" | "US"; contours: "rainbow" | "viridis"; labels: boolean; deform: number;

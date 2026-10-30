@@ -11,7 +11,7 @@ import * as Tools from "./tools";
 import { toU, fromU, unit, fmt } from "./units";
 import { compName, COMPS, compKey, compFrom } from "./table";
 
-export const SUP_NAMES: Record<string, string> = { anchor: "Anchor", rest: "Rest (+Y)", guide: "Guide", linestop: "Line stop", restraint: "Restraint", spring: "Spring", rotspring: "Rotational spring", constant: "Constant-force support" };
+export const SUP_NAMES: Record<string, string> = { anchor: "Anchor", rest: "Rest (+Y)", guide: "Guide", linestop: "Line stop", restraint: "Restraint", spring: "Spring", rotspring: "Rotational spring", constant: "Constant-force support", hanger: "Spring hanger" };
 export const supName = (k: SupKind) => k.kind === "restraint" ? `Restraint ${dirName(k.dir)}` : SUP_NAMES[k.kind];
 export const dirName = (d: V3) => { const n = Math.hypot(...d); if (n === 0) return ""; const u = d.map(v => v / n); const ax = ["X", "Y", "Z"].findIndex((_, i) => Math.abs(Math.abs(u[i]) - 1) < 1e-9); return ax >= 0 ? `${u[ax] < 0 ? "−" : ""}${"XYZ"[ax]}` : `(${u.map(v => num(v, 3)).join(", ")})`; };
 
@@ -84,7 +84,8 @@ const SupportPanel = (p: { s: Support }) => {
     <Show when={k().kind === "spring"}><F l="Spring rate" q="tstiff" v={k().k} set={kk => put({ kind: { ...k(), k: kk } })} /></Show>
     <Show when={k().kind === "rotspring"}><F l="Rotational stiffness" q="rstiff" v={k().k} set={kk => put({ kind: { ...k(), k: kk } })} /></Show>
     <Show when={k().kind === "constant"}><F l="Load carried (up)" q="force" v={k().load} set={load => put({ kind: { ...k(), load } })} /></Show>
-    <Show when={!["spring", "rotspring", "constant"].includes(k().kind)}><F l="Stiffness (0 = rigid)" q="tstiff" v={s().k} set={kk => put({ k: kk })} /></Show>
+    <Show when={!["spring", "rotspring", "constant", "hanger"].includes(k().kind)}><F l="Stiffness (0 = rigid)" q="tstiff" v={s().k} set={kk => put({ k: kk })} /></Show>
+    <Show when={k().kind === "hanger"}><p class="muted small">Sized by Analyze from the spring table (Supports › Spring Table): its hot load with the pipe held level here, its travel in operating case 1, and the first spring whose range takes both loads with the load variation within the limit. Results › Hangers shows the size, rate and cold load to set it to.</p></Show>
     <Show when={k().kind === "rest"}><label class="chk"><input type="checkbox" checked={s().one_way} onChange={e => put({ one_way: e.currentTarget.checked })} />One-way: the pipe can lift off</label>
       <Show when={!s().one_way}><p class="muted small">Two-way: the rest also holds the pipe down.</p></Show></Show>
     <Show when={["rest", "guide", "linestop", "restraint"].includes(k().kind)}><F l={k().kind === "rest" ? "Gap below the pipe" : "Gap on each side"} q="disp" v={s().gap ?? 0} set={gap => put({ gap })} />

@@ -656,3 +656,47 @@ fn files_without_occasional_loads_still_open() {
     assert_eq!(back.settings.wind_q, 0.0);
     assert_eq!(back.cases, m.cases);
 }
+
+#[test]
+fn choosing_a_spring_from_the_table() {
+    use crate::model::SpringSize;
+    let t = vec![
+        SpringSize { name: "stiff".into(), k: 1e6, min: 5e3, max: 15e3 },
+        SpringSize { name: "soft".into(), k: 1e5, min: 5e3, max: 15e3 },
+    ];
+    // 10 kN going up 5 mm: the stiff spring's variation is 50 %, the soft one's 5 %: C = 10.5 kN.
+    let (i, cold) = crate::solve::choose_spring(&t, 10e3, 0.005, 0.25).unwrap();
+    assert_eq!(t[i].name, "soft");
+    assert!(close(cold, 10.5e3, 1e-12));
+    // Going down 5 mm the cold load is less than the hot: 9.5 kN.
+    assert!(close(crate::solve::choose_spring(&t, 10e3, -0.005, 0.25).unwrap().1, 9.5e3, 1e-12));
+    // Out of every range, or no weight: none.
+    assert!(crate::solve::choose_spring(&t, 20e3, 0.0, 0.25).is_none());
+    assert!(crate::solve::choose_spring(&t, 0.0, 0.0, 0.25).is_none());
+}
+
+#[test]
+fn a_hanger_that_no_spring_fits_becomes_a_constant_support() {
+    // 3 m cantilever with a hanger at its tip carrying 2 MN: beyond the table, so a constant-force
+    // support of the hot load, with a warning; in operation it carries exactly that load.
+    let mut d = table("big hanger", &[(10, 20, 3.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup(&mut d, 20, SupKind::Hanger { k: 0.0, cold: 0.0 });
+    load(&mut d, 20, [0.0, -2e6, 0.0]);
+    let r = analyze(&d.m).unwrap();
+    assert_eq!(r.hangers[0].size, "constant");
+    assert!(r.warnings.iter().any(|w| w.contains("No spring in the table fits")), "{:?}", r.warnings);
+    assert!(close(react(&r, "OPE1", 20)[1], 2e6, 1e-9));
+}
+
+#[test]
+fn files_without_a_spring_table_get_the_generic_one() {
+    let m = crate::examples::get("lbend").unwrap();
+    let mut j: serde_json::Value = serde_json::from_str(&crate::model::to_json(&m)).unwrap();
+    j["settings"].as_object_mut().unwrap().remove("springs");
+    j["settings"].as_object_mut().unwrap().remove("variability");
+    let (back, _) = crate::model::from_json(&j.to_string()).unwrap();
+    assert_eq!(back.settings.springs.len(), 60);
+    assert_eq!(back.settings.variability, 0.25);
+}

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.10 — 2026-10-30
+
+Spring hanger selection.
+
+**Spring hangers.** Supports › Spring Hanger puts a hanger on a node, and Analyze sizes it:
+- the hot load H: the operating weight it carries with the pipe held level there;
+- the travel Δ: its movement in operating case 1 with the hanger carrying H;
+- the spring: the first size in the spring table whose working range takes both H and the cold load C = H + k Δ, with the load variation |k Δ| / H within the limit (25 % unless you change it).
+
+Every load case is then solved with the chosen springs, each set to its cold load. A hanger no spring fits becomes a constant-force support carrying H, with a warning.
+
+**Spring table.** Supports › Spring Table: the sizes hangers are chosen from, in order, with the load variation allowed. It starts with a generic table (three series with 25, 50 and 100 mm of working travel, twenty sizes each), not any maker's catalogue: replace it with your supplier's sizes.
+
+**Results.** Results › Hangers lists each hanger's size, rate, hot load, travel, cold load, load variation and working range; the report has the same table.
+
+**Examples.** The tank outlet's first support is a spring hanger sized by Analyze.
+
+**Verification.** A new benchmark: a spring hanger on a heated riser and run, its hot load, travel, spring, cold load and load in operation by hand (48 checks).
+
 ## 0.1.9 — 2026-10-30
 
 Wind and static seismic loads, and the occasional stress check.

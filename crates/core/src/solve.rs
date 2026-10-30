@@ -135,6 +135,100 @@ pub struct Results {
     pub stats: Stats,
     pub warnings: Vec<String>,
     pub version: &'static str,
+    /// The spring hangers as sized for this analysis.
+    pub hangers: Vec<HangerDesign>,
+}
+
+/// One spring hanger's sizing: its hot load (the weight it carries with the pipe held level there),
+/// its travel from cold to hot in operating case 1 (up positive), and the spring chosen: its rate,
+/// cold load C = H + k Δ and load variation |k Δ| / H. With no spring that fits, a constant-force
+/// support carrying H.
+#[derive(Clone, Debug, Serialize)]
+pub struct HangerDesign {
+    pub support: u32,
+    pub node: u32,
+    pub hot: f64,
+    pub travel: f64,
+    /// The spring size's name, or "constant" when none fits.
+    pub size: String,
+    pub k: f64,
+    pub cold: f64,
+    pub variability: f64,
+    pub range: [f64; 2],
+}
+
+/// Choose a spring for hot load `hot` and travel `travel` (up positive): the first size in the table
+/// whose working range holds both the hot and the cold load, with the load variation within the
+/// limit. None: no size fits.
+pub fn choose_spring(table: &[crate::model::SpringSize], hot: f64, travel: f64, limit: f64) -> Option<(usize, f64)> {
+    if hot <= 0.0 {
+        return None;
+    }
+    table.iter().enumerate().find_map(|(i, s)| {
+        let cold = hot + s.k * travel;
+        let var = (s.k * travel).abs() / hot;
+        let inside = |x: f64| x >= s.min - 1e-9 && x <= s.max + 1e-9;
+        (inside(hot) && inside(cold) && var <= limit + 1e-12).then_some((i, cold))
+    })
+}
+
+/// Analyse the model. With spring hangers, they are sized first: (1) weight alone with each hanger
+/// held rigidly gives its hot load H; (2) operating case 1 with each hanger pushing up a constant
+/// H gives its travel Δ; (3) a spring is chosen from the table (cold load H + k Δ); then every case
+/// is solved with the chosen springs (rate k, preloaded with the cold load).
+pub fn analyze(m: &Model) -> Result<Results, String> {
+    let hangers: Vec<u32> = m.supports.iter().filter(|s| matches!(s.kind, SupKind::Hanger { .. })).map(|s| s.id).collect();
+    if hangers.is_empty() || m.elements.is_empty() {
+        return solve_model(m);
+    }
+    let run = |kind_of: &dyn Fn(u32) -> SupKind, recipe: Recipe| -> Result<Results, String> {
+        let mut mm = m.clone();
+        for s in &mut mm.supports {
+            if hangers.contains(&s.id) {
+                s.kind = kind_of(s.id);
+            }
+        }
+        mm.cases = vec![LoadCase { id: mm.next, name: "DESIGN".into(), kind: CaseKind::Ope, recipe }];
+        mm.next += 1;
+        solve_model(&mm).map_err(|e| format!("Sizing the spring hangers: {e}"))
+    };
+    // 1. The hot loads: the operating weight with each hanger held rigidly (contents, no heat).
+    let r1 = run(&|_| SupKind::Restraint { dir: [0.0, 1.0, 0.0] }, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 0, wind: false, seis: false })?;
+    let hot: HashMap<u32, f64> = hangers.iter().map(|&id| (id, r1.cases[0].reactions.iter().find(|x| x.support == id).map_or(0.0, |x| x.f[1]))).collect();
+    // 2. The travels: operating case 1 with each hanger carrying its hot load as a constant force.
+    let r2 = run(&|id| SupKind::Constant { load: hot[&id].max(0.0) }, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false })?;
+    // 3. The springs.
+    let mut warnings = vec![];
+    let mut designs = vec![];
+    let mut fm = m.clone();
+    for s in &mut fm.supports {
+        if !hangers.contains(&s.id) {
+            continue;
+        }
+        let h = hot[&s.id];
+        let pt = r2.geom.node_point[&s.node];
+        let travel = r2.cases[0].disp[pt][1];
+        let d = match choose_spring(&m.settings.springs, h, travel, m.settings.variability) {
+            Some((i, cold)) => {
+                let sz = &m.settings.springs[i];
+                HangerDesign { support: s.id, node: s.node, hot: h, travel, size: sz.name.clone(), k: sz.k, cold, variability: (sz.k * travel).abs() / h, range: [sz.min, sz.max] }
+            }
+            None => {
+                warnings.push(if h <= 0.0 {
+                    format!("The spring hanger at node {} carries no weight (hot load {:.0} N): it is left as a constant support of 0 N. Remove it, or move it where the pipe hangs.", s.node, h)
+                } else {
+                    format!("No spring in the table fits the hanger at node {} (hot load {:.0} N, travel {:.1} mm): it is a constant-force support carrying the hot load.", s.node, h, travel * 1e3)
+                });
+                HangerDesign { support: s.id, node: s.node, hot: h, travel, size: "constant".into(), k: 0.0, cold: h.max(0.0), variability: 0.0, range: [0.0, 0.0] }
+            }
+        };
+        s.kind = SupKind::Hanger { k: d.k, cold: d.cold };
+        designs.push(d);
+    }
+    let mut res = solve_model(&fm)?;
+    res.warnings.extend(warnings);
+    res.hangers = designs;
+    Ok(res)
 }
 
 /// Everything about one segment the solver needs.
@@ -223,6 +317,8 @@ fn restraints(kind: &SupKind, k: f64, t: V) -> Vec<(V, bool, f64)> {
         SupKind::Spring { dir, k } => vec![(unit(*dir), false, *k)],
         SupKind::Rotspring { dir, k } => vec![(unit(*dir), true, *k)],
         SupKind::Constant { .. } => vec![],
+        SupKind::Hanger { k, .. } if *k > 0.0 => vec![([0.0, 1.0, 0.0], false, *k)],
+        SupKind::Hanger { .. } => vec![],
     }
 }
 
@@ -568,8 +664,9 @@ struct Spring {
     u0: [f64; 3],
 }
 
-/// Analyse the model: every load case, with stresses, support and nozzle loads.
-pub fn analyze(m: &Model) -> Result<Results, String> {
+/// Analyse the model as it is (hangers with their rate and cold load): every load case, with
+/// stresses, support and nozzle loads.
+fn solve_model(m: &Model) -> Result<Results, String> {
     let t0 = std::time::Instant::now();
     if m.elements.is_empty() {
         return Err("There is nothing to analyze yet: type the piping in the element table.".into());
@@ -792,7 +889,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     // Constant-force supports push up with their load whenever the weight acts.
     let mut const_loads = vec![0.0; n];
     for sp in &m.supports {
-        if let (SupKind::Constant { load }, Some(&pt)) = (&sp.kind, g.node_point.get(&sp.node)) {
+        if let (SupKind::Constant { load } | SupKind::Hanger { cold: load, .. }, Some(&pt)) = (&sp.kind, g.node_point.get(&sp.node)) {
             const_loads[6 * pt + 1] += load;
         }
     }
@@ -986,7 +1083,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                 }
                 // Constant-force supports carry their load in every case with weight.
                 for sp in &m.supports {
-                    if let SupKind::Constant { load } = sp.kind {
+                    if let SupKind::Constant { load } | SupKind::Hanger { cold: load, .. } = sp.kind {
                         reac.entry(sp.id).or_insert([0.0; 6])[1] += if w { load } else { 0.0 };
                     }
                 }
@@ -1208,7 +1305,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     let mut stats = stats;
     stats.ms = t0.elapsed().as_secs_f64() * 1e3;
     let sifs = parts.iter().map(|p| p.sif).collect();
-    Ok(Results { geom: g, cases: results, walls, sifs, stats, warnings, version: env!("CARGO_PKG_VERSION") })
+    Ok(Results { geom: g, cases: results, walls, sifs, stats, warnings, version: env!("CARGO_PKG_VERSION"), hangers: vec![] })
 }
 
 /// The reactions' total force and moment about the origin.

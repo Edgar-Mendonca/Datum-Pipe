@@ -227,9 +227,9 @@ fn tank() -> Model {
     displace(&mut d, 10, 1, [0.0, -0.012, 0.0, 0.0, 0.0, 0.0]);
     nozzle(&mut d, 10, "TK-401 outlet", [1.0, 0.0, 0.0], [20000.0, 15000.0, 20000.0, 25000.0]);
     // A spring near the tank so the settlement does not hang the line off the nozzle.
-    support(&mut d, 40, SupKind::Spring { dir: [0.0, 1.0, 0.0], k: 30e3 }, "SH-40");
+    support(&mut d, 40, SupKind::Hanger { k: 0.0, cold: 0.0 }, "SH-40");
     support(&mut d, 50, SupKind::Rest, "S-50");
     support(&mut d, 70, SupKind::Anchor, "A-70");
-    meta(&mut d, "Tank outlet with settlement", "10\"-CR-401", "10\" Std carbon steel crude oil at 65 °C from a tank shell nozzle, through a gate valve, round two bends to an anchor. Case 2 is the tank settling 12 mm: a displacement range the piping must take without overloading the nozzle, which is why the first support is a spring.");
+    meta(&mut d, "Tank outlet with settlement", "10\"-CR-401", "10\" Std carbon steel crude oil at 65 °C from a tank shell nozzle, through a gate valve, round two bends to an anchor. Case 2 is the tank settling 12 mm: a displacement range the piping must take without overloading the nozzle, which is why the first support is a spring hanger, sized by Analyze from the spring table.");
     d.m
 }

@@ -19,6 +19,7 @@ export const SUPPORTS: [string, string, SupKind][] = [
   ["skew", "Skewed restraint", { kind: "restraint", dir: [1, 0, 1] }],
   ["spring", "Spring (vertical)", { kind: "spring", dir: [0, 1, 0], k: 1e6 }], ["rotspring", "Rotational spring", { kind: "rotspring", dir: [1, 0, 0], k: 1e6 }],
   ["constant", "Constant-force support", { kind: "constant", load: 1000 }],
+  ["hanger", "Spring hanger (sized)", { kind: "hanger", k: 0, cold: 0 }],
 ];
 
 let solveHook: () => Promise<void> = async () => toast("Analysis arrives in Datum Pipe 0.1.1. File › Roadmap shows what comes when.");

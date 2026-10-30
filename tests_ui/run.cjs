@@ -156,6 +156,8 @@ const shots = process.env.SHOTS;
   await p.click('.rtabs button:text-is("Support loads")'); await p.waitForTimeout(150);
   check("support loads list both anchors", (await p.$$(".rtable tbody tr")).length === 2);
   check("support loads show the state of one-way and gapped supports", (await p.textContent(".rtable thead")).includes("State"));
+  await p.click('.rtabs button:text-is("Hangers")'); await p.waitForTimeout(150);
+  check("the Hangers table says how to add one when there is none", (await p.textContent("body")).includes("Supports › Spring Hanger"));
   await p.click('.rtabs button:text-is("Equilibrium")'); await p.waitForTimeout(150);
   check("the equilibrium table ticks every case", (await p.$$eval(".rtable tbody tr td:last-child", els => els.every(e => e.textContent.includes("✓")))));
   await p.click('.rtabs button:text-is("Code stresses")'); await p.waitForTimeout(150);
@@ -191,6 +193,9 @@ const shots = process.env.SHOTS;
   const ins = await p.textContent(".insp");
   check("the rest's Inspector offers one-way, the gap and friction", ins.includes("One-way: the pipe can lift off") && ins.includes("Gap below the pipe") && ins.includes("Friction coefficient"), ins.slice(0, 200));
   check("a new rest has no friction until it is given one", rest?.mu === 0);
+  await p.click('.ribbon button[title="The springs hangers are chosen from, and the load variation allowed"]'); await p.waitForTimeout(300);
+  check("the spring table lists the generic sizes and says to use the supplier's", (await p.$$(".dlg .tbl tbody tr")).length === 60 && (await p.textContent(".dlg")).includes("supplier"));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
   await p.click('.tabs > button:text-is("Model")');
 
   // US units: lengths in feet, stresses in psi, the isometric in feet and inches.

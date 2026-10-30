@@ -129,7 +129,7 @@ export const Ribbon = () => {
       <Show when={tab() === "supports"}>
         <G l="Supports" h="supports"><Sup big k="anchor" i="anchor" /><Sup big k="rest" i="rest" l="Rest" /><Sup big k="guide" i="guide" /><Sup big k="linestop" i="linestop" /></G>
         <G l="Restraints" h="supports"><S><Sup k="rx" i="restraint" /><Sup k="ry" i="restraint" /><Sup k="rz" i="restraint" /></S><S><Sup k="skew" i="restraint" l="Skewed" /><Sup k="spring" i="spring" l="Spring" /><Sup k="rotspring" i="spring" l="Rotational Spring" /></S></G>
-        <G l="Hangers" h="supports"><Sup big k="constant" i="constant" l="Constant Force" /><S><Planned i="spring" l="Spring Hanger Sizing" v="0.1.10" /></S></G>
+        <G l="Hangers" h="hangers"><Sup big k="hanger" i="spring" l="Spring Hanger" /><Sup big k="constant" i="constant" l="Constant Force" /><S><B i="list" l="Spring Table" run={() => P.springTable()} title="The springs hangers are chosen from, and the load variation allowed" /></S></G>
         <G l="Equipment" h="nozzles"><B big i="nozzle" l="Nozzle Point" run={C.nozzle} /><S><Planned i="nozzle" l="Pump and Compressor Checks" v="0.3" /></S></G>
       </Show>
       <Show when={tab() === "analyze"}>

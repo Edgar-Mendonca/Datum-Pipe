@@ -340,8 +340,9 @@ const supportSymbol = (kind: Model["supports"][number]["kind"], s: number, t: Ve
     case "guide": for (const k of [-1, 1]) add(new THREE.BoxGeometry(s * 0.15, s * 1.6, s * 1.6), mul(lat, k * s * 0.85), [0, 1, 0]); add(new THREE.BoxGeometry(s * 2.2, s * 0.15, s * 2.2), [0, -s * 1.1, 0]); break;
     case "linestop": for (const k of [-1, 1]) add(new THREE.CylinderGeometry(s * 1.1, s * 1.1, s * 0.15, 20), mul(t, k * s * 0.6), t); break;
     case "restraint": { const d = unitv(kind.dir as Vec); add(new THREE.CylinderGeometry(s * 0.12, s * 0.12, s * 2.6, 8), [0, 0, 0], d); for (const k of [-1, 1]) add(new THREE.ConeGeometry(s * 0.35, s * 0.6, 12), mul(d, k * s * 1.5), mul(d, k)); break; }
+    case "hanger":
     case "spring": {
-      const d = unitv(kind.dir as Vec), pts: THREE.Vector3[] = [];
+      const d = unitv((kind.kind === "hanger" ? [0, 1, 0] : kind.dir) as Vec), pts: THREE.Vector3[] = [];
       for (let i = 0; i <= 24; i++) { const a = i / 24 * Math.PI * 8; const off = addv(mul(d, -s * (0.8 + 1.6 * i / 24)), addv(mul(lat, Math.cos(a) * s * 0.4), mul(unitv(cross(d, lat)), Math.sin(a) * s * 0.4))); pts.push(V(off)); }
       const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: (mat as THREE.MeshStandardMaterial).color })); g.add(ln);
       add(new THREE.BoxGeometry(s * 1.6, s * 0.15, s * 1.6), mul(d, -s * 2.5)); break;

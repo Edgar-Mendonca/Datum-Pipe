@@ -92,6 +92,10 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.2.0 | Touching one-way or gapped supports held exactly on one unknown share its reaction equally (`CondSolve.share`), with the shared-support warning | Found by the review; the same rule as linear supports |
+| 0.2.0 | A custom bend radius ≤ D/2 is refused by `check` (and repaired on open); `bend_factor` returns an infinite intrados factor there so a wall check fails | Found by the review: the factor turned negative |
+| 0.2.0 | Hanger travel = the pipe's movement minus the hanger's own imposed movement in case 1 | Found by the review: C must give H in operation |
+| 0.2.0 | The .pcf import splits a piece at any support or olet point inside it, even if another piece already starts there | Found by the review: olet branches were unconnected |
 | 0.1.11 | The regulator's piping benchmark problems (NUREG/CR-1677, Brookhaven 1980) are response-spectrum problems with no static results, so they move to 0.4 | A benchmark is only worth adding when this version can solve it |
 | 0.1.11 | `.pcf` import in `crates/core/src/import.rs`: a new unsaved model; nodes merged within 1 mm and numbered 10, 20, … in order of first appearance; X east, Y north, Z up → (x, z, −y); elbows at the corner with R = tangent / tan(θ/2); tees and olets as tees at the centre (set-on and olets fabricated); supports split the pipe they sit on; rests one-way, ANC/GUI/STOP in the name → anchor/guide/line stop; nominal bore → library NPS, Std wall | The common content of these files, with everything the user must check named in the notes and the warnings |
 | 0.1.11 | Public words name the format by its extension only (.pcf, "piping component file"), not any tool; the header line naming a tool is not needed and is matched generically | FAMILY §13 |
@@ -178,8 +182,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.1.9 | Wind and static seismic loads, occasional cases and the occasional stress check | ✅ |
 | 0.1.10 | Spring hanger selection (spring data entered by the user) | ✅ |
 | 0.1.11 | Import of plain-text piping component files (the regulator benchmarks moved to 0.4: they are dynamic) | ✅ |
-| 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | 🔜 |
-| 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust | ⬜ |
+| 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | ✅ |
+| 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust (to be split into 0.2.x steps before it starts) | 🔜 |
 | 0.4 | Dynamics: modes, harmonic, response spectrum; the regulator's public piping benchmark problems (NUREG/CR-1677) | ⬜ |
 | 0.5 | Power piping and European piping code equations, buried pipe, cold spring | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
@@ -257,7 +261,17 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Checked in the real app through the file dialog: the sample imports and analyses.
 - The regulator benchmarks are dynamic: moved to 0.4 (site, MEMORY, the Verification dialog's note).
 
-## 5. Known limits (0.1.11)
+### 2026-10-30: Session 2, continued (0.2.0: review and milestone)
+- An independent reviewer (a separate agent, given the diff and MEMORY, told to demonstrate every finding with numbers) read cec9e76..0.1.11. Four bugs, all confirmed and fixed with regression tests: shared reactions of touching conditional supports, bends with R ≤ D/2, hanger travel with a moving attachment, olet branches in the import. It found the rest correct (bend factor, Ze, pressure strain, reactions at held unknowns, contact and friction states, sliding force, wind, seismic, occasional range, hanger sizing, .pcf mapping).
+- README and site describe everything to 0.2.0; screenshots, verification record (48 checks) refreshed.
+
+### Summary of the second stage (0.1.5–0.2.0)
+- **Released:** 0.1.5 (code check fixes, Help › Sources, legal wording), 0.1.6 (publisher "Datum"), 0.1.7 (one-way rests, gaps), 0.1.8 (friction), 0.1.9 (wind, static seismic, occasional check), 0.1.10 (spring hangers), 0.1.11 (.pcf import), 0.2.0 (review).
+- **Works:** every support is linear or settles by iteration (contact, gaps, friction) with balanced loads; occasional loads; hangers sized from the user's spring table; import from design tools; 18 benchmarks (48 checks) and 32 hand-worked cases.
+- **Moved:** the regulator's public benchmarks to 0.4 (they are dynamic).
+- **Next:** stage 0.3 (equipment and flanges), to be split into small 0.2.x releases first.
+
+## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
 - Friction is the same in every direction across a support (no separate coefficients), and is path-independent: each case slides from the installed position.

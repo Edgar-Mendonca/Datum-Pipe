@@ -104,7 +104,7 @@
     {
       "v": "0.2.0",
       "title": "Nonlinear supports and more loads, complete",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Everything in 0.1.5–0.1.11 reviewed, with the verification record and examples updated",
         "No new features: 0.2.0 marks the stage as finished"
@@ -113,7 +113,7 @@
     {
       "v": "0.3",
       "title": "Equipment and flanges",
-      "when": "Later",
+      "when": "Next",
       "items": [
         "Nozzle checks to the published pump, compressor and steam turbine standards",
         "Flange leakage check",

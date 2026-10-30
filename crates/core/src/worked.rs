@@ -700,3 +700,50 @@ fn files_without_a_spring_table_get_the_generic_one() {
     assert_eq!(back.settings.springs.len(), 60);
     assert_eq!(back.settings.variability, 0.25);
 }
+
+#[test]
+fn two_one_way_rests_at_a_node_share_the_load() {
+    // Found by the 0.2.0 review: two touching one-way rests on one node each reported the whole
+    // load (the balance was out by half). They share it, with a warning, as linear supports do.
+    let mut d = table("two rests", &[(10, 20, 3.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup_with(&mut d, 20, SupKind::Rest, true, 0.0);
+    sup_with(&mut d, 20, SupKind::Rest, true, 0.0);
+    load(&mut d, 20, [0.0, -10e3, 0.0]);
+    let r = analyze(&d.m).unwrap();
+    let each: Vec<f64> = case(&r, "OPE1").reactions.iter().filter(|x| x.node == 20).map(|x| x.f[1]).collect();
+    assert_eq!(each.len(), 2);
+    assert!(each.iter().all(|f| close(*f, 5e3, 1e-9)), "{each:?}");
+    assert!(case(&r, "OPE1").imbalance < 1e-9);
+    assert!(r.warnings.iter().any(|w| w.contains("node 20")), "{:?}", r.warnings);
+}
+
+#[test]
+fn a_bend_too_tight_for_its_pipe_is_refused() {
+    // Found by the 0.2.0 review: a custom radius of D/2 or less gave a negative bend factor and a
+    // passing wall check. Such a bend is refused.
+    let mut d = table("tight", &[(10, 20, 3.0, 0.0, 0.0), (20, 30, 0.0, 3.0, 0.0)]);
+    let mut e = d.m.elements[0].clone();
+    e.comp = Comp::Bend { bend: crate::model::BendKind::Custom, r: 0.06 };
+    assert!(d.apply(Op::Set { item: Item::Element(e) }).is_err());
+    // And the factor itself never gives a thinner wall than straight pipe needs.
+    let (i, _) = crate::code::bend_factor(0.06, 0.168);
+    assert!(!(i.is_finite() && i > 0.0) || i >= 1.0);
+}
+
+#[test]
+fn a_hanger_on_a_moving_attachment_carries_its_hot_load() {
+    // Found by the 0.2.0 review: a hanger whose attachment moves 10 mm up in case 1 was sized on
+    // the pipe's absolute travel, so in operation it did not carry H.
+    let mut d = table("moving hanger", &[(10, 20, 6.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    d.apply(Op::Add { item: Item::Support(Support { node: 20, kind: SupKind::Hanger { k: 0.0, cold: 0.0 }, disp: [[0.0, 0.01, 0.0, 0.0, 0.0, 0.0], [0.0; 6], [0.0; 6]], ..Default::default() }), after: None }).unwrap();
+    load(&mut d, 20, [0.0, -5e3, 0.0]);
+    let r = analyze(&d.m).unwrap();
+    let h = &r.hangers[0];
+    assert!(h.k > 0.0, "{h:?}");
+    assert!(close(react(&r, "OPE1", 20)[1], h.hot, 1e-9), "{} {}", react(&r, "OPE1", 20)[1], h.hot);
+    assert!(close(h.cold, h.hot + h.k * h.travel, 1e-12));
+}

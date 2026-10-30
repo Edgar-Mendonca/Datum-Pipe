@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 — 2026-10-30
+
+The milestone that closes the second stage: nonlinear supports, occasional loads, spring hangers and import (0.1.5–0.1.11), reviewed. No new features.
+
+**Fixes from an independent review of the engine.**
+- Two one-way or gapped supports touching on the same direction at one node now share its load equally, with a warning; each reported the whole load, so the equilibrium check failed.
+- A bend whose radius is half its pipe's diameter or less is refused (its bend factor turned negative and the wall check passed); the wall check of such a bend fails.
+- A spring hanger whose attachment moves in operating case 1 is sized on the pipe's movement relative to the attachment, so it carries its hot load in operation.
+- Importing a piping component file joins an olet's branch to its run pipe (the run was not split there, leaving the branch unconnected).
+
+Each with a regression test. The verification record (48 checks), the screenshots, the README and the site describe everything up to this release.
+
 ## 0.1.11 — 2026-10-30
 
 Import of piping component files.

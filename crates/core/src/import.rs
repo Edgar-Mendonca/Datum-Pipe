@@ -219,10 +219,10 @@ pub fn pcf(text: &str) -> Result<Imported, String> {
     // Zero-length pieces (a gasket at one point) are dropped; supports and olets on a piece split it.
     pieces.retain(|p| p.a != p.b && len(sub(nodes[p.b], nodes[p.a])) >= 1e-4);
     let splits: Vec<usize> = sups.iter().map(|s| s.0).chain(tees.iter().map(|t| t.0)).collect();
+    // A point inside a piece always splits it, even when another piece (an olet's branch) already
+    // starts there (found by the 0.2.0 review: the branch was left unconnected).
     for &n in &splits {
-        if pieces.iter().any(|p| p.a == n || p.b == n) {
-            continue;
-        }
+        let touches = pieces.iter().any(|p| p.a == n || p.b == n);
         let q = nodes[n];
         if let Some(i) = pieces.iter().position(|p| {
             let (a, b) = (nodes[p.a], nodes[p.b]);
@@ -233,7 +233,7 @@ pub fn pcf(text: &str) -> Result<Imported, String> {
             let p = pieces.remove(i);
             pieces.push(Piece { a: p.a, b: n, nps: p.nps, to_nps: None, rigid: p.rigid });
             pieces.push(Piece { a: n, b: p.b, nps: p.nps, to_nps: None, rigid: p.rigid.map(|r| (r.0, 0.0)) });
-        } else {
+        } else if !touches {
             warnings.push(format!("A support or branch at ({:.0}, {:.0}, {:.0}) mm is not on the piping: left out.", q[0] * 1e3, q[1] * 1e3, q[2] * 1e3));
         }
     }
@@ -431,6 +431,20 @@ SUPPORT
                 assert!(r.model.check().is_ok());
             }
         }
+    }
+
+    #[test]
+    fn an_olet_splits_its_run_pipe() {
+        // Found by the 0.2.0 review: an olet's centre already had its branch piece, so the run pipe
+        // was never split there and the branch was left unconnected.
+        let f = "UNITS-BORE MM\nUNITS-CO-ORDS MM\nPIPE\n    END-POINT 0 0 0 150\n    END-POINT 6000 0 0 150\nOLET\n    CENTRE-POINT 3000 0 0\n    BRANCH1-POINT 3000 0 80 50\nPIPE\n    END-POINT 3000 0 80 50\n    END-POINT 3000 0 1080 50\nSUPPORT\n    CO-ORDS 0 0 0 0\n    NAME ANC-1\nSUPPORT\n    CO-ORDS 6000 0 0 0\n    NAME ANC-2\n";
+        let r = pcf(f).unwrap();
+        let m = &r.model;
+        let tee = m.elements.iter().find(|e| matches!(e.comp, Comp::Tee { .. })).unwrap();
+        // Three elements meet at the tee: the run split in two and the branch.
+        assert_eq!(m.elements.iter().filter(|e| e.from == tee.to || e.to == tee.to).count(), 3, "{:?}", m.elements);
+        let res = crate::solve::analyze(m).unwrap();
+        assert!(res.cases.iter().all(|c| c.imbalance < 1e-9));
     }
 
     #[test]

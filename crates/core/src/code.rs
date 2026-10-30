@@ -40,8 +40,12 @@ pub fn hoop_stress_i(p: f64, d: f64, t: f64, e: f64, w: f64, y: f64, i: f64) -> 
 /// The bend factor at the intrados and the extrados: I = (4R/D ∓ 1) / (4R/D ∓ 2). It is the ratio of
 /// the hoop stress of a pressurised torus to that of a straight pipe, from the membrane
 /// equilibrium of a torus, σ = (P r / 2t)(2R + r sin φ)/(R + r sin φ), at r = D/2, sin φ = ∓1.
+/// A radius of D/2 or less (no room for the intrados) gives an infinite factor, so the check fails.
 pub fn bend_factor(rb: f64, d: f64) -> (f64, f64) {
     let x = 4.0 * rb / d;
+    if !(x > 2.0) {
+        return (f64::INFINITY, 1.0);
+    }
     ((x - 1.0) / (x - 2.0), (x + 1.0) / (x + 2.0))
 }
 

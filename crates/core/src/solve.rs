@@ -140,7 +140,8 @@ pub struct Results {
 }
 
 /// One spring hanger's sizing: its hot load (the weight it carries with the pipe held level there),
-/// its travel from cold to hot in operating case 1 (up positive), and the spring chosen: its rate,
+/// its travel from cold to hot in operating case 1 (up positive, relative to its attachment if
+/// that moves), and the spring chosen: its rate,
 /// cold load C = H + k Δ and load variation |k Δ| / H. With no spring that fits, a constant-force
 /// support carrying H.
 #[derive(Clone, Debug, Serialize)]
@@ -207,7 +208,9 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         }
         let h = hot[&s.id];
         let pt = r2.geom.node_point[&s.node];
-        let travel = r2.cases[0].disp[pt][1];
+        // The travel against the hanger's own attachment, which may move in case 1 (found by the
+        // 0.2.0 review: the pipe's absolute movement left the hot load off by k u0).
+        let travel = r2.cases[0].disp[pt][1] - s.disp[0][1];
         let d = match choose_spring(&m.settings.springs, h, travel, m.settings.variability) {
             Some((i, cold)) => {
                 let sz = &m.settings.springs[i];
@@ -424,8 +427,10 @@ struct CondSolve {
     f: Vec<f64>,
     /// −1 touching on the minus side (pushing the pipe along +dir), +1 on the plus side, 0 open.
     state: Vec<i8>,
-    /// The stiffness each support was given as a spring (0: held exactly, or open).
+    /// The stiffness each support was given as a spring (0: held exactly, or open), and its share
+    /// of a reaction held exactly with others.
     spring_k: Vec<f64>,
+    share: Vec<f64>,
     iterations: u32,
     stats: Stats,
     settled: bool,
@@ -470,6 +475,18 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
                         }
                         f2[6 * c.pt + a] += kk * target * c.dir[a];
                     }
+                }
+            }
+        }
+        // Touching supports held exactly on the same unknown share its reaction equally (found by
+        // the 0.2.0 review: each reported all of it).
+        let mut share = vec![1.0; conds.len()];
+        {
+            let exact = |i: usize| -> Option<usize> { let c = &conds[i]; (state[i] != 0 && spring_k[i] == 0.0 && c.k == 0.0).then_some(())?; let ax = axis_of(c.dir)?; (!held[6 * c.pt + ax]).then_some(6 * c.pt + ax) };
+            for i in 0..conds.len() {
+                if let Some(dof) = exact(i) {
+                    let n = (0..conds.len()).filter(|&j| exact(j) == Some(dof)).count();
+                    share[i] = 1.0 / n as f64;
                 }
             }
         }
@@ -544,7 +561,7 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
         let mut changed = false;
         for (i, c) in conds.iter().enumerate() {
             let v = dot(c.dir, disp(&u, c.pt)) - u0(c);
-            let r = conds_reaction(c, state[i], spring_k[i], &u, &ku, &f2, u0(c));
+            let r = conds_reaction(c, state[i], spring_k[i], share[i], &u, &ku, &f2, u0(c));
             let next = match state[i] {
                 0 if v < -c.gap - 1e-9 => -1,
                 0 if v > c.gap + 1e-9 && !c.one_way => 1,
@@ -574,7 +591,7 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
                 press = add(press, scale(sp.dir, -sp.k * (dot(sp.dir, disp(&u, sp.pt)) - su0)));
             }
             for (i, c) in conds.iter().enumerate().filter(|(_, c)| c.support == fr.support) {
-                press = add(press, scale(c.dir, conds_reaction(c, used[i], spring_k[i], &u, &ku, &f2, u0(c))));
+                press = add(press, scale(c.dir, conds_reaction(c, used[i], spring_k[i], share[i], &u, &ku, &f2, u0(c))));
             }
             let limit = fr.mu * norm(press);
             let tol = 1e-9 * (limit + 1.0);
@@ -634,14 +651,14 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
         }
         if !changed || iter >= MAX_ITER {
             // The states this solve used, so the loads always match it (also when it did not settle).
-            return Ok(CondSolve { u, ku, f: f2, state: used, spring_k, iterations: iter, stats, settled: !changed, soft, friction: fout });
+            return Ok(CondSolve { u, ku, f: f2, state: used, spring_k, share, iterations: iter, stats, settled: !changed, soft, friction: fout });
         }
     }
 }
 
 /// The force a support puts on the pipe along its direction: held exactly (K u − f at its unknown),
 /// as a spring (−k (u − target)), or nothing when open.
-fn conds_reaction(c: &Cond, state: i8, spring_k: f64, u: &[f64], ku: &[f64], f: &[f64], u0: f64) -> f64 {
+fn conds_reaction(c: &Cond, state: i8, spring_k: f64, share: f64, u: &[f64], ku: &[f64], f: &[f64], u0: f64) -> f64 {
     if spring_k > 0.0 {
         let v = dot(c.dir, [u[6 * c.pt], u[6 * c.pt + 1], u[6 * c.pt + 2]]);
         return -spring_k * (v - (state as f64 * c.gap + u0));
@@ -651,7 +668,7 @@ fn conds_reaction(c: &Cond, state: i8, spring_k: f64, u: &[f64], ku: &[f64], f: 
     }
     let ax = axis_of(c.dir).unwrap_or(0);
     let dof = 6 * c.pt + ax;
-    (ku[dof] - f[dof]) * c.dir[ax]
+    (ku[dof] - f[dof]) * c.dir[ax] * share
 }
 
 struct Spring {
@@ -956,13 +973,13 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     // Linear supports only: every case with one factorisation. With one-way or gapped supports,
     // each case is solved by iteration with its own support states.
     let dcases: Vec<u8> = sums.iter().map(|c| match c.recipe { Recipe::Sum { d, .. } => d, _ => 0 }).collect();
-    let (sols, ku, rhs_f, states, springs_k, iters, frout, stats) = if conds.is_empty() && frics.is_empty() {
+    let (sols, ku, rhs_f, states, springs_k, shares, iters, frout, stats) = if conds.is_empty() && frics.is_empty() {
         let (sols, stats) = sys.solve_many(&held, &rhs)?;
         let ku: Vec<Vec<f64>> = sols.iter().map(|u| sys.mul(u)).collect();
         let n_c = sols.len();
-        (sols, ku, rhs.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![vec![]; n_c], vec![vec![]; n_c], vec![1u32; n_c], vec![vec![]; n_c], stats)
+        (sols, ku, rhs.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![vec![]; n_c], vec![vec![]; n_c], vec![vec![]; n_c], vec![1u32; n_c], vec![vec![]; n_c], stats)
     } else {
-        let (mut sols, mut kus, mut fs, mut sts, mut sks, mut its, mut frs) = (vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+        let (mut sols, mut kus, mut fs, mut sts, mut sks, mut shs, mut its, mut frs) = (vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
         let lin = Linear { owners: &hold_owner, springs: &springs };
         let mut stats = Stats::default();
         for (k, (f, fixed)) in rhs.iter().enumerate() {
@@ -987,10 +1004,11 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             fs.push(cs.f);
             sts.push(cs.state);
             sks.push(cs.spring_k);
+            shs.push(cs.share);
             its.push(cs.iterations);
             frs.push(cs.friction);
         }
-        (sols, kus, fs, sts, sks, its, frs, stats)
+        (sols, kus, fs, sts, sks, shs, its, frs, stats)
     };
     // ---------------------------------------------------------------- results per case
     let mut by_id: HashMap<u32, CaseResult> = HashMap::new();
@@ -1062,7 +1080,11 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                 for (i, cd) in conds.iter().enumerate() {
                     let s = states[k][i];
                     let u0 = if dcase > 0 { cd.u0[dcase as usize - 1] } else { 0.0 };
-                    let r = conds_reaction(cd, s, springs_k[k][i], u, &ku[k], f, u0);
+                    let sh = shares[k][i];
+                    if sh < 1.0 && !shared.contains(&cd.node) {
+                        shared.push(cd.node);
+                    }
+                    let r = conds_reaction(cd, s, springs_k[k][i], sh, u, &ku[k], f, u0);
                     let e = reac.entry(cd.support).or_insert([0.0; 6]);
                     for d in 0..3 {
                         e[d] += r * cd.dir[d];

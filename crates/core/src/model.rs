@@ -686,6 +686,9 @@ impl Model {
             }
             match &e.comp {
                 Comp::Bend { bend: BendKind::Custom, r } if !(*r > 0.0 && fin(*r)) => return Err(format!("The bend at node {} needs a radius.", e.to)),
+                // A bend's radius must be more than half its pipe's diameter (found by the 0.2.0
+                // review: the wall check's bend factor turns negative there).
+                Comp::Bend { bend: BendKind::Custom, r } if self.pipe(e.pipe).is_some_and(|p| *r <= p.od / 2.0) => return Err(format!("The bend at node {} needs a radius larger than half its pipe's outside diameter.", e.to)),
                 Comp::Tee { pad, .. } if !(*pad >= 0.0 && fin(*pad)) => return Err(format!("The tee at node {}: the pad thickness must be 0 or more.", e.to)),
                 Comp::Reducer { to } if self.pipe(*to).is_none() => return Err(format!("The reducer {}–{} needs the pipe at its small end.", e.from, e.to)),
                 Comp::Rigid { mass, .. } if !(*mass >= 0.0 && fin(*mass)) => return Err(format!("The rigid part {}–{}: its weight must be 0 or more.", e.from, e.to)),
@@ -1003,7 +1006,7 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
             e.extra = 0.0;
         }
         let bad = match &e.comp {
-            Comp::Bend { bend: BendKind::Custom, r } => !(*r > 0.0 && fin(*r)),
+            Comp::Bend { bend: BendKind::Custom, r } => !(*r > 0.0 && fin(*r)) || m.pipes.iter().find(|p| p.id == e.pipe).is_some_and(|p| *r <= p.od / 2.0),
             Comp::Tee { pad, .. } => !(*pad >= 0.0 && fin(*pad)),
             Comp::Reducer { to } => !pipes.contains(to),
             Comp::Rigid { mass, .. } => !(*mass >= 0.0 && fin(*mass)),

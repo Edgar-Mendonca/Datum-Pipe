@@ -199,6 +199,21 @@ async fn open(app: AppHandle, st: State<'_, St>, path: Option<String>) -> R<Opti
     Ok(Some(o))
 }
 
+/// File › Import: a plain-text piping component file (.pcf) as a new, unsaved model.
+#[tauri::command]
+async fn import_pcf(app: AppHandle, st: State<'_, St>, path: Option<String>) -> R<Option<Out>> {
+    let Some(path) = path.map(PathBuf::from).or_else(|| pick(&app, "Piping component file", &["pcf", "PCF", "txt"])) else { return Ok(None) };
+    let bytes = std::fs::read(&path).map_err(|e| format!("Could not open {}: {e}", path.display()))?;
+    let text = String::from_utf8_lossy(&bytes);
+    let r = datum_core::import::pcf(&text)?;
+    let mut a = st.lock();
+    a.doc = Doc::new(r.model);
+    a.doc.dirty = true;
+    let mut o = out(&a);
+    o.warnings = std::iter::once(format!("Imported {} components from {}: check the schedules (Std wall), the material, the line conditions and the supports.", r.components, path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default())).chain(r.warnings).collect();
+    Ok(Some(o))
+}
+
 #[tauri::command]
 async fn save(app: AppHandle, st: State<'_, St>, as_new: bool) -> R<Option<Out>> {
     let (known, name) = {
@@ -428,7 +443,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            state, apply, history, examples_list, new_model, library, unit_table, analyze, verification, isometric, open, save, save_file,
+            state, apply, history, examples_list, new_model, library, unit_table, analyze, verification, isometric, open, import_pcf, save, save_file,
             options, set_options, autosave, recovery, recover, recent, startup_file, open_url, version, quit, check_update, install_update
         ])
         .run(tauri::generate_context!())

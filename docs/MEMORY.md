@@ -37,6 +37,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | `crates/core/src/elements.rs` | The 3D pipe element from its exact flexibility ∫ Bᵀ C B ds (axial, shear with κ = 0.5, torsion, bending with the bend's k), inverted and moved to 12×12; uniform loads and thermal growth as equivalent nodal loads; end forces and section resultants |
 | `crates/core/src/code.rs` | The process piping code's equations: pressure design thickness and hoop stress, minimum wall with corrosion and mill tolerance, bend and tee SIFs and flexibility (h, pressure correction), reducer SIF, sustained stress, displacement stress range, allowable range (basic and liberal), f from cycles |
 | `crates/core/src/solve.rs` | The analysis: parts (sections, weights, strains, SIFs), assembly, supports (rigid axis-aligned ones held exactly with imposed displacements as prescribed values; skewed or flexible ones as springs), basic loads, every case solved together, ranges as differences, forces in local axes, reactions, code stresses per segment end, nozzle loads in nozzle axes, minimum wall, the equilibrium check |
+| `crates/core/src/import.rs` | Import of plain-text piping component files (.pcf) into a new model (`pcf`), with its warnings |
 | `crates/core/src/iso.rs` | The isometric: the 30° projection (x = (X − Z) cos 30°, y = (X + Z) sin 30° − Y), lines per segment (arcs sampled), node labels, a dimension per element offset away from the middle, symbols for supports, nozzles and tees, sheets of at most n elements in table order with their joins |
 | `crates/core/src/worked.rs` | Hand-worked cases for every component and support kind (spring, settlement, guide, line stop, rest, skewed restraint, valve weight, constant support, reducer taper and SIF, tee SIF, nozzle axes, liberal allowable and f) |
 | `tests_ui/screens.cjs` | The four README and site screenshots (1440×900) from the built window with the engine's real results |
@@ -91,6 +92,9 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.1.11 | The regulator's piping benchmark problems (NUREG/CR-1677, Brookhaven 1980) are response-spectrum problems with no static results, so they move to 0.4 | A benchmark is only worth adding when this version can solve it |
+| 0.1.11 | `.pcf` import in `crates/core/src/import.rs`: a new unsaved model; nodes merged within 1 mm and numbered 10, 20, … in order of first appearance; X east, Y north, Z up → (x, z, −y); elbows at the corner with R = tangent / tan(θ/2); tees and olets as tees at the centre (set-on and olets fabricated); supports split the pipe they sit on; rests one-way, ANC/GUI/STOP in the name → anchor/guide/line stop; nominal bore → library NPS, Std wall | The common content of these files, with everything the user must check named in the notes and the warnings |
+| 0.1.11 | Public words name the format by its extension only (.pcf, "piping component file"), not any tool; the header line naming a tool is not needed and is matched generically | FAMILY §13 |
 | 0.1.10 | `SupKind::Hanger { k, cold }` (0 in the file); `analyze` sizes hangers first (`solve_model` is the plain solve): weight alone with hangers as rigid Y restraints → H; OPE1 recipe with hangers as constant H → Δ; then `choose_spring` | The usual hanger design runs, kept inside the engine so the window never calculates |
 | 0.1.10 | Choice: the first table row (in the user's order) with H and C = H + kΔ inside [min, max] and |kΔ|/H ≤ variability (25 %); none → constant-force of H with a warning; H ≤ 0 → constant 0 with a warning | Simple, predictable, and the user controls preference by ordering the table |
 | 0.1.10 | The final solve models a hanger as a Y spring of rate k plus its cold load as an upward force in every case with weight (like a constant support), reported together on the hanger | Then OPE1 gives C − kΔ = H, which benchmark 18 checks |
@@ -173,10 +177,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.1.8 | Friction at rests and guides, equilibrium with friction, a friction benchmark | ✅ |
 | 0.1.9 | Wind and static seismic loads, occasional cases and the occasional stress check | ✅ |
 | 0.1.10 | Spring hanger selection (spring data entered by the user) | ✅ |
-| 0.1.11 | Import of plain-text piping component files; the public regulator benchmarks in Help › Verification | 🔜 |
-| 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | ⬜ |
+| 0.1.11 | Import of plain-text piping component files (the regulator benchmarks moved to 0.4: they are dynamic) | ✅ |
+| 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | 🔜 |
 | 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust | ⬜ |
-| 0.4 | Dynamics: modes, harmonic, response spectrum | ⬜ |
+| 0.4 | Dynamics: modes, harmonic, response spectrum; the regulator's public piping benchmark problems (NUREG/CR-1677) | ⬜ |
 | 0.5 | Power piping and European piping code equations, buried pipe, cold spring | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
 
@@ -248,7 +252,12 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Engine: `SupKind::Hanger`, `SpringSize`, `typical_springs`, settings `springs`/`variability` (checked and repaired); `analyze` → design runs + `choose_spring` + `solve_model`; `Results.hangers`. Benchmark 18 (48 checks), three worked cases. The tank example's SH-40 is now a sized hanger (A-03).
 - UI: Supports › Spring Hanger and Spring Table (dialog with the variation limit and "Back to the generic table"), Results › Hangers and its report block, hanger in the Inspector, 3D and isometric (spring symbol), help and Sources. Two UI checks.
 
-## 5. Known limits (0.1.10)
+### 2026-10-30: Session 2, continued (0.1.11: import)
+- Engine: `import::pcf` with three tests (a sample through to analysis, units and unknown parts, every truncation and line damage of the sample never panicking). Shell: `import_pcf` (file dialog, new unsaved model, the warnings shown on open). UI: the File › Export tile, Tell Me entry, help topic; one UI check. Sample: `docs/examples/6-P-101.pcf`.
+- Checked in the real app through the file dialog: the sample imports and analyses.
+- The regulator benchmarks are dynamic: moved to 0.4 (site, MEMORY, the Verification dialog's note).
+
+## 5. Known limits (0.1.11)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
 - Friction is the same in every direction across a support (no separate coefficients), and is path-independent: each case slides from the installed position.
@@ -259,4 +268,5 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Minimum wall: t ≥ D/6 fails rather than using a thick-wall equation; bends are checked at the intrados only.
 - Two rigid supports holding the same direction at one node share the reaction equally (the true split is indeterminate).
 - Spring hangers are sized from operating case 1 only, hold vertically only, and use one spring each (no double springs or load-to-travel charts).
+- The .pcf import reads geometry, sizes, in-line items and supports; schedules, materials, temperatures and pressures in the file are not read (set them in Datum Pipe).
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

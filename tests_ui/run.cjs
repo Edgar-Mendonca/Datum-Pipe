@@ -73,6 +73,14 @@ const shots = process.env.SHOTS;
 
   // 2. A blank model: ribbon tabs, the table's empty state, the Inspector shows the model.
   await open("blank");
+  // File › Export › Import asks the shell to import a piping component file.
+  await p.evaluate(() => document.querySelector(".tabs .file").click()); await p.waitForTimeout(150);
+  await p.evaluate(() => [...document.querySelectorAll("button")].find(b => b.textContent.trim() === "Export")?.click());
+  await p.waitForTimeout(150);
+  await p.click('.tile:has(b:text-is("Import a piping component file"))'); await p.waitForTimeout(250);
+  if (await p.$('.dlg header:has-text("Save changes?")')) { await p.click('.dlg button:has-text("Don\'t save")'); await p.waitForTimeout(250); }
+  check("File › Export › Import calls the shell's import", await p.evaluate(() => window.__calls.some(c => c[0] === "import_pcf")));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
   check("ribbon tabs", JSON.stringify(await p.$$eval(".tabs > button:not(.file)", els => els.map(e => e.textContent))) === JSON.stringify(["Home", "Model", "Loads", "Supports", "Analyze", "Results", "Isometric", "View", "Help"]));
   check("the table says where to start", (await p.textContent(".etable")).includes("Start here"));
   check("the Inspector shows the model's settings", (await p.textContent(".insp")).includes("Installed temperature"));

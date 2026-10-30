@@ -34,6 +34,7 @@ export const C = {
   save: async (asNew = false) => { const o = await call<Out | null>("save", { asNew }); if (o) { setOut(o); toast("Saved.", true); } },
   // Each of these replaces the open model, so unsaved changes are offered for saving first.
   open: () => D.keepChanges(() => loadOut("open", { path: null }).then(o => { if (o) setTimeout(fitHook, 60); })),
+  importPcf: () => D.keepChanges(() => loadOut("import_pcf", { path: null }).then(o => { if (o) setTimeout(fitHook, 60); })),
   openPath: (path: string) => D.keepChanges(() => loadOut("open", { path }).then(o => { if (o) setTimeout(fitHook, 60); })),
   newModel: (example: string | null) => D.keepChanges(() => loadOut("new_model", { example }).then(o => { if (o) setTimeout(fitHook, 60); })),
   print: () => setBackstage("print"),
@@ -93,7 +94,7 @@ export const C = {
 };
 
 export const ALL_CMDS: [string, () => void, string?][] = [
-  ["Analyze", () => C.analyze(), "F5"], ["Save", () => C.save(), "Ctrl+S"], ["Save As", () => C.save(true)], ["Open", C.open, "Ctrl+O"], ["New model", () => setBackstage("home"), "Ctrl+N"], ["Print / PDF", C.print, "Ctrl+P"],
+  ["Analyze", () => C.analyze(), "F5"], ["Save", () => C.save(), "Ctrl+S"], ["Save As", () => C.save(true)], ["Open", C.open, "Ctrl+O"], ["Import a piping component file (.pcf)", C.importPcf], ["New model", () => setBackstage("home"), "Ctrl+N"], ["Print / PDF", C.print, "Ctrl+P"],
   ["Undo", C.undo, "Ctrl+Z"], ["Redo", C.redo, "Ctrl+Y"], ["Delete", C.del, "Del"],
   ["Add an element after the selected one", C.addAfter, "Ctrl+Enter"], ["Insert a node (split the element)", C.split], ["Renumber the nodes", C.renumber],
   ...SUPPORTS.map(([k, l]) => [`Support: ${l}`, () => C.support(k)] as [string, () => void]),

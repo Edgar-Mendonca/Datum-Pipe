@@ -12,6 +12,7 @@ pub mod doc;
 pub mod elements;
 pub mod examples;
 pub mod geom;
+pub mod import;
 pub mod iso;
 mod hardening;
 pub mod library;

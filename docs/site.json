@@ -94,17 +94,16 @@
     },
     {
       "v": "0.1.11",
-      "title": "Import and benchmarks",
-      "when": "Next",
+      "title": "Import",
+      "when": "Done",
       "items": [
-        "Import of plain-text piping component files from design tools",
-        "The public piping benchmark problems published by nuclear regulators in Help › Verification"
+        "Import of plain-text piping component files (.pcf) from design tools: pipes, bends, tees, reducers, valves, flanges and supports"
       ]
     },
     {
       "v": "0.2.0",
       "title": "Nonlinear supports and more loads, complete",
-      "when": "Milestone",
+      "when": "Next",
       "items": [
         "Everything in 0.1.5–0.1.11 reviewed, with the verification record and examples updated",
         "No new features: 0.2.0 marks the stage as finished"
@@ -130,7 +129,8 @@
         "Natural frequencies and mode shapes",
         "Harmonic response",
         "Response spectrum",
-        "Broken into small 0.x.y steps before it starts"
+        "Broken into small 0.x.y steps before it starts",
+        "The public piping benchmark problems published by nuclear regulators (dynamic: modes and response spectra)"
       ]
     },
     {

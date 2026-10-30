@@ -13,7 +13,7 @@ export const setOut = (o: Out | null | undefined) => {
     const s = sel();
     if (s && ((s.kind === "node" && !nodes.has(s.id)) || (s.kind !== "node" && !ids.has(s.id)))) setSel(null);
   });
-  if (o.warnings?.length) toast(`Opened with repairs: ${o.warnings.join(" ")}`);
+  if (o.warnings?.length) toast(o.warnings[0].startsWith("Imported") ? o.warnings.join(" ") : `Opened with repairs: ${o.warnings.join(" ")}`);
 };
 
 /** auto, light or dark; auto follows Windows. */

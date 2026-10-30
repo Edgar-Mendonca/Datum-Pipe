@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.11 — 2026-10-30
+
+Import of piping component files.
+
+**Import.** File › Export › Import a piping component file opens a plain-text .pcf file from a design tool as a new model:
+- pipes; elbows and bends at their corner, with the radius from their tangent length; tees and olets; concentric and eccentric reducers (as concentric); valves, flanges and other in-line items as rigid parts with their weight;
+- supports as one-way rests, or anchors, guides and line stops when their name says so;
+- millimetres or inches; coordinates turned from Z up to Datum Pipe's Y up;
+- pipes at the library's nominal sizes with Std wall, and the default material and line conditions: set them for the line.
+
+Anything it cannot read is listed when the model opens. A sample file is in `docs/examples/6-P-101.pcf`.
+
+**Roadmap.** The public piping benchmark problems published by nuclear regulators are dynamic problems (natural frequencies and response spectra), so they move to 0.4 with dynamics, where they can be checked. The next release is 0.2.0, which closes this stage.
+
 ## 0.1.10 — 2026-10-30
 
 Spring hanger selection.

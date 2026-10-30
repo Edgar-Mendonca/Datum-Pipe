@@ -111,14 +111,19 @@ const Forces = (p: { r: Results; c: CaseResult }) => {
   </>;
 };
 
-/** The state of a one-way or gapped support in a case: "touching", or "open, 2.1 mm of 3 mm". */
-export const contactText = (c: CaseResult, support: number) => (c.contacts ?? []).filter(x => x.support === support)
-  .map(x => x.state === "touching" ? "touching" : `${x.state}, ${v("disp", Math.abs(x.movement))} ${unit("disp")}${x.gap > 0 ? ` of ${v("disp", x.gap)}` : ""}`).join("; ");
+/** The state of a one-way, gapped or friction support in a case: "touching", "open, 2.1 mm of
+ *  3 mm", "sliding, 1.2 kN (μ 0.3)". */
+export const contactText = (c: CaseResult, support: number) => [
+  ...(c.contacts ?? []).filter(x => x.support === support)
+    .map(x => x.state === "touching" ? "touching" : `${x.state}, ${v("disp", Math.abs(x.movement))} ${unit("disp")}${x.gap > 0 ? ` of ${v("disp", x.gap)}` : ""}`),
+  ...(c.friction ?? []).filter(x => x.support === support && x.state !== "free")
+    .map(x => `${x.state}, ${v("force", Math.hypot(...x.force))} ${unit("force")} (μ ${x.mu})`),
+].join("; ");
 
 export const Supports = (p: { r: Results; c: CaseResult }) => {
   const m = () => model();
   return <>
-    <p class="muted small">The force and moment each support puts on the pipe, in global axes (Y up): a rest carrying weight shows a positive FY. The support itself carries the same load the other way. One-way rests and supports with a gap show whether they are touching, open or lifted off, with the pipe's movement along them.</p>
+    <p class="muted small">The force and moment each support puts on the pipe, in global axes (Y up): a rest carrying weight shows a positive FY. The support itself carries the same load the other way. One-way rests and supports with a gap show whether they are touching, open or lifted off, with the pipe's movement along them; supports with friction whether they stick or slide, with the friction force (included in the loads).</p>
     <Show when={p.c.contacts?.length}><p class="muted small">{p.c.name}: the supports settled after {p.c.iterations} {p.c.iterations === 1 ? "solve" : "solves"}.</p></Show>
     <table class="tbl"><thead><tr><Th>Node</Th><Th>Support</Th><Th>Tag</Th><Th>State</Th><Th r>FX {u("force")}</Th><Th r>FY</Th><Th r>FZ</Th><Th r>MX {u("moment")}</Th><Th r>MY</Th><Th r>MZ</Th></tr></thead><tbody>
       <For each={p.c.reactions} fallback={<tr><td colSpan={10} class="muted">No supports.</td></tr>}>{x => { const s = m()?.supports.find(y => y.id === x.support); return <tr class="f" onClick={() => jump(x.node)}><td>{x.node}</td><td>{s ? supName(s.kind) : ""}</td><td>{s?.tag}</td><td>{contactText(p.c, x.support)}</td><For each={[0, 1, 2]}>{k => <td class="r">{v("force", x.f[k])}</td>}</For><For each={[3, 4, 5]}>{k => <td class="r">{v("moment", x.f[k])}</td>}</For></tr>; }}</For></tbody></table>

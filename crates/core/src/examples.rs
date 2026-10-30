@@ -187,16 +187,20 @@ fn steam() -> Model {
     }
     support(&mut d, 10, SupKind::Guide, "G-10");
     support(&mut d, 30, SupKind::Guide, "G-30");
-    // The guides have 3 mm of clearance on each side, as rack guides usually do.
+    // The guides have 3 mm of clearance on each side, as rack guides usually do, and the rack's
+    // rests and guides have steel-on-steel friction (μ = 0.3).
     for g in d.m.supports.iter().filter(|s| s.kind == SupKind::Guide).cloned().collect::<Vec<_>>() {
-        d.apply(Op::Set { item: Item::Support(Support { gap: 0.003, ..g }) }).expect("guide gap");
+        d.apply(Op::Set { item: Item::Support(Support { gap: 0.003, mu: 0.3, ..g }) }).expect("guide gap");
+    }
+    for g in d.m.supports.iter().filter(|s| s.kind == SupKind::Rest).cloned().collect::<Vec<_>>() {
+        d.apply(Op::Set { item: Item::Support(Support { mu: 0.3, ..g }) }).expect("rest friction");
     }
     support(&mut d, 65, SupKind::Rest, "S-65");
     support(&mut d, 20, SupKind::Linestop, "LS-20");
     support(&mut d, 70, SupKind::Anchor, "T-301 inlet");
     displace(&mut d, 70, 0, [0.0, 0.002, 0.0, 0.0, 0.0, 0.0]);
     nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, -1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
-    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests, with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot.");
+    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests with friction (μ 0.3), with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot.");
     d.m
 }
 

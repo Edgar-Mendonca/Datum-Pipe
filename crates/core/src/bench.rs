@@ -3,7 +3,8 @@
 //! for heated L-bends, Z-bends and expansion loops, a bend's closed-form end rotation, and the
 //! minimum wall equation (straight pipe and a bend's intrados), a tee branch's effective section
 //! modulus, the axial force of pressure elongation between anchors, and a one-way rest and a gap
-//! (the cantilever by beam theory, with the support touching or open). `run()` gives the rows of Help › Verification; the test fails on any row
+//! (the cantilever by beam theory, with the support touching or open), and friction at a rest
+//! (sliding and sticking, by statics and Hooke's law). `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -343,6 +344,34 @@ pub fn run() -> Vec<Check> {
         out.push(row(13, name, "Tip movement (the gap)", "disp", 0.005, disp(&r, "OPE1", 60)[2], TOL, "The gap: 5 mm"));
         out.push(row(13, name, "Restraint load", "force", -(10e3 - 0.005 / c), reaction(&r, "OPE1", 60)[2], TOL, "Beam theory: P − g / c, c = L³/3EI + L/κGA"));
     }
+    // 14. Friction at a rest: 6 m of 6" Sch 40 along X, anchored at 10, a one-way rest with μ = 0.3
+    //     at 20 carrying a load P straight down, heated to 200 °C, no weight. The rest carries P, so
+    //     friction can hold at most μ P. With P = 10 kN the pipe slides: the rest pushes back μ P and
+    //     the end moves ε L − μ P L / EA. With P = 10 MN the pipe sticks: it does not move, and the
+    //     rest holds back E A ε (less than μ P).
+    {
+        let build = |p: f64| {
+            let mut d = table("Friction", &[(10, 20, 6.0, 0.0, 0.0)]);
+            let mut s = d.m.settings.clone();
+            s.g = 0.0;
+            d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+            let mut c = d.m.conds[0].clone();
+            c.t[0] = K0 + 200.0;
+            d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+            anchor(&mut d, 10);
+            add(&mut d, Item::Support(Support { node: 20, kind: SupKind::Rest, one_way: true, mu: 0.3, ..Default::default() }));
+            add(&mut d, Item::Load(Load { node: 20, f: [0.0, -p, 0.0], m: [0.0; 3], ..Default::default() }));
+            let h = hand(&d.m);
+            (analyze(&d.m).unwrap(), h)
+        };
+        let name = "Friction at a rest, heated";
+        let (r, h) = build(10e3);
+        out.push(row(14, name, "Sliding: friction force (μ P)", "force", -0.3 * 10e3, reaction(&r, "OPE1", 20)[0], TOL, "Coulomb friction: μ N, N = P by statics"));
+        out.push(row(14, name, "Sliding: end movement", "disp", STRAIN_200 * 6.0 - 0.3 * 10e3 * 6.0 / (h.e * h.a), disp(&r, "OPE1", 20)[0], TOL, "Hooke's law: ε L − μ P L / EA"));
+        let (r, h) = build(10e6);
+        out.push(row(14, name, "Sticking: friction force (E A ε < μ P)", "force", -h.e * h.a * STRAIN_200, reaction(&r, "OPE1", 20)[0], TOL, "Hooke's law: E A ε"));
+        out.push(row(14, name, "Sticking: end movement", "disp", 0.0, disp(&r, "OPE1", 20)[0], 1e-12, "The rest holds the pipe"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -367,7 +396,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=13 {
+        for b in 1..=14 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

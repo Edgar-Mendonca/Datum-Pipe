@@ -91,6 +91,12 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.1.8 | `Support.mu` on rests, guides, line stops and restraints; friction acts across the support's own directions (a rest: horizontal; a guide on a horizontal pipe: along it and vertical; a vertical pipe's guide: along it), with the load pressing it = the size of the support's reaction | Isotropic Coulomb friction, the usual model |
+| 0.1.8 | Sticking holds the pipe across (exactly along a global axis, else a 1e12 N/m spring) unless something else already holds that direction; it slides when the force needed exceeds μ N | Exact like the other holds, so the benchmark matches to rounding |
+| 0.1.8 | A sliding force is solved exactly for each support from its own flexibility (unit loads in the same solve): direct in one direction, bisection on the movement's size in two; supports are updated one after another with the displacement corrected through their flexibility (Gauss–Seidel) | Re-pointing the force each solve oscillated on flexible lines and between supports at one node |
+| 0.1.8 | N is taken from the previous solve (lagged); friction is in every Sum case, including SUS (where it usually sticks with no force) | Simple, and converges with the states |
+| 0.1.8 | When a case does not settle, the loads returned are those of the last solve's states, so it still balances (with the warning) | Found by the hardening tests: the reported states ran one step ahead |
+| 0.1.8 | The 1500-element speed gate runs without friction; a 300-element random model with friction has its own gate | A 3 km random chain held at one end trips the solver's mechanism check once rests slide; it times the solver, not friction |
 | 0.1.7 | `Support.one_way` (rests) and `Support.gap` (rests, guides, line stops, restraints); new rests from the window and the examples are one-way, files without the field stay two-way | Lift-off is the realistic default, and old files keep their results |
 | 0.1.7 | Each Sum case is solved by iteration with its own support states (start: touching for a one-way rest without a gap, open for a gap; change every wrong state each solve, at most 100); ranges stay OPE − SUS of the settled results | The usual practice; ranges as differences keep the code's displacement range meaning |
 | 0.1.7 | A touching rigid support along a global axis is held exactly at its gap (prescribed value); flexible or skewed ones are springs with an offset | Same exactness as linear supports, so the benchmarks match to rounding |
@@ -155,8 +161,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.1.5 | Code check fixes: t < D/6 limit and bend thickness factor, reducers at both ends, tee effective branch section modulus, pressure elongation, each support's own share of a shared reaction; Help › Sources and the legal wording | ✅ |
 | 0.1.6 | Windows publisher "Datum" (family-wide) | ✅ |
 | 0.1.7 | One-way rests and gaps (iterative solve), lift-off shown in the results, benchmarks | ✅ |
-| 0.1.8 | Friction at rests and guides, equilibrium with friction, a friction benchmark | 🔜 |
-| 0.1.9 | Wind and static seismic loads, occasional cases and the occasional stress check | ⬜ |
+| 0.1.8 | Friction at rests and guides, equilibrium with friction, a friction benchmark | ✅ |
+| 0.1.9 | Wind and static seismic loads, occasional cases and the occasional stress check | 🔜 |
 | 0.1.10 | Spring hanger selection (spring data entered by the user) | ⬜ |
 | 0.1.11 | Import of plain-text piping component files; the public regulator benchmarks in Help › Verification | ⬜ |
 | 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | ⬜ |
@@ -218,9 +224,16 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Examples: rests one-way, steam guides with 3 mm gaps (all settle with no warnings; results otherwise unchanged).
 - UI: Inspector one-way switch and gap; Support Loads state column and solve count; help; ribbon's Nonlinear group now only plans friction. Three UI checks; the mock bridge adds supports.
 
-## 5. Known limits (0.1.7)
+### 2026-10-30: Session 2, continued (0.1.8: friction)
+- Engine: `Support.mu`, `Support::has_friction`; `Fric`, `across`, `FState`, `slide_force`, `Linear`; friction in `solve_conditional` (stick holds, exact sliding force per support, Gauss–Seidel, light stiffness fallback for sliding supports too); `CaseResult.friction`. Benchmark 14 (38 checks), three worked cases, random friction in hardening, a friction speed gate.
+- Examples: steam rack rests and guides μ = 0.3 (settles in 10 solves, balanced, no warnings).
+- UI: friction coefficient in the Inspector, friction state and force in Support Loads, help; the ribbon's Nonlinear group is gone (nothing left planned there).
+- Disk: the session's allowance filled with `target/` (17 GB); `target/release` and `target/debug/incremental` were removed.
 
-- No friction yet (0.1.8). One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
+## 5. Known limits (0.1.8)
+
+- One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
+- Friction is the same in every direction across a support (no separate coefficients), and is path-independent: each case slides from the installed position.
 - Each case finds its own support states; there is no option to use the operating states for the sustained case.
 - No pressure thrust; no occasional loads yet (0.1.9; the OCC case kind is ready).
 - The deformed shape moves arcs' vertices by the chord-interpolated displacement (fine to 45° per arc segment; bends are split in two).

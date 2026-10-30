@@ -523,3 +523,71 @@ fn gapped_guides_alone_still_solve() {
         assert!(c.imbalance < 1e-9, "{} {:e}", c.name, c.imbalance);
     }
 }
+
+fn sup_mu(d: &mut Doc, node: u32, kind: SupKind, one_way: bool, mu: f64) {
+    d.apply(Op::Add { item: Item::Support(Support { node, kind, one_way, mu, ..Default::default() }), after: None }).unwrap();
+}
+
+#[test]
+fn friction_opposes_the_movement_in_the_plane_of_a_rest() {
+    // 6 m along X, anchored at 10, a rest with μ = 0.3 at 20 carrying 10 kN, heated (the pipe grows
+    // along X) and pushed 1 kN along Z: it slides along both, and the friction is μ N straight
+    // against the movement across the rest.
+    let mut d = table("2D friction", &[(10, 20, 6.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    let mut c = d.m.conds[0].clone();
+    c.t[0] = K0 + 200.0;
+    d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+    sup(&mut d, 10, SupKind::Anchor);
+    sup_mu(&mut d, 20, SupKind::Rest, true, 0.3);
+    load(&mut d, 20, [0.0, -10e3, 1e3]);
+    let r = analyze(&d.m).unwrap();
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    let fr = &case(&r, "OPE1").friction[0];
+    assert_eq!(fr.state, "sliding");
+    assert!(close(fr.normal, 10e3, 1e-9) && close(crate::mat::norm(fr.force), 3e3, 1e-6), "{fr:?}");
+    let u = at(&r, "OPE1", 20);
+    let mv = crate::mat::unit([u[0], 0.0, u[2]]);
+    assert!(crate::mat::dot(crate::mat::unit(fr.force), mv) < -1.0 + 1e-6, "{fr:?} {u:?}");
+    assert!(case(&r, "OPE1").imbalance < 1e-9);
+    // Cold, with the 1 kN within μ N, the rest holds it: sticking, with the load as friction.
+    let sus = &case(&r, "SUS").friction[0];
+    assert_eq!(sus.state, "sticking");
+    assert!(close(sus.force[2], -1e3, 1e-9), "{sus:?}");
+}
+
+#[test]
+fn a_lifted_rest_has_no_friction() {
+    // Pushed up off a one-way rest with μ = 0.3 and pulled along X: no load on the rest, so no friction.
+    let mut d = table("lifted", &[(10, 20, 3.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup_mu(&mut d, 20, SupKind::Rest, true, 0.3);
+    load(&mut d, 20, [1e3, 1e3, 0.0]);
+    let r = analyze(&d.m).unwrap();
+    let fr = &case(&r, "OPE1").friction[0];
+    assert!(crate::mat::norm(fr.force) == 0.0 && fr.normal == 0.0, "{fr:?}");
+    assert_eq!(react(&r, "OPE1", 20), [0.0; 6]);
+}
+
+#[test]
+fn a_guide_pressed_sideways_resists_the_pipe_growing_along_it() {
+    // A guide with μ = 0.4 at 20 on a pipe along X, pressed by 5 kN along Z, the rest at 20 taking
+    // the vertical: the pipe grows along X and the guide's friction is 0.4 × 5 kN against it.
+    let mut d = table("guide friction", &[(10, 20, 6.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    let mut c = d.m.conds[0].clone();
+    c.t[0] = K0 + 200.0;
+    d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+    sup(&mut d, 10, SupKind::Anchor);
+    sup(&mut d, 20, SupKind::Rest);
+    sup_mu(&mut d, 20, SupKind::Guide, false, 0.4);
+    load(&mut d, 20, [0.0, 0.0, 5e3]);
+    let r = analyze(&d.m).unwrap();
+    let fr = &case(&r, "OPE1").friction[0];
+    assert_eq!(fr.state, "sliding");
+    assert!(close(fr.normal, 5e3, 1e-9) && close(fr.force[0], -2e3, 1e-9) && fr.force[1].abs() < 1e-9, "{fr:?}");
+    for c in &r.cases {
+        assert!(c.imbalance < 1e-9, "{} {:e}", c.name, c.imbalance);
+    }
+}

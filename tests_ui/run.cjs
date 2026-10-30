@@ -188,7 +188,8 @@ const shots = process.env.SHOTS;
   const rest = (await lastOp())?.Add?.item?.Support;
   check("a new rest is one-way with no gap", rest?.kind?.kind === "rest" && rest.one_way === true && rest.gap === 0, JSON.stringify(rest));
   const ins = await p.textContent(".insp");
-  check("the rest's Inspector offers one-way and the gap", ins.includes("One-way: the pipe can lift off") && ins.includes("Gap below the pipe"), ins.slice(0, 200));
+  check("the rest's Inspector offers one-way, the gap and friction", ins.includes("One-way: the pipe can lift off") && ins.includes("Gap below the pipe") && ins.includes("Friction coefficient"), ins.slice(0, 200));
+  check("a new rest has no friction until it is given one", rest?.mu === 0);
   await p.click('.tabs > button:text-is("Model")');
 
   // US units: lengths in feet, stresses in psi, the isometric in feet and inches.

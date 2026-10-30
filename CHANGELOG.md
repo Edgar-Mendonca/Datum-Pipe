@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.8 — 2026-10-30
+
+Friction at rests and guides.
+
+**Friction.** Rests, guides, line stops and restraints can have a friction coefficient μ (0.3 is typical for steel on steel, 0.1 for PTFE slide plates). It acts across the support's direction: a rest resists the pipe sliding horizontally, a guide resists it moving along the pipe.
+
+**Sticking and sliding.** In each load case a support with friction holds the pipe while the force that needs is within μ × the load pressing the support; beyond that the pipe slides, and the support pushes back with exactly μ × its load against the movement, in whatever direction the pipe moves across it. A rest that lifts off has no friction. This is solved in the same iteration as one-way rests and gaps; sliding forces are found exactly from the support's own flexibility, one support after another, so supports at one node settle together.
+
+**Results.** Support Loads shows each support with friction as sticking or sliding, with its friction force, which is part of the support's load and of the equilibrium check.
+
+**Examples.** The steam line's rests and guides have μ = 0.3.
+
+**Verification.** A new benchmark: friction at a heated rest, sliding (μ P, and the movement ε L − μ P L / EA) and sticking (E A ε) (38 checks).
+
 ## 0.1.7 — 2026-10-29
 
 One-way rests and gaps.

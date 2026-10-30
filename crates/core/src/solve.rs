@@ -12,6 +12,10 @@
 //! touching (held at its gap, like a linear support) or open (no load), and the case is solved
 //! again until no support changes state: a touching one must push the pipe, not pull it, and an
 //! open one must not be passed by the pipe. Ranges stay differences of the two cases' results.
+//!
+//! Friction joins the same iteration: a support with friction first holds the pipe across its own
+//! direction (sticking); when the force that needs is more than μ × the support's load it slides,
+//! and pushes against the pipe's movement across it with exactly μ × that load.
 
 use crate::code::{self, Loads, Sif};
 use crate::elements::{Elem, Line, Props, Section};
@@ -63,6 +67,19 @@ pub struct Contact {
     pub gap: f64,
 }
 
+/// The friction at a support in one case.
+#[derive(Clone, Debug, Serialize)]
+pub struct Friction {
+    pub support: u32,
+    pub node: u32,
+    /// "sticking", "sliding" or "free" (no load on the support, or nothing to slide along).
+    pub state: &'static str,
+    /// The friction force on the pipe (global, N), the support's load across which it acts, and μ.
+    pub force: V,
+    pub normal: f64,
+    pub mu: f64,
+}
+
 /// The code stress at one point of one case.
 #[derive(Clone, Debug, Serialize)]
 pub struct Stress {
@@ -100,6 +117,8 @@ pub struct CaseResult {
     /// One-way and gapped supports: their state, and the solves it took to settle them.
     pub contacts: Vec<Contact>,
     pub iterations: u32,
+    /// Supports with friction: sticking or sliding, and the friction force.
+    pub friction: Vec<Friction>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -221,8 +240,78 @@ struct Cond {
     u0: [f64; 3],
 }
 
-/// The most solves of one case while one-way and gapped supports settle.
-const MAX_ITER: u32 = 100;
+/// A support with friction: its own directions (the load that presses it) and the directions across
+/// them, along which the pipe can stick or slide.
+struct Fric {
+    support: u32,
+    node: u32,
+    pt: usize,
+    across: Vec<V>,
+    mu: f64,
+}
+
+/// Unit directions across the given ones (the plane across one direction, the line across two).
+fn across(normals: &[V]) -> Vec<V> {
+    match normals {
+        [n] => {
+            let e = (0..3).min_by(|&a, &b| n[a].abs().total_cmp(&n[b].abs())).map(|i| { let mut v = [0.0; 3]; v[i] = 1.0; v }).unwrap_or([1.0, 0.0, 0.0]);
+            let b1 = unit(sub(e, scale(*n, dot(e, *n))));
+            vec![b1, unit(cross(*n, b1))]
+        }
+        [a, b] => vec![unit(cross(*a, *b))],
+        _ => vec![],
+    }
+}
+
+/// The friction state of one support while a case settles.
+#[derive(Clone, Copy)]
+enum FState {
+    Stick,
+    /// Sliding, with the force on the pipe.
+    Slide(V),
+}
+
+/// The sliding friction force at one support, in the coordinates of its directions across (one or
+/// two): with the pipe's movement there `v0` without this support's friction and its flexibility
+/// `c` there (m/N), find F with |F| = `limit` against the movement v = v0 + c F. None: it sticks
+/// (the force that would hold it, c⁻¹ v0, is within the limit). With one direction it is direct;
+/// with two, the size s of the movement solves |(I + limit c / s)⁻¹ v0| = s, found by bisection
+/// (the left side minus s falls from positive to −|v0| on (0, |v0|]).
+fn slide_force(v0: &[f64], c: &[[f64; 2]; 2], limit: f64) -> Option<Vec<f64>> {
+    match v0.len() {
+        1 => (v0[0].abs() > limit * c[0][0]).then(|| vec![-limit * v0[0].signum()]),
+        2 => {
+            let solve2 = |m: [[f64; 2]; 2], b: [f64; 2]| {
+                let det = m[0][0] * m[1][1] - m[0][1] * m[1][0];
+                [(b[0] * m[1][1] - m[0][1] * b[1]) / det, (m[0][0] * b[1] - m[1][0] * b[0]) / det]
+            };
+            let hold = solve2(*c, [v0[0], v0[1]]);
+            if hold[0].hypot(hold[1]) <= limit {
+                return None;
+            }
+            let v_of = |s: f64| solve2([[1.0 + limit * c[0][0] / s, limit * c[0][1] / s], [limit * c[1][0] / s, 1.0 + limit * c[1][1] / s]], [v0[0], v0[1]]);
+            let (mut lo, mut hi) = (0.0, v0[0].hypot(v0[1]));
+            for _ in 0..200 {
+                let mid = 0.5 * (lo + hi);
+                let v = v_of(mid);
+                if v[0].hypot(v[1]) > mid { lo = mid } else { hi = mid }
+            }
+            let v = v_of(hi);
+            let n = v[0].hypot(v[1]).max(1e-300);
+            Some(vec![-limit * v[0] / n, -limit * v[1] / n])
+        }
+        _ => None,
+    }
+}
+
+/// The linear supports, for the load that presses a support with friction.
+struct Linear<'a> {
+    owners: &'a HashMap<usize, Vec<u32>>,
+    springs: &'a [Spring],
+}
+
+/// The most solves of one case while one-way and gapped supports and friction settle.
+const MAX_ITER: u32 = 200;
 
 /// The light stiffness an open support keeps when nothing else holds the piping in its direction
 /// (1 N/mm): only used when the case could not be solved without it.
@@ -241,16 +330,22 @@ struct CondSolve {
     stats: Stats,
     settled: bool,
     soft: bool,
+    /// Per support with friction: the force on the pipe, the support's load, and its state.
+    friction: Vec<(V, f64, &'static str)>,
 }
 
-/// Solve one case with its one-way and gapped supports: start touching (a one-way rest without a
-/// gap) or open (a gap), solve, and change every support whose state is wrong, until none changes.
-/// If the open supports leave the piping free to move, they keep a light stiffness (K_OPEN).
-fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], conds: &[Cond], dcase: u8) -> Result<CondSolve, String> {
+/// Solve one case with its one-way and gapped supports and its friction: start touching (a one-way
+/// rest without a gap) or open (a gap) and sticking, solve, and change every support whose state
+/// is wrong (and every sliding force that moved), until none changes. If the open supports leave the
+/// piping free to move, they keep a light stiffness (K_OPEN).
+#[allow(clippy::too_many_arguments)]
+fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], conds: &[Cond], frics: &[Fric], lin: &Linear, dcase: u8) -> Result<CondSolve, String> {
     let mut state: Vec<i8> = conds.iter().map(|c| if c.gap == 0.0 { -1 } else { 0 }).collect();
+    let mut fstate: Vec<FState> = vec![FState::Stick; frics.len()];
     let u0 = |c: &Cond| if dcase > 0 { c.u0[dcase as usize - 1] } else { 0.0 };
     let fscale = f.iter().map(|v| v.abs()).fold(0.0, f64::max).max(1.0);
     let (mut iter, mut soft) = (0, false);
+    let disp = |u: &[f64], pt: usize| [u[6 * pt], u[6 * pt + 1], u[6 * pt + 2]];
     loop {
         iter += 1;
         let (mut s2, mut h2, mut x2, mut f2) = (System { n: sys.n, k: sys.k.clone(), f: vec![] }, held.to_vec(), fixed.to_vec(), f.to_vec());
@@ -278,20 +373,77 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
                 }
             }
         }
-        let (mut sol, stats) = match s2.solve_many(&h2, &[(f2.clone(), x2)]) {
+        // Friction: a sticking support holds the pipe across its direction where nothing else does
+        // (exactly along a global axis, else a stiff spring); a sliding one pushes with its force.
+        // `live[j]`: the directions it acts in, and whether each is held exactly.
+        let mut live: Vec<Vec<(V, bool)>> = vec![vec![]; frics.len()];
+        for (j, fr) in frics.iter().enumerate() {
+            for &b in &fr.across {
+                match axis_of(b) {
+                    Some(ax) if h2[6 * fr.pt + ax] => {}
+                    Some(_) => live[j].push((b, true)),
+                    None => live[j].push((b, false)),
+                }
+            }
+            match fstate[j] {
+                FState::Stick => {
+                    for &(b, exact) in &live[j] {
+                        if exact {
+                            h2[6 * fr.pt + axis_of(b).unwrap()] = true;
+                        } else {
+                            for a in 0..3 {
+                                for c in 0..3 {
+                                    s2.add(6 * fr.pt + a, 6 * fr.pt + c, RIGID * b[a] * b[c]);
+                                }
+                            }
+                        }
+                    }
+                }
+                FState::Slide(force) => {
+                    for a in 0..3 {
+                        f2[6 * fr.pt + a] += force[a];
+                    }
+                    if soft {
+                        for &(b, _) in &live[j] {
+                            for a in 0..3 {
+                                for c in 0..3 {
+                                    s2.add(6 * fr.pt + a, 6 * fr.pt + c, K_OPEN * b[a] * b[c]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // With the case, a unit load along each direction a sliding support acts in: its flexibility.
+        let mut cases = vec![(f2.clone(), x2)];
+        for (j, fr) in frics.iter().enumerate() {
+            if let FState::Slide(..) = fstate[j] {
+                for &(b, _) in &live[j] {
+                    let mut e = vec![0.0; sys.n];
+                    for a in 0..3 {
+                        e[6 * fr.pt + a] = b[a];
+                    }
+                    cases.push((e, vec![0.0; sys.n]));
+                }
+            }
+        }
+        let (sol, stats) = match s2.solve_many(&h2, &cases) {
             Ok(x) => x,
-            Err(e) if !soft && e.contains("without resistance") && state.contains(&0) => {
+            Err(e) if !soft && e.contains("without resistance") && (state.contains(&0) || fstate.iter().any(|f| matches!(f, FState::Slide(_)))) => {
                 soft = true;
                 iter -= 1;
                 continue;
             }
             Err(e) => return Err(e),
         };
-        let u = sol.remove(0);
+        let mut cols = sol.into_iter();
+        let u = cols.next().unwrap_or_default();
         let ku = s2.mul(&u);
+        let used = state.clone();
         let mut changed = false;
         for (i, c) in conds.iter().enumerate() {
-            let v = dot(c.dir, [u[6 * c.pt], u[6 * c.pt + 1], u[6 * c.pt + 2]]) - u0(c);
+            let v = dot(c.dir, disp(&u, c.pt)) - u0(c);
             let r = conds_reaction(c, state[i], spring_k[i], &u, &ku, &f2, u0(c));
             let next = match state[i] {
                 0 if v < -c.gap - 1e-9 => -1,
@@ -305,8 +457,84 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
                 changed = true;
             }
         }
+        // Friction: the load pressing each support, the force it needs to stick, and its slide. Sliding
+        // forces are updated one support after another (Gauss–Seidel): `ug` follows each change
+        // through the supports' flexibility, so supports at one node do not overshoot each other.
+        let mut ug = u.clone();
+        let mut fout = vec![];
+        for (j, fr) in frics.iter().enumerate() {
+            let mut press = [0.0; 3];
+            for (&dof, owners) in lin.owners {
+                if dof / 6 == fr.pt && dof % 6 < 3 && owners.contains(&fr.support) {
+                    press[dof % 6] += (ku[dof] - f2[dof]) / owners.len() as f64;
+                }
+            }
+            for sp in lin.springs.iter().filter(|s| s.support == fr.support && !s.rot) {
+                let su0 = if dcase > 0 { sp.u0[dcase as usize - 1] } else { 0.0 };
+                press = add(press, scale(sp.dir, -sp.k * (dot(sp.dir, disp(&u, sp.pt)) - su0)));
+            }
+            for (i, c) in conds.iter().enumerate().filter(|(_, c)| c.support == fr.support) {
+                press = add(press, scale(c.dir, conds_reaction(c, used[i], spring_k[i], &u, &ku, &f2, u0(c))));
+            }
+            let limit = fr.mu * norm(press);
+            let tol = 1e-9 * (limit + 1.0);
+            let (force, label) = match fstate[j] {
+                FState::Stick => {
+                    let mut need = [0.0; 3];
+                    for &(b, exact) in &live[j] {
+                        let r = if exact { let ax = axis_of(b).unwrap(); (ku[6 * fr.pt + ax] - f2[6 * fr.pt + ax]) * b[ax] } else { -RIGID * dot(b, disp(&u, fr.pt)) };
+                        need = add(need, scale(b, r));
+                    }
+                    if norm(need) > limit + tol {
+                        let d = unit(need);
+                        fstate[j] = FState::Slide(scale(d, limit));
+                        changed = true;
+                    }
+                    (need, if live[j].is_empty() { "free" } else { "sticking" })
+                }
+                FState::Slide(force) => {
+                    // The movement without this support's own friction, and its flexibility there.
+                    let dirs: Vec<V> = live[j].iter().map(|x| x.0).collect();
+                    let flex: Vec<Vec<f64>> = (0..dirs.len()).map(|_| cols.next().unwrap_or_default()).collect();
+                    let mut c = [[0.0; 2]; 2];
+                    for (a, ba) in dirs.iter().enumerate() {
+                        for (b, col) in flex.iter().enumerate() {
+                            c[a][b] = if col.is_empty() { 0.0 } else { dot(*ba, disp(col, fr.pt)) };
+                        }
+                    }
+                    let fc: Vec<f64> = dirs.iter().map(|b| dot(*b, force)).collect();
+                    let v0: Vec<f64> = dirs.iter().enumerate().map(|(a, b)| dot(*b, disp(&ug, fr.pt)) - (0..dirs.len()).map(|k| c[a][k] * fc[k]).sum::<f64>()).collect();
+                    let fnew = slide_force(&v0, &c, limit);
+                    if fnew.is_none() {
+                        fstate[j] = FState::Stick;
+                        changed = true;
+                    }
+                    let fnew = fnew.unwrap_or_else(|| vec![0.0; dirs.len()]);
+                    for (b, col) in flex.iter().enumerate() {
+                        if !col.is_empty() {
+                            let df = fnew[b] - fc[b];
+                            for (x, y) in ug.iter_mut().zip(col) {
+                                *x += df * y;
+                            }
+                        }
+                    }
+                    if matches!(fstate[j], FState::Slide(_)) {
+                        let next = dirs.iter().zip(&fnew).fold([0.0; 3], |acc, (b, x)| add(acc, scale(*b, *x)));
+                        if norm(sub(next, force)) > tol {
+                            changed = true;
+                        }
+                        fstate[j] = FState::Slide(next);
+                    }
+                    // With the light stiffness, its small force is part of the support's load too.
+                    let light = if soft { live[j].iter().fold([0.0; 3], |acc, (b, _)| add(acc, scale(*b, -K_OPEN * dot(*b, disp(&u, fr.pt))))) } else { [0.0; 3] };
+                    (add(force, light), if limit == 0.0 { "free" } else { "sliding" })
+                }
+            };
+            fout.push((force, norm(press), label));
+        }
         if !changed || iter >= MAX_ITER {
-            return Ok(CondSolve { u, ku, f: f2, state, spring_k, iterations: iter, stats, settled: !changed, soft });
+            // The states this solve used, so the loads always match it (also when it did not settle).
+            return Ok(CondSolve { u, ku, f: f2, state: used, spring_k, iterations: iter, stats, settled: !changed, soft, friction: fout });
         }
     }
 }
@@ -457,11 +685,16 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     let mut prescribed: [Vec<f64>; 3] = [vec![0.0; n], vec![0.0; n], vec![0.0; n]];
     let mut springs: Vec<Spring> = vec![];
     let mut conds: Vec<Cond> = vec![];
+    let mut frics: Vec<Fric> = vec![];
     for sp in &m.supports {
         let Some(&pt) = g.node_point.get(&sp.node) else { continue };
         let (t, clear) = pipe_dir(&g, pt);
         if !clear && matches!(sp.kind, SupKind::Guide | SupKind::Linestop) {
             warnings.push(format!("The guide or line stop at node {} is at a corner, where the pipe has no single axis: it uses the first element's direction. Put it a little along the run, or use a restraint with its direction.", sp.node));
+        }
+        if sp.has_friction() {
+            let normals: Vec<V> = restraints(&sp.kind, sp.k, t).into_iter().filter(|r| !r.1).map(|r| r.0).collect();
+            frics.push(Fric { support: sp.id, node: sp.node, pt, across: across(&normals), mu: sp.mu });
         }
         for (dir, rot, k) in restraints(&sp.kind, sp.k, t) {
             let u0 = [0, 1, 2].map(|c| { let d = &sp.disp[c]; dot(dir, if rot { [d[3], d[4], d[5]] } else { [d[0], d[1], d[2]] }) });
@@ -589,27 +822,28 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     // Linear supports only: every case with one factorisation. With one-way or gapped supports,
     // each case is solved by iteration with its own support states.
     let dcases: Vec<u8> = sums.iter().map(|c| match c.recipe { Recipe::Sum { d, .. } => d, _ => 0 }).collect();
-    let (sols, ku, rhs_f, states, springs_k, iters, stats) = if conds.is_empty() {
+    let (sols, ku, rhs_f, states, springs_k, iters, frout, stats) = if conds.is_empty() && frics.is_empty() {
         let (sols, stats) = sys.solve_many(&held, &rhs)?;
         let ku: Vec<Vec<f64>> = sols.iter().map(|u| sys.mul(u)).collect();
         let n_c = sols.len();
-        (sols, ku, rhs.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![vec![]; n_c], vec![vec![]; n_c], vec![1u32; n_c], stats)
+        (sols, ku, rhs.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![vec![]; n_c], vec![vec![]; n_c], vec![1u32; n_c], vec![vec![]; n_c], stats)
     } else {
-        let (mut sols, mut kus, mut fs, mut sts, mut sks, mut its) = (vec![], vec![], vec![], vec![], vec![], vec![]);
+        let (mut sols, mut kus, mut fs, mut sts, mut sks, mut its, mut frs) = (vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+        let lin = Linear { owners: &hold_owner, springs: &springs };
         let mut stats = Stats::default();
         for (k, (f, fixed)) in rhs.iter().enumerate() {
-            let cs = solve_conditional(&sys, &held, f, fixed, &conds, dcases[k]).map_err(|e| {
+            let cs = solve_conditional(&sys, &held, f, fixed, &conds, &frics, &lin, dcases[k]).map_err(|e| {
                 if e.contains("without resistance") {
-                    format!("In case {}, with the one-way rests that lift off and the gaps that stay open, the piping can move without resistance. Add a support that holds it both ways, such as a guide or an anchor.", sums[k].name)
+                    format!("In case {}, with the one-way rests that lift off, the gaps that stay open and the supports that slide, the piping can move without resistance. Add a support that holds it both ways, such as a guide or an anchor.", sums[k].name)
                 } else {
                     e
                 }
             })?;
             if cs.soft {
-                warnings.push(format!("In case {}, nothing but open gaps holds the piping in some direction: the open supports were given a light stiffness of 1 N/mm so the case could be solved. Their small loads are in the support loads.", sums[k].name));
+                warnings.push(format!("In case {}, nothing but open gaps or sliding friction holds the piping in some direction: those supports were given a light stiffness of 1 N/mm so the case could be solved. Their small loads are in the support loads.", sums[k].name));
             }
             if !cs.settled {
-                warnings.push(format!("In case {} the one-way and gapped supports did not settle after {MAX_ITER} solves: its results are not reliable. Check for supports that fight each other.", sums[k].name));
+                warnings.push(format!("In case {} the one-way and gapped supports and friction did not settle after {MAX_ITER} solves: its results are not reliable. Check for supports that fight each other.", sums[k].name));
             }
             stats.equations = cs.stats.equations;
             stats.nonzeros = cs.stats.nonzeros;
@@ -620,8 +854,9 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
             sts.push(cs.state);
             sks.push(cs.spring_k);
             its.push(cs.iterations);
+            frs.push(cs.friction);
         }
-        (sols, kus, fs, sts, sks, its, stats)
+        (sols, kus, fs, sts, sks, its, frs, stats)
     };
     // ---------------------------------------------------------------- results per case
     let mut by_id: HashMap<u32, CaseResult> = HashMap::new();
@@ -690,6 +925,16 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                     let state = match (s, cd.one_way) { (0, true) => "lifted off", (0, false) => "open", _ => "touching" };
                     contacts.push(Contact { support: cd.support, node: cd.node, dir: cd.dir, state, movement: mv, gap: cd.gap });
                 }
+                // Friction: its force is part of the support's load.
+                let mut friction = vec![];
+                for (j, fr) in frics.iter().enumerate() {
+                    let (force, normal, state) = frout[k][j];
+                    let e = reac.entry(fr.support).or_insert([0.0; 6]);
+                    for d in 0..3 {
+                        e[d] += force[d];
+                    }
+                    friction.push(Friction { support: fr.support, node: fr.node, state, force, normal, mu: fr.mu });
+                }
                 // Constant-force supports carry their load in every case with weight.
                 for sp in &m.supports {
                     if let SupKind::Constant { load } = sp.kind {
@@ -721,7 +966,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                     }
                 }
                 let reacted = sum_reactions(&g, &reactions);
-                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k] });
+                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction });
                 raw.insert(c.id, std::mem::take(&mut raw_glob));
                 cr
             }
@@ -737,7 +982,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                 let applied: [f64; 6] = std::array::from_fn(|d| ra.applied[d] - rb.applied[d]);
                 let reacted = sum_reactions(&g, &reactions);
                 raw.insert(c.id, glob);
-                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0 }
+                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![] }
             }
         };
         by_id.insert(c.id, r.clone());

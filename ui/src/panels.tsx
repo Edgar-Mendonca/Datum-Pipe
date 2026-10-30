@@ -87,7 +87,9 @@ const SupportPanel = (p: { s: Support }) => {
     <Show when={!["spring", "rotspring", "constant"].includes(k().kind)}><F l="Stiffness (0 = rigid)" q="tstiff" v={s().k} set={kk => put({ k: kk })} /></Show>
     <Show when={k().kind === "rest"}><label class="chk"><input type="checkbox" checked={s().one_way} onChange={e => put({ one_way: e.currentTarget.checked })} />One-way: the pipe can lift off</label>
       <Show when={!s().one_way}><p class="muted small">Two-way: the rest also holds the pipe down.</p></Show></Show>
-    <Show when={["rest", "guide", "linestop", "restraint"].includes(k().kind)}><F l={k().kind === "rest" ? "Gap below the pipe" : "Gap on each side"} q="disp" v={s().gap ?? 0} set={gap => put({ gap })} /></Show>
+    <Show when={["rest", "guide", "linestop", "restraint"].includes(k().kind)}><F l={k().kind === "rest" ? "Gap below the pipe" : "Gap on each side"} q="disp" v={s().gap ?? 0} set={gap => put({ gap })} />
+      <F l="Friction coefficient μ (0 = none)" q="ratio" v={s().mu ?? 0} set={mu => put({ mu })} />
+      <p class="muted small">Typical μ: 0.3 steel on steel, 0.1 on PTFE slide plates. It acts across the support's direction.</p></Show>
     <Show when={k().kind === "anchor" || k().kind === "restraint"}><Sec t="Imposed displacements" h="disp">
       <For each={[0, 1, 2]}>{c => <><V3In l={`Case ${c + 1}: movement`} q="disp" v={s().disp[c].slice(0, 3) as V3} set={v => put({ disp: s().disp.map((d, i) => i === c ? [...v, ...d.slice(3)] : d) as any })} />
         <Show when={k().kind === "anchor"}><V3In l={`Case ${c + 1}: rotation`} q="rot" v={s().disp[c].slice(3) as V3} set={v => put({ disp: s().disp.map((d, i) => i === c ? [...d.slice(0, 3), ...v] : d) as any })} /></Show></>}</For>

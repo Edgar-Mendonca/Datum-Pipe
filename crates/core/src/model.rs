@@ -247,11 +247,14 @@ pub struct Support {
     /// Clearance before the support takes load (m): on each side for a guide, line stop or
     /// restraint, below the pipe for a rest.
     pub gap: f64,
+    /// Friction coefficient across the support's direction (0 = none): the pipe sticks while the
+    /// force needed is within μ × the support's load, and slides against μ × that load beyond.
+    pub mu: f64,
 }
 
 impl Default for Support {
     fn default() -> Self {
-        Support { id: 0, node: 10, kind: SupKind::Anchor, k: 0.0, disp: [[0.0; 6]; 3], tag: String::new(), one_way: false, gap: 0.0 }
+        Support { id: 0, node: 10, kind: SupKind::Anchor, k: 0.0, disp: [[0.0; 6]; 3], tag: String::new(), one_way: false, gap: 0.0, mu: 0.0 }
     }
 }
 
@@ -261,6 +264,10 @@ impl Support {
     pub fn conditional(&self) -> bool {
         let gappable = matches!(self.kind, SupKind::Rest | SupKind::Guide | SupKind::Linestop | SupKind::Restraint { .. });
         (self.one_way && self.kind == SupKind::Rest) || (gappable && self.gap > 0.0)
+    }
+    /// Whether the support has friction (rests, guides, line stops and restraints).
+    pub fn has_friction(&self) -> bool {
+        matches!(self.kind, SupKind::Rest | SupKind::Guide | SupKind::Linestop | SupKind::Restraint { .. }) && self.mu > 0.0
     }
 }
 
@@ -627,6 +634,9 @@ impl Model {
             };
             if !(s.gap >= 0.0 && fin(s.gap)) {
                 return Err(format!("The support at node {}: the gap must be 0 or more.", s.node));
+            }
+            if !(s.mu >= 0.0 && s.mu <= 2.0) {
+                return Err(format!("The support at node {}: the friction coefficient must be between 0 and 2.", s.node));
             }
             if !ok || !(s.k >= 0.0 && fin(s.k)) || s.disp.iter().flatten().any(|v| !fin(*v)) {
                 return Err(format!("The support at node {} needs a direction and a stiffness above 0.", s.node));

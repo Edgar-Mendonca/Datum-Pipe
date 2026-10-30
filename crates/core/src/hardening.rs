@@ -52,8 +52,8 @@ pub fn random_model(r: &mut Rng, n: usize) -> Model {
             _ => SupKind::Restraint { dir: [r.f() - 0.5, r.f() - 0.5, r.f() - 0.5 + 1e-3] },
         };
         // Some rests one-way and some supports with a gap, so the iteration is tried on every shape.
-        let (one_way, gap) = (r.int(2) == 0, if r.int(4) == 0 { r.f() * 0.01 } else { 0.0 });
-        let _ = d.apply(Op::Add { item: Item::Support(Support { node, kind, one_way, gap, ..Default::default() }), after: None });
+        let (one_way, gap, mu) = (r.int(2) == 0, if r.int(4) == 0 { r.f() * 0.01 } else { 0.0 }, if r.int(3) == 0 { 0.1 + 0.3 * r.f() } else { 0.0 });
+        let _ = d.apply(Op::Add { item: Item::Support(Support { node, kind, one_way, gap, mu, ..Default::default() }), after: None });
     }
     d.m
 }
@@ -156,7 +156,7 @@ fn random_models_solve_or_explain_and_always_balance() {
         match crate::solve::analyze(&m) {
             Ok(res) => {
                 for c in &res.cases {
-                    assert!(c.imbalance < 1e-6, "seed {seed}, case {}: imbalance {:e}", c.name, c.imbalance);
+                    assert!(c.imbalance < 1e-6, "seed {seed}, case {}: imbalance {:e} {:?}", c.name, c.imbalance, res.warnings);
                     assert!(c.disp.iter().flatten().all(|v| v.is_finite()), "seed {seed}");
                     assert!(c.stresses.iter().all(|s| s.stress.is_finite() && s.stress >= 0.0), "seed {seed}");
                 }
@@ -185,11 +185,33 @@ fn speed_gate_on_a_large_analysis() {
     let n0 = m.elements[0].from;
     m.supports.push(Support { id: m.next, node: n0, ..Default::default() });
     m.next += 1;
+    // A 3 km random chain held at one end is too floppy for sliding friction to be meaningful (the
+    // solver's mechanism check trips on it): this gate times the solve, friction has its own below.
+    m.supports.iter_mut().for_each(|s| s.mu = 0.0);
     let t = std::time::Instant::now();
     let res = crate::solve::analyze(&m).unwrap();
     let limit = if cfg!(debug_assertions) { 20.0 } else { 3.0 };
     assert!(t.elapsed().as_secs_f64() < limit, "{:?} for {} points", t.elapsed(), res.geom.points.len());
     let _ = SupKind::Anchor;
+}
+
+#[test]
+fn speed_gate_with_friction() {
+    // 300 random elements with one-way rests, gaps and friction, anchored at the start and heated:
+    // the iteration must finish quickly and balance.
+    let mut r = Rng::new(23);
+    let mut m = random_model(&mut r, 300);
+    m.conds[0].t[0] = model::K0 + 200.0;
+    crate::cases::rebuild(&mut m);
+    let n0 = m.elements[0].from;
+    m.supports.push(Support { id: m.next, node: n0, ..Default::default() });
+    m.next += 1;
+    assert!(m.supports.iter().any(|s| s.mu > 0.0));
+    let t = std::time::Instant::now();
+    let res = crate::solve::analyze(&m).unwrap();
+    assert!(res.cases.iter().all(|c| c.imbalance < 1e-6));
+    let limit = if cfg!(debug_assertions) { 30.0 } else { 5.0 };
+    assert!(t.elapsed().as_secs_f64() < limit, "{:?}", t.elapsed());
 }
 
 #[test]
@@ -208,4 +230,5 @@ fn every_example_solves_balances_and_has_no_warnings() {
         assert!(w.is_empty() && back == m, "{}", e.id);
     }
 }
+
 

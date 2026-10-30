@@ -66,7 +66,7 @@ export const C = {
     const m = model(), n = selNode(m); if (!m) return;
     if (n === null) return toast("Select a node first: click it in the 3D view, or select an element (the support goes at its To node).");
     const k = SUPPORTS.find(s => s[0] === key)?.[2] ?? { kind: "anchor" };
-    const o = await act({ Add: { item: { Support: { id: 0, node: n, kind: k, k: 0, disp: [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]], tag: "", one_way: k.kind === "rest", gap: 0 } }, after: null } });
+    const o = await act({ Add: { item: { Support: { id: 0, node: n, kind: k, k: 0, disp: [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]], tag: "", one_way: k.kind === "rest", gap: 0, mu: 0 } }, after: null } });
     if (o?.created.length) setSel({ kind: "support", id: o.created[0] });
   },
   nozzle: async () => {

@@ -259,7 +259,7 @@ fn an_occasional_case_is_checked_against_a_third_more() {
     // 1.33 Sh and its stress the sustained stress.
     let mut m = crate::examples::get("lbend").unwrap();
     let mut cs = m.cases.clone();
-    cs.push(crate::model::LoadCase { id: 0, name: "OCC".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1 } });
+    cs.push(crate::model::LoadCase { id: 0, name: "OCC".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false } });
     let mut d = Doc::new(m.clone());
     d.apply(Op::SetCases { cases: cs }).unwrap();
     m = d.m;
@@ -590,4 +590,69 @@ fn a_guide_pressed_sideways_resists_the_pipe_growing_along_it() {
     for c in &r.cases {
         assert!(c.imbalance < 1e-9, "{} {:e}", c.name, c.imbalance);
     }
+}
+
+#[test]
+fn wind_acts_across_the_pipe_only_and_on_its_insulation() {
+    // A 3 m cantilever along X: wind along X (down its axis) puts no load on it; wind along Z puts
+    // q Cd D per metre, with D over 50 mm of insulation.
+    let build = |dir: [f64; 3]| {
+        let mut d = table("wind", &[(10, 20, 3.0, 0.0, 0.0)]);
+        let mut p = d.m.pipes[0].clone();
+        p.ins_t = 0.05;
+        d.apply(Op::Set { item: Item::Pipe(p) }).unwrap();
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        s.wind_q = 800.0;
+        s.wind_cd = 0.6;
+        s.wind_dir = dir;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        sup(&mut d, 10, SupKind::Anchor);
+        (analyze(&d.m).unwrap(), d.m.pipes[0].od)
+    };
+    let (r, _) = build([1.0, 0.0, 0.0]);
+    assert!(react(&r, "OCC WIN", 10).iter().all(|v| v.abs() < 1e-9));
+    let (r, od) = build([0.0, 0.0, -1.0]);
+    assert!(close(react(&r, "OCC WIN", 10)[2], 800.0 * 0.6 * (od + 0.1) * 3.0, 1e-12));
+    assert!(case(&r, "OCC WIN").stresses.iter().all(|s| (s.allow / case(&r, "SUS").stresses[0].allow - 1.33).abs() < 1e-12));
+}
+
+#[test]
+fn occasional_cases_come_with_wind_or_seismic_only() {
+    let mut m = crate::examples::get("lbend").unwrap();
+    assert!(!m.cases.iter().any(|c| c.kind == crate::model::CaseKind::Occ));
+    m.settings.wind_q = 500.0;
+    m.settings.seis = [0.2, 0.0, 0.2];
+    crate::cases::rebuild(&mut m);
+    let names: Vec<&str> = m.cases.iter().map(|c| c.name.as_str()).collect();
+    for n in ["OPE1+WIN", "OCC WIN", "OPE1+SEIS", "OCC SEIS"] {
+        assert!(names.contains(&n), "{names:?}");
+    }
+    let r = analyze(&m).unwrap();
+    for c in &r.cases {
+        assert!(c.imbalance < 1e-9, "{} {:e}", c.name, c.imbalance);
+    }
+    // The occasional stress is never below the sustained one at the same point.
+    for (o, s) in case(&r, "OCC SEIS").stresses.iter().zip(&case(&r, "SUS").stresses) {
+        assert!(o.stress >= s.stress - 1e-6);
+    }
+}
+
+#[test]
+fn files_without_occasional_loads_still_open() {
+    // A file written before 0.1.9: no wind or seismic settings, no wind/seis in the case recipes.
+    let m = crate::examples::get("lbend").unwrap();
+    let mut j: serde_json::Value = serde_json::from_str(&crate::model::to_json(&m)).unwrap();
+    for k in ["wind_q", "wind_cd", "wind_dir", "seis"] {
+        j["settings"].as_object_mut().unwrap().remove(k);
+    }
+    for c in j["cases"].as_array_mut().unwrap() {
+        if let Some(r) = c["recipe"].as_object_mut() {
+            r.remove("wind");
+            r.remove("seis");
+        }
+    }
+    let (back, _) = crate::model::from_json(&j.to_string()).unwrap();
+    assert_eq!(back.settings.wind_q, 0.0);
+    assert_eq!(back.cases, m.cases);
 }

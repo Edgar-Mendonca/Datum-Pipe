@@ -199,8 +199,16 @@ fn steam() -> Model {
     support(&mut d, 20, SupKind::Linestop, "LS-20");
     support(&mut d, 70, SupKind::Anchor, "T-301 inlet");
     displace(&mut d, 70, 0, [0.0, 0.002, 0.0, 0.0, 0.0, 0.0]);
+    // Outdoors on the rack: a design wind of 0.8 kPa across it (from the south) and 0.15 g of static
+    // seismic sideways, each checked as an occasional case.
+    let mut st = d.m.settings.clone();
+    st.wind_q = 800.0;
+    st.wind_cd = 0.7;
+    st.wind_dir = [0.0, 0.0, -1.0];
+    st.seis = [0.15, 0.0, 0.15];
+    d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("occasional loads");
     nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, -1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
-    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests with friction (μ 0.3), with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot.");
+    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests with friction (μ 0.3), with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot. Wind (0.8 kPa from the south) and 0.15 g of static seismic are checked as occasional cases.");
     d.m
 }
 

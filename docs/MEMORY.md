@@ -91,6 +91,11 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.1.9 | Wind and seismic are model settings (`wind_q`, `wind_cd`, `wind_dir`, `seis`): one uniform design pressure (no height profile, no shielding) and one seismic vector in g; both user inputs, no standard's tables | Simple, honest inputs; the site standards stay with the user |
+| 0.1.9 | Wind per metre = q Cd D (w − (w·t) t) with D over insulation and cladding and t the segment's chord (arcs use their chord); seismic per metre = the operating weight × the factors | Drag on a cylinder across the flow; chord keeps one uniform load per segment |
+| 0.1.9 | Recommended: OPE1+WIN / OPE1+SEIS (Sum with `wind`/`seis`) and OCC WIN / OCC SEIS as ranges from OPE1, with case 1 only | The occasional effect from the operating state (supports as in operation), the usual practice |
+| 0.1.9 | An occasional range's stress = the largest SUS stress at the point + the sustained expression of the range's loads without pressure, against 1.33 Sh (Sh at the case's hot temperature); an occasional Sum (a user's own) is checked as before | B31.3 para. 302.3.6 used as an equation; the scalar sum is on the safe side |
+| 0.1.9 | `Recipe::Sum.wind`/`seis` and the settings have serde defaults, so older files open unchanged; a `wpress` display quantity (kPa, psf) | Compatibility |
 | 0.1.8 | `Support.mu` on rests, guides, line stops and restraints; friction acts across the support's own directions (a rest: horizontal; a guide on a horizontal pipe: along it and vertical; a vertical pipe's guide: along it), with the load pressing it = the size of the support's reaction | Isotropic Coulomb friction, the usual model |
 | 0.1.8 | Sticking holds the pipe across (exactly along a global axis, else a 1e12 N/m spring) unless something else already holds that direction; it slides when the force needed exceeds μ N | Exact like the other holds, so the benchmark matches to rounding |
 | 0.1.8 | A sliding force is solved exactly for each support from its own flexibility (unit loads in the same solve): direct in one direction, bisection on the movement's size in two; supports are updated one after another with the displacement corrected through their flexibility (Gauss–Seidel) | Re-pointing the force each solve oscillated on flexible lines and between supports at one node |
@@ -162,8 +167,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.1.6 | Windows publisher "Datum" (family-wide) | ✅ |
 | 0.1.7 | One-way rests and gaps (iterative solve), lift-off shown in the results, benchmarks | ✅ |
 | 0.1.8 | Friction at rests and guides, equilibrium with friction, a friction benchmark | ✅ |
-| 0.1.9 | Wind and static seismic loads, occasional cases and the occasional stress check | 🔜 |
-| 0.1.10 | Spring hanger selection (spring data entered by the user) | ⬜ |
+| 0.1.9 | Wind and static seismic loads, occasional cases and the occasional stress check | ✅ |
+| 0.1.10 | Spring hanger selection (spring data entered by the user) | 🔜 |
 | 0.1.11 | Import of plain-text piping component files; the public regulator benchmarks in Help › Verification | ⬜ |
 | 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | ⬜ |
 | 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust | ⬜ |
@@ -230,12 +235,17 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - UI: friction coefficient in the Inspector, friction state and force in Support Loads, help; the ribbon's Nonlinear group is gone (nothing left planned there).
 - Disk: the session's allowance filled with `target/` (17 GB); `target/release` and `target/debug/incremental` were removed.
 
-## 5. Known limits (0.1.8)
+### 2026-10-30: Session 2, continued (0.1.9: wind and static seismic)
+- Engine: settings `wind_q`, `wind_cd`, `wind_dir`, `seis` (checked and repaired); `Recipe::Sum { wind, seis }`; `q_occ`, `occ_rhs`, `rb_occ` in `solve.rs` with the case's distributed load from `q_of`; the occasional range check; `cases::recommend` adds OPE1+WIN, OCC WIN, OPE1+SEIS, OCC SEIS. Benchmarks 15–17 (43 checks), three worked cases, wind and seismic in the random hardening models.
+- Example: the steam rack has wind 0.8 kPa from the south and 0.15 g sideways (OCC WIN 0.49, OCC SEIS 0.39, balanced).
+- UI: Occasional loads in the model Inspector, Loads › Wind and Static Seismic go there, an Occasional column in Load Cases, help topic, Sources rows, report settings line; one UI check.
+
+## 5. Known limits (0.1.9)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
 - Friction is the same in every direction across a support (no separate coefficients), and is path-independent: each case slides from the installed position.
 - Each case finds its own support states; there is no option to use the operating states for the sustained case.
-- No pressure thrust; no occasional loads yet (0.1.9; the OCC case kind is ready).
+- No pressure thrust. Wind is one uniform pressure (no height profile or shielding) and acts on a bend's chord; seismic is one static vector (no ± or per-axis cases built for you); occasional loads go with operating case 1 only.
 - The deformed shape moves arcs' vertices by the chord-interpolated displacement (fine to 45° per arc segment; bends are split in two).
 - Bends' pressure opening (Bourdon effect of curved pipe) is not modelled; pressure elongation is for straight pipe only and off by default.
 - Minimum wall: t ≥ D/6 fails rather than using a thick-wall equation; bends are checked at the intrados only.

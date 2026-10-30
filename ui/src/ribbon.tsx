@@ -124,7 +124,7 @@ export const Ribbon = () => {
         <G l="Extra Loads" h="loads"><B big i="force" l="Force at Node" run={C.load} /><S><B i="dist" l="Uniform Load" run={() => selEl() ? setTab("element") : C.planned("Select an element, then set its extra load in the Inspector; uniform loads", "this release")} title="Select an element and set its extra load (per length) in the Inspector" /></S></G>
         <G l="Displacements" h="disp"><B big i="disp" l="Imposed Displacement" run={() => C.support("anchor")} title="Put an anchor on the selected node and set its movements per case in the Inspector" /></G>
         <G l="Load Cases" h="cases"><B big i="cases" l="Load Cases" run={() => P.cases()} /><S><B i="check" l="Recommend" run={C.recommendCases} on={!!m()?.settings.auto_cases} /><label class="chk"><input type="checkbox" checked={!!m()?.settings.hydro} onChange={e => C.settings({ hydro: e.currentTarget.checked })} />Hydrotest case</label></S></G>
-        <G l="Occasional" h="cases"><S><Planned i="wind" l="Wind" v="0.1.9" /><Planned i="seismic" l="Static Seismic" v="0.1.9" /></S></G>
+        <G l="Occasional" h="occasional"><S><B i="wind" l="Wind" run={() => setSel(null)} title="Wind: set the design pressure in the Inspector (Occasional loads)" /><B i="seismic" l="Static Seismic" run={() => setSel(null)} title="Static seismic: set the factors in the Inspector (Occasional loads)" /></S></G>
       </Show>
       <Show when={tab() === "supports"}>
         <G l="Supports" h="supports"><Sup big k="anchor" i="anchor" /><Sup big k="rest" i="rest" l="Rest" /><Sup big k="guide" i="guide" /><Sup big k="linestop" i="linestop" /></G>

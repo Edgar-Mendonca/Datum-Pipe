@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.9 — 2026-10-30
+
+Wind and static seismic loads, and the occasional stress check.
+
+**Wind.** A design wind pressure, a shape factor Cd and the direction the wind blows, in the Inspector's Occasional loads (or Loads › Wind). Each element carries q × Cd × D per metre, with D over its insulation and cladding, from the part of the wind that blows across it: wind along a pipe puts no load on it.
+
+**Static seismic.** Factors of g along X, Y and Z (Loads › Static Seismic); each element carries its operating weight per metre times them.
+
+**Load cases.** With wind, OPE1+WIN (operating case 1 with the wind) and OCC WIN (the wind's own effect, OPE1+WIN − OPE1) are added; the same for seismic. The Load Cases dialog has an Occasional column for your own cases.
+
+**Occasional check.** An occasional case's stress at each point is the sustained stress plus the stress of the occasional loads (the same expression, without pressure), against 1.33 Sh.
+
+**Your inputs.** The wind pressure and the seismic factors come from the standards for the site; Datum Pipe reproduces none of their tables. Help › Sources lists the new equations.
+
+**Examples.** The steam line on the rack has 0.8 kPa of wind from the south and 0.15 g of static seismic sideways.
+
+**Verification.** Three new benchmarks: wind on a cantilever (tip deflection and root moment), static seismic on a cantilever (root force and moment), and the occasional stress at its root (43 checks).
+
 ## 0.1.8 — 2026-10-30
 
 Friction at rests and guides.

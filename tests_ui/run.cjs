@@ -78,6 +78,7 @@ const shots = process.env.SHOTS;
   check("the Inspector shows the model's settings", (await p.textContent(".insp")).includes("Installed temperature"));
   await p.click('.insp label.chk:has-text("Pressure elongation") input'); await p.waitForTimeout(200);
   check("the pressure elongation setting sends one settings edit", (await lastOp())?.SetSettings?.s?.pressure_elongation === true);
+  check("the Inspector has the occasional loads", (await p.textContent(".insp")).includes("Design wind pressure") && (await p.textContent(".insp")).includes("Static seismic"));
   await p.click('.insp label.chk:has-text("Branch section modulus") input'); await p.waitForTimeout(200);
   check("the branch section modulus setting sends one settings edit", (await lastOp())?.SetSettings?.s?.branch_ze === false);
   check("the installed temperature is shown in °C", (await p.textContent(".insp")).includes("°C"));

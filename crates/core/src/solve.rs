@@ -5,8 +5,12 @@
 //! Supports along the global axes that are rigid hold their degree of freedom exactly (with its
 //! imposed displacement as a prescribed value); skewed or flexible ones are springs (a skewed rigid
 //! restraint is a spring of 1e12 N/m). Load cases are linear sums of basic loads (weight, thermal,
-//! imposed displacements), and ranges are differences of two cases, so everything is exact for
-//! linear supports.
+//! imposed displacements, wind, static seismic), and ranges are differences of two cases, so
+//! everything is exact for linear supports.
+//!
+//! Wind on an element is q Cd D (w − (w·t) t) per metre: the design pressure q, the shape factor,
+//! the outside diameter over insulation and cladding, and the part of the wind direction w across
+//! the element's chord t. Static seismic is the operating weight per metre times the factors (g).
 //!
 //! One-way rests and supports with a gap are solved by iteration, case by case: each is either
 //! touching (held at its gap, like a linear support) or open (no load), and the case is solved
@@ -750,6 +754,32 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
             rb_w[wi][i] = rb;
         }
     }
+    // Occasional loads, uniform along each segment: wind (0) and static seismic (1).
+    let wd = { let w = m.settings.wind_dir; unit([w[0], 0.0, w[2]]) };
+    let mut q_occ: [Vec<V>; 2] = [vec![[0.0; 3]; parts.len()], vec![[0.0; 3]; parts.len()]];
+    let mut occ_rhs = [vec![0.0; n], vec![0.0; n]];
+    let mut rb_occ: [Vec<[f64; 6]>; 2] = [vec![[0.0; 6]; parts.len()], vec![[0.0; 6]; parts.len()]];
+    for (i, s) in g.segs.iter().enumerate() {
+        let chord = unit(sub(parts[i].el.line.end(), parts[i].el.line.start()));
+        let dia = m.pipe(s.pipe).map_or(0.0, |p| p.od + 2.0 * (p.ins_t + p.clad_t));
+        q_occ[0][i] = scale(sub(wd, scale(chord, dot(wd, chord))), m.settings.wind_q * m.settings.wind_cd * dia);
+        q_occ[1][i] = scale(m.settings.seis, parts[i].w);
+        let (pa, pb, k, rigid) = props_of(i);
+        let secf = |x: f64| sec_at(m, pa, pb, x);
+        let mat = m.material(s.material).unwrap();
+        let pr = Props { sec: &secf, e: parts[i].e_cold, g: parts[i].e_cold / (2.0 * (1.0 + mat.nu)), k: if matches!(s.shape, Shape::Arc { .. }) { k } else { 1.0 }, rigid };
+        for o in 0..2 {
+            if norm(q_occ[o][i]) == 0.0 {
+                continue;
+            }
+            let (la, lb, rb) = parts[i].el.loads(q_occ[o][i], 0.0, &pr);
+            for d in 0..6 {
+                occ_rhs[o][6 * s.a + d] += la[d];
+                occ_rhs[o][6 * s.b + d] += lb[d];
+            }
+            rb_occ[o][i] = rb;
+        }
+    }
     let mut point_loads = vec![0.0; n];
     for l in &m.loads {
         if let Some(&pt) = g.node_point.get(&l.node) {
@@ -797,11 +827,18 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     let sums: Vec<&LoadCase> = m.cases.iter().filter(|c| matches!(c.recipe, Recipe::Sum { .. })).collect();
     let mut rhs = vec![];
     for c in &sums {
-        let Recipe::Sum { w, water, t, d, .. } = c.recipe else { unreachable!() };
+        let Recipe::Sum { w, water, t, d, wind, seis, .. } = c.recipe else { unreachable!() };
         let mut f = vec![0.0; n];
         if w {
             for i in 0..n {
                 f[i] += w_rhs[water as usize][i] + point_loads[i] + const_loads[i];
+            }
+        }
+        for (o, on) in [wind, seis].into_iter().enumerate() {
+            if on {
+                for i in 0..n {
+                    f[i] += occ_rhs[o][i];
+                }
             }
         }
         if t > 0 {
@@ -875,15 +912,27 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     let mut results: Vec<CaseResult> = vec![];
     for c in &m.cases {
         let r = match c.recipe {
-            Recipe::Sum { w, water, t, .. } => {
+            Recipe::Sum { w, water, t, wind, seis, .. } => {
                 let k = sums.iter().position(|x| x.id == c.id).unwrap();
+                // The distributed load on each segment in this case, and its fixed-end part.
+                let q_of = |i: usize| -> (V, [f64; 6]) {
+                    let (mut q, mut rb) = if w { ([0.0, -(if water { parts[i].w_water } else { parts[i].w }), 0.0], rb_w[water as usize][i]) } else { ([0.0; 3], [0.0; 6]) };
+                    for (o, on) in [wind, seis].into_iter().enumerate() {
+                        if on {
+                            q = add(q, q_occ[o][i]);
+                            for d in 0..6 {
+                                rb[d] += rb_occ[o][i][d];
+                            }
+                        }
+                    }
+                    (q, rb)
+                };
                 let (u, f) = (&sols[k], &rhs_f[k]);
                 let disp: Vec<[f64; 6]> = (0..np).map(|p| std::array::from_fn(|d| u[6 * p + d])).collect();
                 // Forces in the pipe: global resultants at each segment's ends.
                 let mut glob = vec![[[0.0; 6]; 2]; parts.len()];
                 for (i, s) in g.segs.iter().enumerate() {
-                    let q = if w { [0.0, -(if water { parts[i].w_water } else { parts[i].w }), 0.0] } else { [0.0; 3] };
-                    let rbq = if w { rb_w[water as usize][i] } else { [0.0; 6] };
+                    let (q, rbq) = q_of(i);
                     let st = if t > 0 { parts[i].strain[t as usize - 1] } else { 0.0 };
                     let pe = parts[i].el.end_force(&disp[s.a], &disp[s.b], st, &rbq);
                     let l = parts[i].el.line.length();
@@ -945,17 +994,16 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                 // The applied loads, summed independently of the solver: weight along every
                 // segment, point loads and constant supports.
                 let mut applied = [0.0; 6];
-                if w {
-                    for (i, p) in parts.iter().enumerate() {
-                        let q = [0.0, -(if water { p.w_water } else { p.w }), 0.0];
-                        let l = p.el.line.length();
-                        let mq = cross(p.el.line.pint(0.0, l), q);
-                        for d in 0..3 {
-                            applied[d] += q[d] * l;
-                            applied[3 + d] += mq[d];
-                        }
-                        let _ = i;
+                for (i, p) in parts.iter().enumerate() {
+                    let q = q_of(i).0;
+                    let l = p.el.line.length();
+                    let mq = cross(p.el.line.pint(0.0, l), q);
+                    for d in 0..3 {
+                        applied[d] += q[d] * l;
+                        applied[3 + d] += mq[d];
                     }
+                }
+                if w {
                     for pt in 0..np {
                         let f3 = [point_loads[6 * pt], point_loads[6 * pt + 1], point_loads[6 * pt + 2]];
                         let mo = cross(g.points[pt].p, f3);
@@ -1014,7 +1062,11 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                     [dot(f, x), dot(f, y), dot(f, z), dot(mm, x), dot(mm, y), dot(mm, z)]
                 })).collect();
             }
+            // An occasional range (the occasional loads' own effect) adds to the sustained stress, so it
+            // comes after the sustained cases; an occasional sum is checked as it is.
+            let occ_range = c.kind == CaseKind::Occ && matches!(c.recipe, Recipe::Range { .. });
             let (want, is_sus) = match c.kind {
+                CaseKind::Occ if occ_range => (pass == 1, true),
                 CaseKind::Sus | CaseKind::Occ => (pass == 0, true),
                 CaseKind::Exp => (pass == 1, false),
                 _ => (false, false),
@@ -1059,7 +1111,12 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
                     let loads = Loads { fa: dot(f, t), mt, mi, mo };
                     let sec = if end == 0 { p.sec.0 } else { p.sec.1 };
                     let sif = p.sif[end];
-                    let (stress, allow) = if is_sus {
+                    let (stress, allow) = if occ_range {
+                        // Para. 302.3.6: the sustained stress plus the stress of the occasional loads
+                        // (the same expression without pressure), against 1.33 Sh.
+                        let so = code::sustained(loads, sif, 0.0, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1));
+                        (sl_max[i][end] + so, 1.33 * sh)
+                    } else if is_sus {
                         let sl = code::sustained(loads, sif, pressure, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1));
                         if c.kind == CaseKind::Sus {
                             sl_max[i][end] = sl_max[i][end].max(sl);

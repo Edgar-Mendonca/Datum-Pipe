@@ -147,6 +147,11 @@ fn random_models_solve_or_explain_and_always_balance() {
             m.conds[0].t[0] = model::K0 + 150.0 + seed as f64;
             m.conds[0].p[0] = 5e5;
         }
+        if seed % 5 == 0 {
+            m.settings.wind_q = 500.0 + seed as f64;
+            m.settings.wind_dir = [1.0, 0.0, 0.3];
+            m.settings.seis = [0.2, -0.1, 0.15];
+        }
         if seed % 3 == 0 {
             for e in m.elements.iter_mut().step_by(3) {
                 e.comp = Comp::Bend { bend: model::BendKind::Short, r: 0.0 };

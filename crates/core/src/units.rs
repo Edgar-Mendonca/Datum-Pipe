@@ -272,6 +272,7 @@ pub const QUANTITIES: &[(&str, &str, &str, &str)] = &[
     ("moment", "moments", "N*m", "lbf*ft"),
     ("stress", "stresses and allowables", "MPa", "psi"),
     ("press", "pressures", "bar", "psi"),
+    ("wpress", "wind pressures", "kPa", "psf"),
     ("modulus", "elastic modulus", "GPa", "psi"),
     ("temp", "temperatures", "°C", "°F"),
     ("dtemp", "temperature differences", "K", "Δ°F"),

@@ -26,10 +26,10 @@ export interface Support { id: number; node: number; kind: SupKind; k: number; d
 export interface Nozzle { id: number; node: number; name: string; axis: V3; allow: [number, number, number, number] }
 export interface Load { id: number; node: number; f: V3; m: V3 }
 export type CaseKind = "sus" | "ope" | "exp" | "hyd" | "occ";
-export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number } | { kind: "range"; a: number; b: number };
+export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean } | { kind: "range"; a: number; b: number };
 export interface LoadCase { id: number; name: string; kind: CaseKind; recipe: Recipe }
 export interface Project { project: string; line: string; calc: string; by: string; checked: string; rev: string; client: string }
-export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number }
+export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3 }
 export interface Model {
   format: number; name: string; notes: string; units: "SI" | "US"; project: Project; settings: Settings;
   nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number;

@@ -27,8 +27,8 @@
     "An element table that draws the piping in 3D as you type: true diameters, insulation, bends, tees, reducers, valves, flanges and support symbols",
     "Pipe sizes ½\" to 24\" in every schedule, five piping materials with properties against temperature and their sources, and your own sizes and materials",
     "Anchors, one-way rests, guides, line stops and restraints with gaps and friction, skewed restraints, springs, constant-force supports and imposed equipment movements",
-    "Load cases built for you: sustained, operating, expansion range and hydrotest",
-    "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall (straight pipe, bends at their intrados, both ends of reducers), sustained stress and the displacement stress range, with PASS or FAIL at every point",
+    "Load cases built for you: sustained, operating, expansion range, hydrotest, and wind and static seismic as occasional cases",
+    "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall (straight pipe, bends at their intrados, both ends of reducers), sustained stress, the displacement stress range and occasional stress, with PASS or FAIL at every point",
     "Support loads for the civil team and nozzle loads in the nozzle's own axes, checked against your allowables",
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
     "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published"
@@ -76,7 +76,7 @@
     {
       "v": "0.1.9",
       "title": "Wind and seismic",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Wind loads (pressure on the projected area)",
         "Static seismic loads (g-factors)",
@@ -86,7 +86,7 @@
     {
       "v": "0.1.10",
       "title": "Spring hangers",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Spring hanger selection from hot load, travel and load variation",
         "Spring data entered by you (rate, range), with typical values"

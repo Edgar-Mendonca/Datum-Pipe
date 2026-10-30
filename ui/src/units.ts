@@ -5,7 +5,7 @@ import { createSignal } from "solid-js";
 import { out } from "./store";
 import { num, Shown } from "./api";
 
-export type Q = "coord" | "len" | "disp" | "rot" | "force" | "moment" | "stress" | "press" | "modulus" | "temp" | "dtemp" | "density" | "expansion" | "mass" | "wlen" | "tstiff" | "rstiff" | "radius" | "ratio";
+export type Q = "coord" | "len" | "disp" | "rot" | "force" | "moment" | "stress" | "press" | "wpress" | "modulus" | "temp" | "dtemp" | "density" | "expansion" | "mass" | "wlen" | "tstiff" | "rstiff" | "radius" | "ratio";
 
 const [tables, setTables] = createSignal<[Shown[], Shown[]] | null>(null);
 export const setUnitTable = (t: [Shown[], Shown[]]) => setTables(t);

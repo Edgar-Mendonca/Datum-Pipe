@@ -4,7 +4,8 @@
 //! minimum wall equation (straight pipe and a bend's intrados), a tee branch's effective section
 //! modulus, the axial force of pressure elongation between anchors, and a one-way rest and a gap
 //! (the cantilever by beam theory, with the support touching or open), and friction at a rest
-//! (sliding and sticking, by statics and Hooke's law). `run()` gives the rows of Help › Verification; the test fails on any row
+//! (sliding and sticking, by statics and Hooke's law), and wind, static seismic and the
+//! occasional stress on a cantilever (beam theory). `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -372,6 +373,40 @@ pub fn run() -> Vec<Check> {
         out.push(row(14, name, "Sticking: friction force (E A ε < μ P)", "force", -h.e * h.a * STRAIN_200, reaction(&r, "OPE1", 20)[0], TOL, "Hooke's law: E A ε"));
         out.push(row(14, name, "Sticking: end movement", "disp", 0.0, disp(&r, "OPE1", 20)[0], 1e-12, "The rest holds the pipe"));
     }
+    // 15–17. Occasional loads on a cantilever: 3 m of 6" Sch 40 along X in 5 elements, anchored at 10.
+    {
+        let cant = |wind: f64, seis: [f64; 3], g: f64| {
+            let mut d = table("Occasional", &[(10, 20, 0.6, 0.0, 0.0), (20, 30, 0.6, 0.0, 0.0), (30, 40, 0.6, 0.0, 0.0), (40, 50, 0.6, 0.0, 0.0), (50, 60, 0.6, 0.0, 0.0)]);
+            let mut s = d.m.settings.clone();
+            s.g = g;
+            s.wind_q = wind;
+            s.wind_cd = 0.7;
+            s.wind_dir = [0.0, 0.0, 1.0];
+            s.seis = seis;
+            d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+            anchor(&mut d, 10);
+            let h = hand(&d.m);
+            (analyze(&d.m).unwrap(), h, d.m)
+        };
+        // 15. Wind of 1 kPa along Z with Cd = 0.7: q = 1000 × 0.7 × 0.168275 = 117.79 N/m across the pipe.
+        let (r, h, m) = cant(1000.0, [0.0; 3], 0.0);
+        let q = 1000.0 * 0.7 * m.pipes[0].od;
+        let name = "Wind on a cantilever";
+        out.push(row(15, name, "Tip deflection (OCC WIN)", "disp", q * 81.0 / (8.0 * h.e * h.i) + q * 9.0 / (2.0 * crate::elements::KAPPA * h.g * h.a), disp(&r, "OCC WIN", 60)[2], TOL, "Beam theory: qL⁴/8EI + qL²/2κGA, q = p Cd D"));
+        out.push(row(15, name, "Root moment (OCC WIN)", "moment", q * 9.0 / 2.0, reaction(&r, "OCC WIN", 10)[4], TOL, "Statics: qL²/2"));
+        // 16. Static seismic of 0.3 g along Z: q = 0.3 w, w the pipe's weight per metre.
+        let (r, h, m) = cant(0.0, [0.0, 0.0, 0.3], 9.806_65);
+        let w = m.materials[0].rho * h.a * 9.806_65;
+        let name = "Static seismic on a cantilever";
+        out.push(row(16, name, "Root force (OCC SEIS)", "force", -0.3 * w * 3.0, reaction(&r, "OCC SEIS", 10)[2], TOL, "Statics: 0.3 w L"));
+        out.push(row(16, name, "Root moment (OCC SEIS)", "moment", 0.3 * w * 9.0 / 2.0, reaction(&r, "OCC SEIS", 10)[4], TOL, "Statics: 0.3 w L²/2"));
+        // 17. The occasional stress at the root: the sustained w L²/2Z plus the seismic 0.3 w L²/2Z
+        //     (straight pipe, no pressure: i = 1).
+        let z = crate::code::z(m.pipes[0].od, m.pipes[0].wall);
+        let pt = r.geom.node_point[&10];
+        let s = case(&r, "OCC SEIS").stresses.iter().find(|x| x.point == pt).map_or(f64::NAN, |x| x.stress);
+        out.push(row(17, "Occasional stress at the root of the cantilever", "Sustained plus seismic stress", "stress", 1.3 * w * 9.0 / (2.0 * z), s, TOL, "Para. 302.3.6: SL + S_occ, beam theory M/Z"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -396,7 +431,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=14 {
+        for b in 1..=17 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

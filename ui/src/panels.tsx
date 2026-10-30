@@ -147,6 +147,13 @@ const ModelPanel = () => {
       <label class="chk"><input type="checkbox" checked={m().settings.hydro} onChange={e => C.settings({ hydro: e.currentTarget.checked })} />Hydrotest case</label>
       <div class="iprow"><label>Node number step</label><input class="mono" value={m().settings.step} onChange={numIn(v => v >= 1 && v % 1 === 0 && C.settings({ step: v }), () => m().settings.step)} /></div>
     </Sec>
+    <Sec t="Occasional loads" h="occasional">
+      <F l="Design wind pressure (0 = no wind)" q="wpress" v={m().settings.wind_q} set={wind_q => C.settings({ wind_q })} />
+      <F l="Shape factor Cd" q="ratio" v={m().settings.wind_cd} set={wind_cd => C.settings({ wind_cd })} />
+      <V3In l="Wind blows towards (X, Y, Z; horizontal)" q="ratio" v={m().settings.wind_dir} set={wind_dir => C.settings({ wind_dir })} />
+      <V3In l="Static seismic (g along X, Y, Z)" q="ratio" v={m().settings.seis} set={seis => C.settings({ seis })} />
+      <p class="muted small">Your inputs: take the wind pressure and seismic factors from the standard for the site. With either, OPE1 is solved with it added and an occasional case checks the sustained stress plus its own stress against 1.33 Sh.</p>
+    </Sec>
   </>;
 };
 

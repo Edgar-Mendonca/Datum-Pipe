@@ -320,7 +320,8 @@ pub enum CaseKind {
     Exp,
     /// Hydrotest: weight full of water and the test pressure (loads for information).
     Hyd,
-    /// Occasional (0.1: the structure only; no occasional loads yet).
+    /// Occasional: the sustained stress plus the stress of the occasional loads (a range from the
+    /// operating case), checked against 1.33 Sh.
     Occ,
 }
 
@@ -330,8 +331,19 @@ pub enum CaseKind {
 pub enum Recipe {
     /// W weight (pipe, contents, insulation, extra loads, constant supports); `water` fills with
     /// water instead of the contents; `t` thermal case 1–3 (0 none); `d` imposed displacements of
-    /// case 1–3; `p` pressure of case 1–3, or 4 for the hydrotest pressure.
-    Sum { w: bool, water: bool, t: u8, d: u8, p: u8 },
+    /// case 1–3; `p` pressure of case 1–3, or 4 for the hydrotest pressure; `wind` and `seis` the
+    /// occasional wind and static seismic loads of the settings.
+    Sum {
+        w: bool,
+        water: bool,
+        t: u8,
+        d: u8,
+        p: u8,
+        #[serde(default)]
+        wind: bool,
+        #[serde(default)]
+        seis: bool,
+    },
     /// The results of case `a` minus case `b` (the expansion range).
     Range { a: u32, b: u32 },
 }
@@ -347,7 +359,7 @@ pub struct LoadCase {
 
 impl Default for LoadCase {
     fn default() -> Self {
-        LoadCase { id: 0, name: "SUS".into(), kind: CaseKind::Sus, recipe: Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1 } }
+        LoadCase { id: 0, name: "SUS".into(), kind: CaseKind::Sus, recipe: Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false } }
     }
 }
 
@@ -388,11 +400,18 @@ pub struct Settings {
     pub branch_ze: bool,
     /// Number new nodes in steps of this.
     pub step: u32,
+    /// Wind: the design wind pressure (Pa, 0 = no wind), the shape (drag) factor, and the direction
+    /// the wind blows (horizontal).
+    pub wind_q: f64,
+    pub wind_cd: f64,
+    pub wind_dir: [f64; 3],
+    /// Static seismic: the acceleration along X, Y and Z as a fraction of g (all 0 = none).
+    pub seis: [f64; 3],
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10 }
+        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3] }
     }
 }
 
@@ -557,6 +576,13 @@ impl Model {
         let s = &self.settings;
         if !(s.ambient > 0.0 && s.ambient < 2000.0 && fin(s.g) && s.g >= 0.0 && s.cycles >= 1.0 && fin(s.cycles) && s.step >= 1) {
             return Err("The installed temperature, gravity, cycles and node step must be sensible numbers.".into());
+        }
+        let horiz = (s.wind_dir[0].powi(2) + s.wind_dir[2].powi(2)).sqrt();
+        if !(s.wind_q >= 0.0 && fin(s.wind_q) && s.wind_cd > 0.0 && fin(s.wind_cd) && s.wind_dir.iter().all(|v| fin(*v)) && horiz > 1e-6) {
+            return Err("Wind needs a pressure of 0 or more, a shape factor above 0 and a horizontal direction.".into());
+        }
+        if !s.seis.iter().all(|v| fin(*v) && v.abs() <= 10.0) {
+            return Err("The seismic factors must be numbers of g between −10 and 10.".into());
         }
         for p in &self.pipes {
             if !(p.od > 0.0 && fin(p.od) && p.wall > 0.0 && p.wall < p.od / 2.0) {
@@ -882,6 +908,18 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     }
     if s.step == 0 {
         s.step = 10;
+    }
+    if !(s.wind_q >= 0.0 && fin(s.wind_q)) {
+        s.wind_q = 0.0;
+    }
+    if !(s.wind_cd > 0.0 && fin(s.wind_cd)) {
+        s.wind_cd = d.settings.wind_cd;
+    }
+    if !(s.wind_dir.iter().all(|v| fin(*v)) && (s.wind_dir[0].powi(2) + s.wind_dir[2].powi(2)).sqrt() > 1e-6) {
+        s.wind_dir = d.settings.wind_dir;
+    }
+    if !s.seis.iter().all(|v| fin(*v) && v.abs() <= 10.0) {
+        s.seis = [0.0; 3];
     }
     if m.units != "SI" && m.units != "US" {
         m.units = "SI".into();

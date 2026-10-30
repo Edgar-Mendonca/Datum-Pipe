@@ -6,17 +6,17 @@
   "tagline": "Pipe stress analysis on the desktop: displacements, support loads, nozzle loads and code stresses, with an automatic isometric.",
   "for": "Piping, stress, mechanical, process and plant engineers, consultants and students.",
   "about": [
-    "Datum Pipe works out how a piping system moves and what it pushes on when it heats up, carries its weight and holds its pressure. You type the piping as a table of elements, the way a stress engineer marks up an isometric, and it appears in 3D as you type: pipes at their true diameter, bends, tees, reducers, valves, flanges and supports.",
-    "Put on the supports, temperatures, pressures and equipment movements; the load cases are built for you. Analyze solves every case with Datum Pipe's own 3D pipe element solver, checks the stresses using the equations of the process piping code (ASME B31.3), and shows the results on the model, in tables of displacements, support loads and nozzle loads, on an automatic isometric drawing and in a printed stress report. Allowable stresses are your inputs, and Help › Verification solves benchmark problems with known answers in front of you."
+    "Datum Pipe works out how a piping system moves and what it pushes on when it heats up, carries its weight, holds its pressure and meets wind or an earthquake. You type the piping as a table of elements, the way a stress engineer marks up an isometric (or import a piping component file from a design tool), and it appears in 3D as you type: pipes at their true diameter, bends, tees, reducers, valves, flanges and supports.",
+    "Put on the supports (one-way rests, gaps, friction and spring hangers it sizes for you), the temperatures, pressures and equipment movements; the load cases are built for you. Analyze solves every case with Datum Pipe's own 3D pipe element solver, checks the stresses using the published equations of the process piping code (ASME B31.3), and shows the results on the model, in tables of displacements, support loads and nozzle loads, on an automatic isometric drawing and in a printed stress report. Allowable stresses are your inputs, Help › Verification solves benchmark problems with known answers in front of you, and Help › Sources says where every equation is published."
   ],
   "steps": [
     {
       "title": "Route the piping",
-      "text": "Type each element's From node, To node and lengths in the table; pick the pipe, material, line conditions and component (bend, tee, reducer, valve, flange). It draws in 3D at once."
+      "text": "Type each element's From node, To node and lengths in the table, or import a piping component file; pick the pipe, material, line conditions and component (bend, tee, reducer, valve, flange). It draws in 3D at once."
     },
     {
       "title": "Support and load it",
-      "text": "Add anchors, rests, guides, line stops, springs and nozzle points; set up to three operating temperatures and pressures, the hydrotest and equipment movements."
+      "text": "Add anchors, rests (one-way, with gaps and friction), guides, line stops, spring hangers and nozzle points; set up to three operating temperatures and pressures, the hydrotest, equipment movements, wind and static seismic."
     },
     {
       "title": "Check and report",
@@ -25,6 +25,7 @@
   ],
   "highlights": [
     "An element table that draws the piping in 3D as you type: true diameters, insulation, bends, tees, reducers, valves, flanges and support symbols",
+    "Import of plain-text piping component files (.pcf) from design tools",
     "Pipe sizes ½\" to 24\" in every schedule, five piping materials with properties against temperature and their sources, and your own sizes and materials",
     "Anchors, one-way rests, guides, line stops and restraints with gaps and friction, skewed restraints, springs, spring hangers sized from your spring table, constant-force supports and imposed equipment movements",
     "Load cases built for you: sustained, operating, expansion range, hydrotest, and wind and static seismic as occasional cases",

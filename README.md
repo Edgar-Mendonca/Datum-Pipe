@@ -23,7 +23,7 @@
 
 ![Datum Pipe: a steam line on a pipe rack in 3D, coloured by stress ratio, with its deformed shape and the element table](docs/images/model-stress.png)
 
-Route a piping system in a table, the way a stress engineer marks up an isometric; put on its supports, temperatures and pressures; and Datum Pipe works out the displacements, support loads, equipment nozzle loads and code stresses, shows them on the 3D model and on an isometric drawing, and prints a stress report. It is for piping, stress, mechanical, process and plant engineers, consultants and students. It is free and open source (MIT), Windows first, installs in seconds and updates itself. More on the family site: [edgar-mendonca.github.io/Datum/apps/pipe](https://edgar-mendonca.github.io/Datum/apps/pipe).
+Route a piping system in a table, the way a stress engineer marks up an isometric (or import a piping component file); put on its supports, temperatures, pressures, wind and seismic loads; and Datum Pipe works out the displacements, support loads, equipment nozzle loads and code stresses, shows them on the 3D model and on an isometric drawing, and prints a stress report. It is for piping, stress, mechanical, process and plant engineers, consultants and students. It is free and open source (MIT), Windows first, installs in seconds and updates itself. More on the family site: [edgar-mendonca.github.io/Datum/apps/pipe](https://edgar-mendonca.github.io/Datum/apps/pipe).
 
 > **Results must be checked by a qualified engineer.** Datum Pipe is a tool to help engineers. Before its results are used for design, fabrication or approval, a qualified engineer must check them against the edition of the code that applies to the project.
 
@@ -40,7 +40,7 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 - **Import**: plain-text piping component files (.pcf) from design tools, as a new model.
 - **Editing tools**: an expansion loop wizard, copy and mirror a section, insert a node, renumber, undo and redo everything.
 - **Verified**: Help › Verification solves benchmark problems with known answers in front of you: beam theory, heated L-bends, Z-bends and an expansion loop against the flexibility method by hand, a bend's flexibility, the minimum wall equation on straight pipe and at a bend's intrados, pressure elongation, a tee branch's effective section modulus, a one-way rest lifting off, a gap closing, friction sliding and sticking, wind and static seismic on a cantilever and the occasional stress, a spring hanger sized by hand, and the equilibrium of every example.
-- **Worked examples**: a pump discharge with an expansion loop, a compressor suction line, a steam line on a pipe rack, a tank outlet with settlement, and an L-bend and a Z-bend to check by hand.
+- **Worked examples**: a pump discharge with an expansion loop, a compressor suction line, a steam line on a pipe rack (one-way rests, friction, gapped guides, wind and seismic), a tank outlet with settlement and a sized spring hanger, and an L-bend and a Z-bend to check by hand.
 
 | | |
 | --- | --- |

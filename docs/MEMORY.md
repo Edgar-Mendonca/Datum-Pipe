@@ -267,7 +267,7 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 
 ### Summary of the second stage (0.1.5–0.2.0)
 - **Released:** 0.1.5 (code check fixes, Help › Sources, legal wording), 0.1.6 (publisher "Datum"), 0.1.7 (one-way rests, gaps), 0.1.8 (friction), 0.1.9 (wind, static seismic, occasional check), 0.1.10 (spring hangers), 0.1.11 (.pcf import), 0.2.0 (review).
-- **Works:** every support is linear or settles by iteration (contact, gaps, friction) with balanced loads; occasional loads; hangers sized from the user's spring table; import from design tools; 18 benchmarks (48 checks) and 32 hand-worked cases.
+- **Works:** every support is linear or settles by iteration (contact, gaps, friction) with balanced loads; occasional loads; hangers sized from the user's spring table; import from design tools; 18 benchmarks (48 checks) and 35 hand-worked cases.
 - **Moved:** the regulator's public benchmarks to 0.4 (they are dynamic).
 - **Next:** stage 0.3 (equipment and flanges), to be split into small 0.2.x releases first.
 

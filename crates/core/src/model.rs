@@ -480,6 +480,8 @@ pub struct Model {
     pub nozzles: Vec<Nozzle>,
     /// Rotating equipment: groups of nozzles checked against the published criteria.
     pub equipment: Vec<crate::equip::Equipment>,
+    /// Flanged joints checked for leakage (equivalent pressure).
+    pub flanges: Vec<crate::flange::Flange>,
     pub loads: Vec<Load>,
     pub cases: Vec<LoadCase>,
     /// The next id for any item.
@@ -503,6 +505,7 @@ impl Default for Model {
             supports: vec![],
             nozzles: vec![],
             equipment: vec![],
+            flanges: vec![],
             loads: vec![],
             cases: vec![],
             next: 4,
@@ -724,6 +727,11 @@ impl Model {
                 return Err(format!("The support at node {} needs a direction and a stiffness above 0.", s.node));
             }
         }
+        for f in &self.flanges {
+            if !self.elements.iter().any(|e| e.id == f.element) || !(f.gasket >= 0.0 && fin(f.gasket) && f.rating >= 0.0 && fin(f.rating)) {
+                return Err("A flange check needs an element of the model, and a gasket diameter and rating of 0 or more.".into());
+            }
+        }
         for e in &self.equipment {
             let c = &e.coef;
             let nums = c.single.iter().chain(&c.combined).chain(&c.comp).chain(&c.de_over).chain(&c.dc_over).chain([&c.de_cap, &c.dc_cap, &e.factor]).chain(e.shaft.iter()).chain(e.pump.iter().flat_map(|p| p.f.iter().chain(&p.m).chain([&p.fr, &p.mr])));
@@ -801,7 +809,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
     }
     let mut v = migrate(v)?;
     let mut warn = vec![];
-    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases", "equipment"];
+    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases", "equipment", "flanges"];
     let mut keep: Vec<(String, Vec<Value>)> = vec![];
     if let Some(o) = v.as_object_mut() {
         for k in lists {
@@ -853,6 +861,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
             "loads" => m.loads = read(a, "loads", &mut warn),
             "cases" => m.cases = read(a, "load cases", &mut warn),
             "equipment" => m.equipment = read(a, "equipment", &mut warn),
+            "flanges" => m.flanges = read(a, "flange checks", &mut warn),
             _ => {}
         }
     }
@@ -1041,6 +1050,12 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     let (a, b, c) = (m.supports.len(), m.nozzles.len(), m.loads.len());
     m.supports.retain(|s| nodes.contains(&s.node));
     m.nozzles.retain(|z| nodes.contains(&z.node) && z.axis.iter().chain(z.allow.iter()).all(|v| fin(*v)) && z.allow.iter().all(|v| *v >= 0.0));
+    let els: HashSet<u32> = m.elements.iter().map(|e| e.id).collect();
+    let nf = m.flanges.len();
+    m.flanges.retain(|f| els.contains(&f.element) && f.gasket >= 0.0 && fin(f.gasket) && f.rating >= 0.0 && fin(f.rating));
+    if m.flanges.len() < nf {
+        warn.push("Flange checks on missing elements, or with damaged values, were left out.".into());
+    }
     let zs: HashSet<u32> = m.nozzles.iter().map(|z| z.id).collect();
     for e in &mut m.equipment {
         e.nozzles.retain(|id| zs.contains(id));

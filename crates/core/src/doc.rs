@@ -47,6 +47,8 @@ pub enum Op {
     SetCases { cases: Vec<LoadCase> },
     /// Replace the rotating equipment list.
     SetEquipment { list: Vec<crate::equip::Equipment> },
+    /// Replace the flange leakage checks.
+    SetFlanges { list: Vec<crate::flange::Flange> },
     /// Build the recommended load cases again (turns automatic cases on).
     RecommendCases,
     Batch(Vec<Op>),
@@ -129,6 +131,9 @@ fn finish(m: &mut Model) -> Result<(), String> {
     for e in &mut m.equipment {
         e.nozzles.retain(|id| zs.contains(id));
     }
+    // Flange checks keep only elements that are still there.
+    let els: HashSet<u32> = m.elements.iter().map(|e| e.id).collect();
+    m.flanges.retain(|f| els.contains(&f.element));
     if m.settings.auto_cases {
         crate::cases::rebuild(m);
     }
@@ -442,6 +447,9 @@ fn exec(m: &mut Model, op: Op, created: &mut Vec<u32>) -> Result<(), String> {
         }
         Op::SetEquipment { list } => {
             m.equipment = list;
+        }
+        Op::SetFlanges { list } => {
+            m.flanges = list;
         }
         Op::SetCases { cases } => {
             m.cases = cases;

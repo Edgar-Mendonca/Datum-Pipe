@@ -92,6 +92,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.2.4 | Flange leakage by Kellogg's equivalent pressure (`flange.rs`): `Model.flanges` (element, G, rating) via `Op::SetFlanges`; per Sum case the largest P_eq over the element's segment ends from |Fa| and the bending resultant; ratio (P + P_eq)/rating | A public method with every flange value the user's input; |Fa| is on the safe side |
+| 0.2.4 | No flange check in the hydrotest (and none in ranges) | A hydrotest is judged against a test rating; the example's valve failed only there |
 | 0.2.3 | `Model.equipment` (`equip.rs`), edited whole with `Op::SetEquipment` like the load cases; nozzles that disappear are dropped from it in `finish` and on repair | No new item kind in every op; equipment is a few entries |
 | 0.2.3 | Turbines and compressors: the criteria as equations with every number a pre-filled input (`Coef`: 3, 1, 500; De cap 8 in, (16 + D)/3 above; 2, 1, 250; Dc cap 9 in, (18 + Dc)/3 above; component limits 50, 125, 100, 250, 125, 125 × Dc; compressor multiplier 1.85). The single-nozzle form, the combined form, the resolution at the exhaust and Dc from the combined area were confirmed against published descriptions; the over-cap rules and the component limits could not be (the sources were not reachable from the session), so they are inputs to check against the edition | The owner's rule: equations only, never a standard's tables; anything unconfirmed is an input |
 | 0.2.3 | Pumps: components and resultants against the user's table values in the pump's axes (x shaft, y up, z = x × y), with a multiplier; the pump standard's combined interaction equations are not implemented | The table is copyrighted; the interaction rules could not be confirmed in the session |
@@ -199,8 +201,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.2.1 | Ease of use: where a model is free, analyze automatically, values typed with units, right-click menus in the 3D view | ✅ |
 | 0.2.2 | Speed on large models (table, 3D view, analysis), with speed checks | ✅ |
 | 0.2.3 | Pump, compressor and steam turbine nozzle checks (published equations; allowable tables are inputs) | ✅ |
-| 0.2.4 | Flange leakage (equivalent pressure method) | 🔜 |
-| 0.2.5 | Relief valve thrust (open discharge reaction, occasional) | ⬜ |
+| 0.2.4 | Flange leakage (equivalent pressure method) | ✅ |
+| 0.2.5 | Relief valve thrust (open discharge reaction, occasional) | 🔜 |
 | 0.2.6 | Vessel nozzle flexibility and local stresses, only from published equations | ⬜ |
 | 0.3.0 | Milestone: 0.2.1–0.2.6 reviewed; no new features | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum; the regulator's public piping benchmark problems (NUREG/CR-1677) | ⬜ |
@@ -302,6 +304,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Engine: `equip.rs` (Equipment, Coef, PumpAllow, check, size_at), `Model.equipment`, `Op::SetEquipment`, check/repair; nozzle loads collected per case into `CaseResult.equipment`. Benchmark 19 (52 checks), unit tests by hand. Examples: K-201 (compressor, passes), T-301 (turbine, fails by 6.5: a lesson in the example's notes).
 - UI: Supports › Equipment Checks dialog (machines, nozzles, shaft, multiplier, coefficients, pump table), Results › Equipment and its report block, case badges and the analysis message count equipment; help, Sources; two UI checks.
 - Disk: `cargo clean` (19.8 GB) and CARGO_INCREMENTAL=0 for the session.
+
+### 2026-10-31: Session 2, continued (0.2.4: flange leakage)
+- Engine: `flange.rs`, `Model.flanges`, `Op::SetFlanges`, check/repair/finish pruning; `CaseResult.flanges`. Benchmark 20 (54 checks). Example: the pump's valve (0.84 in OPE1).
+- UI: Loads › Flange Leakage dialog, Results › Flanges and its report block, case badges and the analysis message count flanges; help and Sources; two UI checks.
 
 ## 5. Known limits (0.2.0)
 

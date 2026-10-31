@@ -125,6 +125,8 @@ pub struct CaseResult {
     pub friction: Vec<Friction>,
     /// Rotating equipment checked against the published criteria (sum cases only).
     pub equipment: Vec<crate::equip::EquipCheck>,
+    /// Flanged joints checked for leakage by the equivalent pressure (sum cases only).
+    pub flanges: Vec<crate::flange::FlangeCheck>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1188,7 +1190,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                     }
                 }
                 let reacted = sum_reactions(&g, &reactions);
-                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction, equipment: vec![] });
+                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction, equipment: vec![], flanges: vec![] });
                 raw.insert(c.id, std::mem::take(&mut raw_glob));
                 cr
             }
@@ -1204,7 +1206,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                 let applied: [f64; 6] = std::array::from_fn(|d| ra.applied[d] - rb.applied[d]);
                 let reacted = sum_reactions(&g, &reactions);
                 raw.insert(c.id, glob);
-                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![] }
+                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![] }
             }
         };
         by_id.insert(c.id, r.clone());
@@ -1338,6 +1340,33 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         // Rotating equipment: in the cases that are loads (not ranges between two cases).
         if m.cases.iter().any(|c| c.id == res.id && matches!(c.recipe, Recipe::Sum { .. })) {
             res.equipment = m.equipment.iter().map(|e| crate::equip::check(e, &at)).collect();
+            // Flanges: the largest equivalent pressure over the joint's segment ends, with the case's
+            // pressure. Not in a hydrotest, which is judged against a test rating, not the rating at
+            // temperature entered here.
+            let pidx = m.cases.iter().find(|c| c.id == res.id).map_or(0, |c| match c.recipe { Recipe::Sum { p, .. } => p, _ => 0 });
+            let hydro = res.kind == CaseKind::Hyd || pidx == 4;
+            for fl in m.flanges.iter().filter(|_| !hydro) {
+                let Some(e) = m.elements.iter().find(|e| e.id == fl.element) else { continue };
+                if fl.gasket <= 0.0 {
+                    continue;
+                }
+                let cond = m.cond(e.cond);
+                let p = match (pidx, cond) { (1..=3, Some(c)) => c.p[pidx as usize - 1], (4, Some(c)) => c.hydro, _ => 0.0 };
+                let mut best: Option<crate::flange::FlangeCheck> = None;
+                for (i, s) in g.segs.iter().enumerate().filter(|(_, s)| s.element == fl.element) {
+                    for end in 0..2 {
+                        let f = res.forces[i][end];
+                        let (fa, mb) = (f[0].abs(), f[4].hypot(f[5]));
+                        let peq = crate::flange::equivalent(fa, mb, fl.gasket);
+                        if best.as_ref().is_none_or(|b| peq > b.equivalent) {
+                            let ratio = if fl.rating > 0.0 { (p + peq) / fl.rating } else { 0.0 };
+                            let at = g.points[if end == 0 { s.a } else { s.b }].label.clone();
+                            best = Some(crate::flange::FlangeCheck { element: fl.element, at, force: fa, moment: mb, pressure: p, equivalent: peq, rating: fl.rating, ratio, pass: ratio <= 1.0 + 1e-12 });
+                        }
+                    }
+                }
+                res.flanges.extend(best);
+            }
         }
     }
     for z in &m.nozzles {

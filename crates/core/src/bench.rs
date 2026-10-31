@@ -6,7 +6,8 @@
 //! (the cantilever by beam theory, with the support touching or open), and friction at a rest
 //! (sliding and sticking, by statics and Hooke's law), and wind, static seismic and the
 //! occasional stress on a cantilever (beam theory), and a spring hanger sized by statics and free
-//! thermal growth, and a steam turbine's nozzle criteria with its nozzle loads by statics. `run()` gives the rows of Help › Verification; the test fails on any row
+//! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, and a
+//! flange's equivalent pressure. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -469,6 +470,34 @@ pub fn run() -> Vec<Check> {
         let allow = eq.rows.iter().find(|x| x.what.starts_with("All nozzles at")).map_or(f64::NAN, |x| x.allow);
         out.push(row(19, name, "Combined allowable 250·Dc", "ratio", 250.0 * 72.0f64.sqrt(), allow, TOL, "Dc = √(6² + 6²) in"));
     }
+    // 20. A flange pair's leakage check: anchored at 10, 1 m of 6" Sch 40 to 20, a flange pair 20–21
+    //     of 0.2 m, then 2 m to 30 carrying 5 kN down and 8 kN pulling along X; 10 bar; no weight. By
+    //     statics the flange at 20 carries M = 5 kN × 2.2 m and F = 8 kN, so with G = 0.2 m
+    //     P_eq = 16 M / (π G³) + 4 F / (π G²), and the ratio to a 50 bar rating is (10 bar + P_eq) / 50 bar.
+    {
+        let mut d = table("Flange", &[(10, 20, 1.0, 0.0, 0.0), (20, 21, 0.2, 0.0, 0.0), (21, 30, 2.0, 0.0, 0.0)]);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        let mut c = d.m.conds[0].clone();
+        c.p[0] = 1e6;
+        d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+        let mut e = d.m.elements[1].clone();
+        e.comp = Comp::Rigid { rigid: crate::model::RigidKind::Flange, mass: 0.0 };
+        let fid = e.id;
+        d.apply(Op::Set { item: Item::Element(e) }).unwrap();
+        anchor(&mut d, 10);
+        add(&mut d, Item::Load(Load { node: 30, f: [8e3, -5e3, 0.0], m: [0.0; 3], ..Default::default() }));
+        d.apply(Op::SetFlanges { list: vec![crate::flange::Flange { element: fid, gasket: 0.2, rating: 5e6 }] }).unwrap();
+        let r = analyze(&d.m).unwrap();
+        let fc = &case(&r, "OPE1").flanges[0];
+        let pi = std::f64::consts::PI;
+        let peq = 16.0 * 5e3 * 2.2 / (pi * 0.008) + 4.0 * 8e3 / (pi * 0.04);
+        let name = "A flange pair's leakage (equivalent pressure)";
+        let src = "Statics, and P_eq = 16M/πG³ + 4F/πG² (Kellogg, 1956)";
+        out.push(row(20, name, "Equivalent pressure", "stress", peq, fc.equivalent, TOL, src));
+        out.push(row(20, name, "Ratio to the rating", "ratio", (1e6 + peq) / 5e6, fc.ratio, TOL, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -493,7 +522,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=19 {
+        for b in 1..=20 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

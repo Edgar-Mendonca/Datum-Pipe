@@ -279,6 +279,19 @@ const shots = process.env.SHOTS;
   check("the equipment dialog lists the turbine and its criteria", ((await p.textContent(".dlg")) ?? "").includes("All nozzles resolved at") && (await p.$$(".dlg .eqcard")).length === 1);
   await p.keyboard.press("Escape"); await p.waitForTimeout(150);
 
+  // 14. Flange leakage: the pump's valve flanges in Results › Flanges, and the dialog.
+  await open("pump");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.side button[title="Results"]'); await p.waitForTimeout(200);
+  await p.click('.rtabs button:text-is("Flanges")'); await p.waitForTimeout(200);
+  await p.click('.ctabs button:has(b:text-is("OPE1"))'); await p.waitForTimeout(200);
+  check("Results › Flanges shows the valve's equivalent pressure", (await p.$$(".rtable tbody tr")).length === 1 && (await p.textContent(".rtable thead")).includes("P_eq"));
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+  await p.click('.tabs > button:text-is("Loads")');
+  await p.click('.ribbon button[title^="Check flanged joints"]'); await p.waitForTimeout(300);
+  check("the flange dialog lists the valve with its gasket and rating", (await p.$$(".dlg .tbl tbody tr")).length === 1 && ((await p.textContent(".dlg")) ?? "").includes("16M/(πG³)"));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

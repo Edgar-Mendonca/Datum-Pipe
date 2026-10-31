@@ -2,7 +2,7 @@
 // against temperature and allowables, with sources), line conditions (T1–T3, P1–P3, hydrotest)
 // and the load cases. Each edit goes to the engine as one operation.
 import { For, Show, createSignal, createResource, JSX } from "solid-js";
-import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, Equipment, EquipKind, num, parseNum } from "./api";
+import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, Equipment, EquipKind, FlangeSpec, num, parseNum } from "./api";
 import { openDialog, act, call, model, toast } from "./store";
 import { C } from "./cmds";
 import { Dialog, Icon } from "./ui";
@@ -179,6 +179,27 @@ export const springTable = () => openDialog(() => {
           <td><button class="x" title="Remove this size" onClick={() => set(s().springs.filter((_, k) => k !== i()))}>×</button></td></tr>}</For></tbody></table>
       <p class="ibtns"><button class="btn sm" onClick={() => set([...s().springs, { name: `S-${s().springs.length + 1}`, k: 1e5, min: 1000, max: 2000 }])}>Add a size</button>
         <button class="btn sm" onClick={() => L() && set(L()!.springs)}>Back to the generic table</button></p>
+    </Dialog>
+  );
+});
+
+/** Flanged joints checked for leakage: each rigid element (flange pair, valve) with its gasket
+ *  reaction diameter and pressure rating at temperature, the user's inputs from their flange data. */
+export const flangeDialog = () => openDialog(() => {
+  const m = () => model()!;
+  const list = () => m().flanges ?? [];
+  const rigid = () => m().elements.filter(e => e.comp.kind === "rigid");
+  const spec = (id: number): FlangeSpec => list().find(f => f.element === id) ?? { element: id, gasket: 0, rating: 0 };
+  const put = (id: number, x: Partial<FlangeSpec>) => { const f = { ...spec(id), ...x }; act({ SetFlanges: { list: [...list().filter(g => g.element !== id), ...(f.gasket > 0 || f.rating > 0 ? [f] : [])] } }); };
+  const cell = (q: Q, val: number, f: (v: number) => void) => <input class="mono" style={{ width: "90px" }} value={val ? num(toU(q, val), 6) : ""} placeholder="—" onChange={e => { const v = parseQ(e.currentTarget.value || "0", q); if (typeof v === "string") return toast(v); if (v >= 0) f(fromU(q, v)); }} />;
+  return (
+    <Dialog title="Flange leakage" wide help="flanges">
+      <p class="muted">Each flanged joint (a flange pair, or a valve's flanged ends) is checked by the equivalent pressure method: the bending moment M and axial force F at the joint act on the gasket like an extra pressure P_eq = 16M/(πG³) + 4F/(πG²), which with the design pressure must stay within the flange's rating at temperature. The gasket reaction diameter G and the rating are your inputs from your flange data; leave them empty to skip a joint.</p>
+      <Show when={rigid().length} fallback={<p class="warnline">No flange pairs or valves yet: set an element's component to a flange pair or a valve.</p>}>
+        <table class="tbl"><thead><tr><th>Element</th><th>Component</th><th>Gasket reaction diameter G ({unit("len")})</th><th>Rating at temperature ({unit("press")})</th></tr></thead><tbody>
+          <For each={rigid()}>{e => <tr><td>{e.from}–{e.to}</td><td>{(e.comp as any).rigid}</td><td>{cell("len", spec(e.id).gasket, gasket => put(e.id, { gasket }))}</td><td>{cell("press", spec(e.id).rating, rating => put(e.id, { rating }))}</td></tr>}</For>
+        </tbody></table>
+      </Show>
     </Dialog>
   );
 });

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.4 — 2026-10-31
+
+Flange leakage.
+
+**Equivalent pressure.** Loads › Flange Leakage gives a flange pair or a valve's flanged ends a gasket reaction diameter G and a pressure rating at temperature. Each operating and sustained case then checks the joint by the equivalent pressure method: the bending moment M and the axial force F at the joint act on the gasket like an extra pressure P_eq = 16M/(πG³) + 4F/(πG²), and the case's pressure plus P_eq must stay within the rating. Axial compression is counted like tension, on the safe side. The hydrotest is not checked here: it is judged against a test rating.
+
+**Your inputs.** G and the rating come from your flange data; no standard's tables are reproduced.
+
+**Results.** Results › Flanges shows the force, moment, pressure, P_eq, rating and ratio at the joint's most loaded end; the report has it for the operating case.
+
+**Examples.** The pump discharge's gate valve is checked with example values (a 180 mm gasket diameter, a 40 bar rating): 0.84 in operation.
+
+**Verification.** A new benchmark: a flange pair on a cantilever, its moment and axial force by statics and its equivalent pressure by hand (54 checks).
+
 ## 0.2.3 — 2026-10-31
 
 Rotating equipment nozzle checks.

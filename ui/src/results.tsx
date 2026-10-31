@@ -13,7 +13,7 @@ import { supName } from "./panels";
 import { Icon } from "./ui";
 
 export const [tableKind, setTableKind] = createSignal("summary");
-const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["equilibrium", "Equilibrium"]];
+const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["flanges", "Flanges"], ["equilibrium", "Equilibrium"]];
 const KIND: Record<string, string> = { sus: "Sustained", ope: "Operating", exp: "Expansion range", hyd: "Hydrotest", occ: "Occasional" };
 const CHECK: Record<string, string> = { sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" };
 const openTable = (k: string) => { setTableKind(k); setView("results"); };
@@ -22,9 +22,9 @@ export const Badge = (p: { pass: boolean | null | undefined }) => p.pass === nul
 /** A case passes when its stresses, nozzle loads and equipment checks all do; null when nothing in it is checked. */
 const casePass = (c: CaseResult) => {
   const eq = c.equipment ?? [];
-  const checked = c.stresses.length || c.nozzles.some(z => z.pass !== null) || eq.length;
+  const checked = c.stresses.length || c.nozzles.some(z => z.pass !== null) || eq.length || (c.flanges ?? []).some(f => f.rating > 0);
   if (!checked) return null;
-  return c.stresses.every(s => s.pass) && c.nozzles.every(z => z.pass !== false) && eq.every(e => e.pass);
+  return c.stresses.every(s => s.pass) && c.nozzles.every(z => z.pass !== false) && eq.every(e => e.pass) && (c.flanges ?? []).every(f => f.rating <= 0 || f.pass);
 };
 
 export const ResultsRibbon = () => {
@@ -75,6 +75,7 @@ export const ResultsPage = () => {
           <Show when={tableKind() === "wall"}><Walls r={r()!} /></Show>
           <Show when={tableKind() === "hangers"}><Hangers r={r()!} /></Show>
           <Show when={tableKind() === "equip" && c()}><EquipTable c={c()!} /></Show>
+          <Show when={tableKind() === "flanges" && c()}><FlangeTable c={c()!} /></Show>
           <Show when={tableKind() === "equilibrium"}><Equilibrium r={r()!} /></Show>
         </div>
       </Show>
@@ -162,6 +163,15 @@ export const EquipTable = (p: { c: CaseResult }) => <Show when={p.c.equipment?.l
   </>}</For>
 </Show>;
 
+export const FlangeTable = (p: { c: CaseResult }) => {
+  const el = (id: number) => { const e = model()?.elements.find(x => x.id === id); return e ? `${e.from}–${e.to}` : ""; };
+  return <Show when={p.c.flanges?.length} fallback={<p class="muted">{(model()?.flanges?.length ?? 0) ? "Flanges are checked in the operating and sustained cases (not in ranges, nor the hydrotest, which has its own test rating): pick one of those." : "No flange checks. Give a flange pair or valve its gasket diameter and rating in Loads › Flange Leakage."}</p>}>
+    <p class="muted small">Equivalent pressure method: P_eq = 16M/(πG³) + 4F/(πG²) from the bending moment and axial force at the joint (largest along it), added to the case's pressure and compared with the rating you entered.</p>
+    <table class="tbl rtable"><thead><tr><Th>Element</Th><Th>At</Th><Th r>F {u("force")}</Th><Th r>M {u("moment")}</Th><Th r>P {u("press")}</Th><Th r>P_eq</Th><Th r>Rating</Th><Th r>Ratio</Th><Th>Result</Th></tr></thead><tbody>
+      <For each={p.c.flanges}>{f => <tr><td>{el(f.element)}</td><td>{f.at}</td><td class="r">{v("force", f.force)}</td><td class="r">{v("moment", f.moment)}</td><td class="r">{v("press", f.pressure)}</td><td class="r">{v("press", f.equivalent)}</td><td class="r">{v("press", f.rating)}</td><td class="r">{num(f.ratio, 3)}</td><td><Badge pass={f.rating > 0 ? f.pass : null} /></td></tr>}</For></tbody></table>
+  </Show>;
+};
+
 export const Walls = (p: { r: Results }) => {
   const el = (id: number) => { const e = model()?.elements.find(x => x.id === id); return e ? `${e.from}–${e.to}` : ""; };
   return <Show when={p.r.walls.length} fallback={<p class="muted">No element has an internal pressure.</p>}>
@@ -198,6 +208,7 @@ setResultBlocks(m => {
     () => <div><h3>4. Support loads ({ope.name})</h3><Supports r={r} c={ope} /></div>,
     ...(r.hangers?.length ? [() => <div><h4>Spring hangers</h4><Hangers r={r} /></div>] : []),
     ...(ope.equipment?.length ? [() => <div><h4>Rotating equipment ({ope.name})</h4><EquipTable c={ope} /></div>] : []),
+    ...(ope.flanges?.length ? [() => <div><h4>Flange leakage ({ope.name})</h4><FlangeTable c={ope} /></div>] : []),
     ...r.cases.filter(c => c.kind !== "ope" && c.id !== ope.id && c.kind !== "exp").map(c => () => <div><h4>Support loads ({c.name})</h4><Supports r={r} c={c} /></div>),
     ...(m.nozzles.length ? r.cases.filter(c => c.kind !== "exp").map(c => () => <div><h3>{c === r.cases.find(x => x.kind !== "exp") ? "5. Nozzle loads" : ""}</h3><h4>{c.name}</h4><Nozzles r={r} c={c} /></div>) : []),
     ...(r.walls.length ? [() => <div><h3>6. Minimum wall</h3><Walls r={r} /></div>] : []),

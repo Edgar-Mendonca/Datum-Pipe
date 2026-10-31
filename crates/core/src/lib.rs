@@ -11,6 +11,7 @@ pub mod code;
 pub mod doc;
 pub mod elements;
 pub mod equip;
+pub mod flange;
 pub mod examples;
 pub mod geom;
 pub mod import;

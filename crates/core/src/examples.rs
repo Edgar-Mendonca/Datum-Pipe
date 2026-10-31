@@ -155,7 +155,11 @@ fn pump() -> Model {
     let mut st = d.m.settings.clone();
     st.hydro = true;
     d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("hydrotest");
-    meta(&mut d, "Pump discharge with an expansion loop", "6\"-HW-101", "6\" Sch 40 carbon steel, hot water at 150 °C and 20 bar, from the pump discharge nozzle (which grows 1.2 mm upwards when hot) up through a gate valve, then east with an expansion loop to an anchor at the header. The nozzle loads are checked against allowables entered for the pump; the hydrotest case (30 bar, full of water) gives the support loads during the test.");
+    // The valve's flanged ends checked for leakage (example values: a 180 mm gasket reaction
+    // diameter and a 40 bar rating at temperature; take yours from your flange data).
+    let valve = d.m.elements.iter().find(|e| matches!(e.comp, Comp::Rigid { .. })).expect("valve").id;
+    d.apply(Op::SetFlanges { list: vec![crate::flange::Flange { element: valve, gasket: 0.18, rating: 40e5 }] }).expect("flange check");
+    meta(&mut d, "Pump discharge with an expansion loop", "6\"-HW-101", "6\" Sch 40 carbon steel, hot water at 150 °C and 20 bar, from the pump discharge nozzle (which grows 1.2 mm upwards when hot) up through a gate valve, then east with an expansion loop to an anchor at the header. The nozzle loads are checked against allowables entered for the pump; the valve's flanges are checked for leakage (example gasket diameter and rating); the hydrotest case (30 bar, full of water) gives the support loads during the test.");
     d.m
 }
 

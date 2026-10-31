@@ -124,7 +124,7 @@
     {
       "v": "0.2.2",
       "title": "Speed on large models",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Large models (1500+ elements) measured in the table, the 3D view and the analysis, and made fast",
         "Speed checks that guard it"
@@ -133,7 +133,7 @@
     {
       "v": "0.2.3",
       "title": "Rotating equipment nozzles",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Pump, compressor and steam turbine nozzle checks by the standards' published equations, with the allowable tables as your inputs"
       ]

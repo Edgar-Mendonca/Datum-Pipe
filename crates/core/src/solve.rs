@@ -428,6 +428,11 @@ struct Linear<'a> {
     springs: &'a [Spring],
 }
 
+/// Up to this many supports with friction, sliding forces use the exact flexibility from the start.
+const EXACT_FRICS: usize = 64;
+/// With more, the estimated flexibility gets this many solves before the exact one takes over.
+const FAST_ITER: u32 = 40;
+
 /// The most solves of one case while one-way and gapped supports and friction settle.
 const MAX_ITER: u32 = 200;
 
@@ -465,6 +470,11 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
     let u0 = |c: &Cond| if dcase > 0 { c.u0[dcase as usize - 1] } else { 0.0 };
     let fscale = f.iter().map(|v| v.abs()).fold(0.0, f64::max).max(1.0);
     let (mut iter, mut soft) = (0, false);
+    // A sliding force is found from the support's flexibility. Exactly (one extra solve per sliding
+    // direction) with few supports; with many, estimated from the stiffness at its own node, which
+    // costs nothing and settles to the same answer (the flexibility only speeds the settling), and
+    // exactly again if that has not settled within FAST_ITER solves.
+    let mut exact = frics.len() <= EXACT_FRICS;
     let disp = |u: &[f64], pt: usize| [u[6 * pt], u[6 * pt + 1], u[6 * pt + 2]];
     loop {
         iter += 1;
@@ -547,10 +557,13 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
                 }
             }
         }
+        if !exact && iter > FAST_ITER {
+            exact = true;
+        }
         // With the case, a unit load along each direction a sliding support acts in: its flexibility.
         let mut cases = vec![(f2.clone(), x2)];
         for (j, fr) in frics.iter().enumerate() {
-            if let FState::Slide(..) = fstate[j] {
+            if let (true, FState::Slide(..)) = (exact, fstate[j]) {
                 for &(b, _) in &live[j] {
                     let mut e = vec![0.0; sys.n];
                     for a in 0..3 {
@@ -594,6 +607,15 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
         // through the supports' flexibility, so supports at one node do not overshoot each other.
         let mut ug = u.clone();
         let mut fout = vec![];
+        let mut kblock: HashMap<usize, [[f64; 3]; 3]> = HashMap::new();
+        if !exact {
+            let pts: std::collections::HashSet<usize> = frics.iter().map(|f| f.pt).collect();
+            for &(i, j, v) in &s2.k {
+                if i / 6 == j / 6 && i % 6 < 3 && j % 6 < 3 && pts.contains(&(i / 6)) {
+                    kblock.entry(i / 6).or_insert([[0.0; 3]; 3])[i % 6][j % 6] += v;
+                }
+            }
+        }
         for (j, fr) in frics.iter().enumerate() {
             let mut press = [0.0; 3];
             for (&dof, owners) in lin.owners {
@@ -627,11 +649,26 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
                 FState::Slide(force) => {
                     // The movement without this support's own friction, and its flexibility there.
                     let dirs: Vec<V> = live[j].iter().map(|x| x.0).collect();
-                    let flex: Vec<Vec<f64>> = (0..dirs.len()).map(|_| cols.next().unwrap_or_default()).collect();
+                    let flex: Vec<Vec<f64>> = if exact { (0..dirs.len()).map(|_| cols.next().unwrap_or_default()).collect() } else { vec![] };
                     let mut c = [[0.0; 2]; 2];
-                    for (a, ba) in dirs.iter().enumerate() {
-                        for (b, col) in flex.iter().enumerate() {
-                            c[a][b] = if col.is_empty() { 0.0 } else { dot(*ba, disp(col, fr.pt)) };
+                    if exact {
+                        for (a, ba) in dirs.iter().enumerate() {
+                            for (b, col) in flex.iter().enumerate() {
+                                c[a][b] = if col.is_empty() { 0.0 } else { dot(*ba, disp(col, fr.pt)) };
+                            }
+                        }
+                    } else {
+                        // The node's own stiffness across the support, inverted.
+                        let kb = kblock.get(&fr.pt).copied().unwrap_or([[0.0; 3]; 3]);
+                        let kk = |a: V, b: V| (0..3).map(|i| (0..3).map(|j| a[i] * kb[i][j] * b[j]).sum::<f64>()).sum::<f64>();
+                        match dirs.len() {
+                            1 => c[0][0] = 1.0 / kk(dirs[0], dirs[0]).max(1e-300),
+                            2 => {
+                                let (a, b, d) = (kk(dirs[0], dirs[0]), kk(dirs[0], dirs[1]), kk(dirs[1], dirs[1]));
+                                let det = (a * d - b * b).max(1e-300);
+                                c = [[d / det, -b / det], [-b / det, a / det]];
+                            }
+                            _ => {}
                         }
                     }
                     let fc: Vec<f64> = dirs.iter().map(|b| dot(*b, force)).collect();

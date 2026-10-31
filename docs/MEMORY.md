@@ -92,6 +92,10 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.2.2 | Over 64 supports with friction (`EXACT_FRICS`), sliding forces use the node's own stiffness block as the flexibility estimate; after 40 solves (`FAST_ITER`) the exact unit-load columns take over | The exact columns cost one solve per sliding direction (1276 columns, 2 s per solve on 1441 elements); the estimate only changes how fast it settles, not the answer |
+| 0.2.2 | The element table draws only the rows in view (25 px rows, 15 rows of margin) with spacer rows; a selection elsewhere scrolls its row into view | 1441 rows of inputs and selects took seconds of layout |
+| 0.2.2 | The 3D view merges every still mesh sharing a material into one buffer (positions, normals, indices; triangle ranges map back to the tag for picking); straight pipe is a cylinder; models over 600 segments use 10 radial facets and 6 per arc | Thousands of draw calls and curve sampling dominated |
+| 0.2.2 | The grey blocks in the 3D view under the test display (WebKitGTK on Xvfb, software GL) do not appear in Chromium: left as a quirk of that display | Not reproducible elsewhere |
 | 0.2.1 | The sparse solver marks a mechanism with the free unknown ("[dof n]": the zero pivot, the largest probe answer, or a 1e-9-stiffened copy's largest answer); `locate_free` turns it into the node and direction; the window selects that node | The most common question a new user has: where is it free? |
 | 0.2.1 | Analyze automatically is a per-user option (on by default): 400 ms after an edit, 300 ms after opening; quiet (no tab switch, toasts only when something is wrong and changed) | Results that follow the typing; fast enough on every example |
 | 0.2.1 | Typed units: the engine sends every unit symbol with its factor, offset and dimension (`units::typed`) and each display quantity's dimension; `parseQ` in `ui/src/units.ts` adds number-unit pairs (' and " for feet and inches), refuses a wrong dimension | The engine stays the only source of factors |
@@ -189,8 +193,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.1.11 | Import of plain-text piping component files (the regulator benchmarks moved to 0.4: they are dynamic) | ✅ |
 | 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | ✅ |
 | 0.2.1 | Ease of use: where a model is free, analyze automatically, values typed with units, right-click menus in the 3D view | ✅ |
-| 0.2.2 | Speed on large models (table, 3D view, analysis), with speed checks; the grey blocks the 3D view draws for the compressor example under the test display | 🔜 |
-| 0.2.3 | Pump, compressor and steam turbine nozzle checks (published equations; allowable tables are inputs) | ⬜ |
+| 0.2.2 | Speed on large models (table, 3D view, analysis), with speed checks | ✅ |
+| 0.2.3 | Pump, compressor and steam turbine nozzle checks (published equations; allowable tables are inputs) | 🔜 |
 | 0.2.4 | Flange leakage (equivalent pressure method) | ⬜ |
 | 0.2.5 | Relief valve thrust (open discharge reaction, occasional) | ⬜ |
 | 0.2.6 | Vessel nozzle flexibility and local stresses, only from published equations | ⬜ |
@@ -285,6 +289,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 ### 2026-10-31: Session 2, continued (0.2.1: ease of use)
 - Owner asked to start the third stage and to make the app more efficient and easier: the stage was split into 0.2.1–0.2.6 with ease of use (0.2.1) and speed (0.2.2) first.
 - Engine: mechanism location in `sparse.rs` (`mechanism(Option<dof>)`, `locate`) and `solve.rs` (`locate_free`); `units::typed` and `Shown.dim`; one worked case. UI: auto-analyze option and quiet solves (`rstate.ts`), `parseQ` and `numInQ` in number fields, table and V3 inputs, 3D right-click menus and node picking; four UI checks. Checked in the real app (node and element menus).
+
+### 2026-10-31: Session 2, continued (0.2.2: speed)
+- Measured (`examples/perf.rs`, `tests_ui/perf.cjs` on `examples::big(160)`): analysis 16.6 s → 0.18 s, window open 7.2 s → 1.8 s, edit 2.4 s → 0.6–0.75 s, code stresses table 1.2 s. Engine speed gate on the large rack; `npm run perf:ui` for the window. A Coulomb's-law test on a 30-bay rack guards the fast friction path.
+- Disk: the build cache filled the allowance again; `target/release` and incremental removed.
 
 ## 5. Known limits (0.2.0)
 

@@ -22,6 +22,7 @@ const cross = (a: Vec, b: Vec): Vec => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] -
 const len = (a: Vec) => Math.hypot(a[0], a[1], a[2]);
 const unitv = (a: Vec): Vec => { const n = len(a); return n > 0 ? mul(a, 1 / n) : [0, 0, 0]; };
 const V = (a: Vec) => new THREE.Vector3(a[0], a[1], a[2]);
+const IDENTITY = new THREE.Matrix4();
 
 /** A point along a segment at fraction s, and the direction there (the engine's arc rule). */
 export const segAt = (g: Geom, s: Seg, f: number): [Vec, Vec] => {
@@ -123,24 +124,30 @@ export const View3D = () => {
       const da = c.disp[sg.a], db = c.disp[sg.b];
       return [0, 1, 2].map(i => da[i] + (db[i] - da[i]) * f) as Vec;
     };
+    // Detail by size: a large model is seen from far away, so fewer facets cost nothing visible.
+    const big = g.segs.length > 600, rad = big ? 10 : 20, arcSteps = big ? 6 : 16;
     g.segs.forEach((sg, si) => {
       const p = pipeOf(sg.pipe), pb = pipeOf(sg.pipe_b) ?? p; if (!p) return;
       const r0 = p.od / 2, r1 = (pb?.od ?? p.od) / 2;
       const curve = new ArcCurve(f => segAt(g, sg, f)[0]);
-      const steps = sg.shape.kind === "arc" ? 16 : 1;
+      const steps = sg.shape.kind === "arc" ? arcSteps : 1;
       let geo: THREE.BufferGeometry;
-      if (sg.shape.kind === "arc" || r0 === r1) geo = new THREE.TubeGeometry(curve, steps, r0, 20, false);
-      else {
-        // A reducer: a cone between the two diameters, along the segment.
+      curve.arcLengthDivisions = steps * 4;
+      // Straight pipe (and a reducer's cone) as a cylinder along the segment, which is far cheaper to
+      // build than a tube along a curve; arcs as a tube.
+      const straight = (ra: number, rb: number) => {
         const a = g.points[sg.a].p as Vec, b = g.points[sg.b].p as Vec, L = len(sub(b, a));
-        geo = new THREE.CylinderGeometry(r1, r0, L, 20, 1, true);
-        geo.rotateX(Math.PI / 2); geo.lookAt(V(sub(b, a))); geo.translate(...(addv(a, mul(sub(b, a), 0.5)) as Vec));
-      }
+        const c = new THREE.CylinderGeometry(rb, ra, L, rad, 1, true);
+        c.rotateX(Math.PI / 2); c.lookAt(V(sub(b, a))); c.translate(...(addv(a, mul(sub(b, a), 0.5)) as Vec));
+        return c;
+      };
+      if (sg.shape.kind === "arc") geo = new THREE.TubeGeometry(curve, steps, r0, rad, false);
+      else geo = straight(r0, r1);
       const mesh = new THREE.Mesh(geo, matFor(si, sg));
       mesh.userData = { element: sg.element };
       group.add(mesh); pickables.push(mesh);
       if (ampl > 0) addDeform(geo, sg, dispAt);
-      if (p.ins_t > 0) { const ig = new THREE.TubeGeometry(curve, steps, r0 + p.ins_t + p.clad_t, 20, false); group.add(new THREE.Mesh(ig, insMat)); if (ampl > 0) addDeform(ig, sg, dispAt); }
+      if (p.ins_t > 0) { const ro = r0 + p.ins_t + p.clad_t, ig = sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, ro, rad, false) : straight(ro, ro); group.add(new THREE.Mesh(ig, insMat)); if (ampl > 0) addDeform(ig, sg, dispAt); }
       if (sg.rigid) rigidSymbol(sg, r0);
     });
     // Tees: a sphere where the branch joins, so the junction reads solid.
@@ -150,7 +157,7 @@ export const View3D = () => {
     const nodeR = Math.max(od0 * 0.32, ext * 0.004);
     for (const [num, pi] of Object.entries(g.node_point)) {
       const n = +num, pt = g.points[pi].p as Vec;
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(n === selNode ? nodeR * 1.6 : nodeR, 14, 10), n === selNode ? selMat : darkMat);
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(n === selNode ? nodeR * 1.6 : nodeR, big ? 8 : 14, big ? 6 : 10), n === selNode ? selMat : darkMat);
       ball.position.copy(V(pt)); ball.userData = { node: n }; ball.renderOrder = 2; group.add(ball); pickables.push(ball);
       if (opts().labels && (Object.keys(g.node_point).length < 400 || n === selNode)) {
         const el = document.createElement("div"); el.className = "nlabel" + (n === selNode ? " on" : ""); el.textContent = String(n);
@@ -197,7 +204,62 @@ export const View3D = () => {
     const grid = new THREE.GridHelper(size, Math.min(100, Math.round(size / Math.pow(10, Math.floor(Math.log10(size)) - 1))), new THREE.Color(css("--line3")), new THREE.Color(css("--line2")));
     const cx = (bounds(g)[0][0] + bounds(g)[1][0]) / 2, cz = (bounds(g)[0][2] + bounds(g)[1][2]) / 2;
     grid.position.set(Math.round(cx), lo, Math.round(cz)); group.add(grid);
+    batch();
     draw();
+  };
+  /** Thousands of small meshes are thousands of draw calls: merge every still mesh that shares a
+   *  material into one, keeping which element, node, support or nozzle each triangle belongs to so
+   *  clicks still find it. Meshes that move with the deformed shape stay as they are. */
+  const batch = () => {
+    group.updateMatrixWorld(true);
+    const moving = new Set(deform.map(d => d[0]));
+    const buckets = new Map<THREE.Material, THREE.Mesh[]>();
+    group.traverse(x => {
+      const mm = x as THREE.Mesh;
+      if (!mm.isMesh || Array.isArray(mm.material) || (mm as any).isInstancedMesh) return;
+      const geo = mm.geometry as THREE.BufferGeometry;
+      if (moving.has(geo.getAttribute("position") as THREE.BufferAttribute) || !geo.index) return;
+      const list = buckets.get(mm.material) ?? []; list.push(mm); buckets.set(mm.material, list);
+    });
+    for (const [mat, list] of buckets) {
+      if (list.length < 2) continue;
+      // One position, normal and index buffer for the bucket, each mesh moved into place as it is
+      // copied (most pipe meshes are built in place already); `starts` maps triangles back.
+      let nv = 0, ni = 0;
+      for (const mm of list) { nv += mm.geometry.getAttribute("position").count; ni += mm.geometry.index!.count; }
+      const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+      const starts: number[] = [], tags = list.map(mm => mm.userData);
+      const v = new THREE.Vector3(), nm = new THREE.Matrix3();
+      let ov = 0, oi = 0;
+      for (const mm of list) {
+        const gp = mm.geometry.getAttribute("position") as THREE.BufferAttribute, gn = mm.geometry.getAttribute("normal") as THREE.BufferAttribute, gi = mm.geometry.index!;
+        const still = mm.matrixWorld.equals(IDENTITY);
+        if (still) { pos.set(gp.array as Float32Array, ov * 3); if (gn) nor.set(gn.array as Float32Array, ov * 3); }
+        else {
+          nm.getNormalMatrix(mm.matrixWorld);
+          for (let i = 0; i < gp.count; i++) {
+            v.fromBufferAttribute(gp, i).applyMatrix4(mm.matrixWorld); pos[(ov + i) * 3] = v.x; pos[(ov + i) * 3 + 1] = v.y; pos[(ov + i) * 3 + 2] = v.z;
+            if (gn) { v.fromBufferAttribute(gn, i).applyMatrix3(nm).normalize(); nor[(ov + i) * 3] = v.x; nor[(ov + i) * 3 + 1] = v.y; nor[(ov + i) * 3 + 2] = v.z; }
+          }
+        }
+        starts.push(oi / 3);
+        for (let i = 0; i < gi.count; i++) idx[oi + i] = gi.getX(i) + ov;
+        ov += gp.count; oi += gi.count;
+      }
+      const merged = new THREE.BufferGeometry();
+      merged.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      merged.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+      merged.setIndex(new THREE.BufferAttribute(idx, 1));
+      merged.computeBoundingSphere();
+      const big = new THREE.Mesh(merged, mat);
+      big.renderOrder = Math.max(...list.map(mm => mm.renderOrder));
+      big.userData = { pick: (face: number) => { let lo = 0, hi = starts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= face) lo = mid; else hi = mid - 1; } return tags[lo]; } };
+      const picked = list.some(mm => pickables.includes(mm) || pickables.some(p => p !== mm && p.getObjectById(mm.id)));
+      for (const mm of list) { mm.parent?.remove(mm); mm.geometry.dispose(); }
+      group.add(big);
+      pickables = pickables.filter(p => p.parent || p === group);
+      if (picked) pickables.push(big);
+    }
   };
   const addDeform = (geo: THREE.BufferGeometry, sg: Seg, dispAt: (s: Seg, f: number) => Vec) => {
     const attr = geo.getAttribute("position") as THREE.BufferAttribute;
@@ -281,8 +343,9 @@ export const View3D = () => {
       }
       if (best) return { node: best[0] };
       const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), camera);
-      const u = ray.intersectObjects(pickables, true)[0]?.object.userData ?? {};
-      return u;
+      const hit = ray.intersectObjects(pickables, true)[0];
+      const u = hit?.object.userData ?? {};
+      return u.pick && hit?.faceIndex !== undefined && hit.faceIndex !== null ? u.pick(hit.faceIndex) : u;
     };
     // Right-click (not a right-drag, which pans): select what is under the pointer and offer what
     // can be done to it.

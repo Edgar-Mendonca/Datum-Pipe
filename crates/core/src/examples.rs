@@ -233,3 +233,60 @@ fn tank() -> Model {
     meta(&mut d, "Tank outlet with settlement", "10\"-CR-401", "10\" Std carbon steel crude oil at 65 °C from a tank shell nozzle, through a gate valve, round two bends to an anchor. Case 2 is the tank settling 12 mm: a displacement range the piping must take without overloading the nozzle, which is why the first support is a spring hanger, sized by Analyze from the spring table.");
     d.m
 }
+
+/// A large model for speed checks (not in the File page's list): a rack line of `loops` bays, each
+/// 36 m straight in 6 m elements on one-way rests (friction 0.3) with a guide every other rest,
+/// then an expansion loop 4 m up, 3 m across and 4 m down with long-radius bends; a line stop in
+/// each bay; anchors at both ends; 8" Sch 40 steam at 250 °C. About 10 elements per bay.
+pub fn big(loops: usize) -> Model {
+    let mut m = Model::new();
+    m.name = format!("Speed check: {loops} bays");
+    m.elements.clear();
+    m.nodes.clear();
+    m.supports.clear();
+    m.pipes[0] = crate::model::Pipe { id: m.pipes[0].id, ..crate::model::Pipe::std(m.pipes[0].id, "8", "40") };
+    m.conds[0].t[0] = K0 + 250.0;
+    m.conds[0].p[0] = 15e5;
+    let (pipe, mat, cond) = (m.pipes[0].id, m.materials[0].id, m.conds[0].id);
+    let mut next = m.next.max(m.max_id() + 1);
+    let mut id = || { next += 1; next - 1 };
+    let mut node = 10u32;
+    let add = |m: &mut Model, d: [f64; 3], comp: Comp, node: &mut u32| {
+        let e = Element { id: 0, from: *node, to: *node + 10, d, pipe, material: mat, cond, comp, ..Default::default() };
+        m.elements.push(e);
+        *node += 10;
+    };
+    let mut sups: Vec<(u32, SupKind, f64, bool)> = vec![(10, SupKind::Anchor, 0.0, false)];
+    for _ in 0..loops {
+        for k in 0..6 {
+            let at = node;
+            sups.push((at, SupKind::Rest, 0.3, true));
+            if k % 2 == 1 {
+                sups.push((at, SupKind::Guide, 0.0, false));
+            }
+            if k == 3 {
+                sups.push((at, SupKind::Linestop, 0.0, false));
+            }
+            let last = k == 5;
+            add(&mut m, [6.0, 0.0, 0.0], if last { Comp::Bend { bend: BendKind::Long, r: 0.0 } } else { Comp::Pipe }, &mut node);
+        }
+        add(&mut m, [0.0, 4.0, 0.0], Comp::Bend { bend: BendKind::Long, r: 0.0 }, &mut node);
+        add(&mut m, [3.0, 0.0, 0.0], Comp::Bend { bend: BendKind::Long, r: 0.0 }, &mut node);
+        add(&mut m, [0.0, -4.0, 0.0], Comp::Bend { bend: BendKind::Long, r: 0.0 }, &mut node);
+    }
+    add(&mut m, [6.0, 0.0, 0.0], Comp::Pipe, &mut node);
+    sups.push((node, SupKind::Anchor, 0.0, false));
+    for e in &mut m.elements {
+        e.id = id();
+    }
+    for (n, kind, mu, one_way) in sups {
+        m.supports.push(Support { id: id(), node: n, kind, mu, one_way, ..Default::default() });
+    }
+    m.nodes = vec![crate::model::Node { num: 10, x: 0.0, y: 0.0, z: 0.0 }];
+    m.next = next;
+    crate::cases::rebuild(&mut m);
+    m.fix_ids();
+    m.layout().expect("big model layout");
+    m.check().expect("big model");
+    m
+}

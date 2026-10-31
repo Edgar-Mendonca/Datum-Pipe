@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.2 — 2026-10-31
+
+Speed on large models. Measured on a rack line of 1441 elements and 1602 supports (one-way rests with friction, guides, line stops):
+
+| | Before | Now |
+| --- | --- | --- |
+| Analysis (every case settled) | 16.6 s | 0.18 s |
+| Opening the model in the window | 7.2 s | 1.8 s |
+| One edit, drawn again | 2.4 s | 0.6–0.75 s |
+
+The window figures are from a test browser drawing in software; a graphics card is faster.
+
+**Analysis.** With more than 64 supports with friction, a sliding force is found from an estimate of the support's flexibility (from the stiffness at its node) instead of an extra solve per support; it settles to the same answer, and the exact method takes over if it has not settled in 40 solves. A test checks Coulomb's law at every support of a large rack.
+
+**Element table.** Only the rows in view are drawn, so a table of thousands of elements opens and scrolls like a short one; a row selected elsewhere is scrolled into view.
+
+**3D view.** Parts that share a colour are drawn as one object (a click still finds the element, node or support), straight pipe is drawn as a cylinder, and large models use fewer facets.
+
+**Speed checks.** The engine's tests time the large rack (under 1 s), and `npm run perf:ui` times the window on it.
+
 ## 0.2.1 — 2026-10-31
 
 Ease of use: the first step of the third stage.

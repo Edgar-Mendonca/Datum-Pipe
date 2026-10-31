@@ -764,3 +764,32 @@ fn a_free_model_says_where_it_is_free() {
     let e = analyze(&d.m).unwrap_err();
     assert!(e.contains("turning about X"), "{e}");
 }
+
+#[test]
+fn friction_on_a_long_rack_settles_to_coulomb_s_law() {
+    // 30 bays of rack (over 64 supports with friction, so the fast flexibility estimate is used):
+    // every sliding support pushes exactly μ N against its movement, every sticking one stays within
+    // μ N, and every case balances.
+    let m = crate::examples::big(30);
+    let r = analyze(&m).unwrap();
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    for c in r.cases.iter().filter(|c| !c.friction.is_empty()) {
+        assert!(c.imbalance < 1e-9, "{} {:e}", c.name, c.imbalance);
+        for f in &c.friction {
+            let size = crate::mat::norm(f.force);
+            match f.state {
+                "sliding" => {
+                    assert!(close(size, f.mu * f.normal, 1e-6), "{} {f:?}", c.name);
+                    let pt = r.geom.node_point[&f.node];
+                    let u = c.disp[pt];
+                    let across = [u[0], 0.0, u[2]];
+                    if crate::mat::norm(across) > 1e-9 {
+                        assert!(crate::mat::dot(crate::mat::unit(f.force), crate::mat::unit(across)) < -1.0 + 1e-6, "{} {f:?} {u:?}", c.name);
+                    }
+                }
+                "sticking" => assert!(size <= f.mu * f.normal * (1.0 + 1e-9) + 1e-9, "{} {f:?}", c.name),
+                _ => {}
+            }
+        }
+    }
+}

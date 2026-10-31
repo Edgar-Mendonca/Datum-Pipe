@@ -237,3 +237,16 @@ fn every_example_solves_balances_and_has_no_warnings() {
 }
 
 
+
+#[test]
+fn speed_gate_on_a_large_rack_with_friction() {
+    // 160 bays (about 1440 elements and 1600 supports, one-way rests with friction, guides, line
+    // stops): the whole analysis, every case settled. Found in 0.2.2: it took 16 s before the
+    // estimated flexibility.
+    let m = crate::examples::big(160);
+    let t = std::time::Instant::now();
+    let r = crate::solve::analyze(&m).unwrap();
+    let limit = if cfg!(debug_assertions) { 15.0 } else { 1.0 };
+    assert!(t.elapsed().as_secs_f64() < limit, "{:?} for {} elements", t.elapsed(), m.elements.len());
+    assert!(r.warnings.is_empty() && r.cases.iter().all(|c| c.imbalance < 1e-9));
+}

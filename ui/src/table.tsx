@@ -1,7 +1,7 @@
 // The element table: the piping as rows (From, To, DX, DY, DZ, pipe, material, line conditions,
 // component). Typing in the last row adds an element that starts at the node above; every cell
 // sends one edit to the engine. The selected row follows the 3D view and the other way round.
-import { For, Index, Show, createSignal, createMemo } from "solid-js";
+import { For, Index, Show, createSignal, createMemo, createEffect, on } from "solid-js";
 import { Element, Comp, Model, num, parseNum } from "./api";
 import { model, act, sel, setSel, toast } from "./store";
 import { toU, fromU, unit, parseQ } from "./units";
@@ -54,6 +54,11 @@ const newKeys = (e: KeyboardEvent) => {
 
 export const [tableH, setTableH] = createSignal(230);
 
+/** Rows are 24 px with a 1 px line. Only the rows in view (and WINDOW_PAD more each side) are drawn,
+ *  so a table of thousands of elements opens and redraws as fast as a short one. */
+const ROW_H = 25;
+const WINDOW_PAD = 15;
+
 export const ElementTable = () => {
   const m = () => model()!;
   const step = () => m().settings.step || 10;
@@ -71,6 +76,21 @@ export const ElementTable = () => {
     if (o?.created.length) { setNewFrom(null); setSel({ kind: "element", id: o.created[0] }); }
   };
   const total = createMemo(() => m().elements.reduce((s, e) => s + len(e.d), 0));
+  // The rows in view.
+  const [top, setTop] = createSignal(0);
+  let scroller: HTMLDivElement | undefined;
+  const n = () => m().elements.length;
+  const first = () => Math.max(0, Math.floor(top() / ROW_H) - WINDOW_PAD);
+  const last_ = () => Math.min(n(), Math.ceil((top() + tableH()) / ROW_H) + WINDOW_PAD);
+  const shown = createMemo(() => m().elements.slice(first(), last_()));
+  // A row selected elsewhere (the 3D view, a results table) is scrolled into view.
+  createEffect(on(sel, s => {
+    if (!s || s.kind !== "element" || !scroller) return;
+    const i = m().elements.findIndex(e => e.id === s.id);
+    if (i < 0) return;
+    const y = i * ROW_H, h = scroller.clientHeight - 2 * ROW_H;
+    if (y < scroller.scrollTop || y > scroller.scrollTop + h) scroller.scrollTop = Math.max(0, y - h / 2);
+  }, { defer: true }));
   let drag = 0;
   const resize = (e: PointerEvent) => {
     const y0 = e.clientY, h0 = tableH(); drag = 1;
@@ -83,13 +103,14 @@ export const ElementTable = () => {
       <div class="ehandle" onPointerDown={resize} title="Drag to resize" />
       <header><b>Elements</b><Help k="table" /><span class="muted">{m().elements.length} elements · {m().nodes.length} nodes · {num(toU("coord", total()), 5)} {unit("coord")} of pipe</span><span class="grow" />
         <span class="muted small">Lengths in {unit("coord")} · Y is up</span></header>
-      <div class="escroll">
+      <div class="escroll" ref={scroller} onScroll={e => setTop(e.currentTarget.scrollTop)}>
         <table class="egrid">
           <thead><tr><th class="rn">#</th><th>From</th><th>To</th><th>DX</th><th>DY</th><th>DZ</th><th>Length</th><th>Pipe</th><th>Material</th><th>Conditions</th><th>Component</th></tr></thead>
           <tbody>
-            <Index each={m().elements}>{(e, i) => (
+            <Show when={first() > 0}><tr class="spacer" style={{ height: `${first() * ROW_H}px` }}><td colSpan={11} /></tr></Show>
+            <Index each={shown()}>{(e, i) => (
               <tr classList={{ on: rowOn(e()) }} onPointerDown={() => drag || setSel({ kind: "element", id: e().id })}>
-                <td class="rn">{i + 1}</td>
+                <td class="rn">{first() + i + 1}</td>
                 <td><input class="mono n" value={e().from} onKeyDown={keys} onChange={ev => { const v = parseNum(ev.currentTarget.value); if (v === null || v < 1 || v % 1) { ev.currentTarget.value = String(e().from); return toast("Node numbers are whole numbers from 1."); } put(e(), { from: v }); }} /></td>
                 <td><input class="mono n" value={e().to} onKeyDown={keys} onChange={ev => { const v = parseNum(ev.currentTarget.value); if (v === null || v < 1 || v % 1) { ev.currentTarget.value = String(e().to); return toast("Node numbers are whole numbers from 1."); } put(e(), { to: v }); }} /></td>
                 <For each={[0, 1, 2]}>{k => <td><input class="mono" value={e().d[k] ? shownC(e().d[k]) : ""} placeholder="0" onKeyDown={keys}
@@ -101,6 +122,7 @@ export const ElementTable = () => {
                 <td><select onKeyDown={keys} onChange={ev => put(e(), { comp: compFrom(ev.currentTarget.value, e(), m()) })}><For each={COMPS}>{c => <option value={c[0]} selected={c[0] === compKey(e().comp)}>{c[1]}</option>}</For></select></td>
               </tr>
             )}</Index>
+            <Show when={last_() < n()}><tr class="spacer" style={{ height: `${(n() - last_()) * ROW_H}px` }}><td colSpan={11} /></tr></Show>
             <tr class="newrow">
               <td class="rn">+</td>
               <td><input class="mono n" value={from()} title="The new element starts here" onKeyDown={keys} onChange={ev => { const v = parseNum(ev.currentTarget.value); setNewFrom(v && v >= 1 && v % 1 === 0 ? v : null); }} /></td>

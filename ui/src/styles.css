@@ -833,3 +833,4 @@ tr.behind td { background: var(--err-bg); }
 .form2 .unit { font: 10.5px var(--mono); color: var(--muted); }
 .looppic { display: block; background: var(--panel); border: 1px solid var(--line); margin: 6px 0; }
 .isowrap .tblock { width: 0; min-width: 100%; }
+.egrid tr.spacer td { padding: 0; border: 0; background: transparent; }

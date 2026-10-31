@@ -19,6 +19,10 @@ fn main() {
         isos.insert(e.id.to_string(), serde_json::to_value(iso::draw(&m, 40).unwrap()).unwrap());
         models.insert(e.id.to_string(), out(&m));
     }
+    // A large model for the window's speed checks (tests_ui/perf.cjs), not in the examples list.
+    let big = examples::big(160);
+    models.insert("big".into(), out(&big));
+    results.insert("big".into(), serde_json::to_value(solve::analyze(&big).expect("big")).unwrap());
     let fix = json!({
         "examples_list": examples::list(),
         "models": models,

@@ -92,6 +92,11 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.2.1 | The sparse solver marks a mechanism with the free unknown ("[dof n]": the zero pivot, the largest probe answer, or a 1e-9-stiffened copy's largest answer); `locate_free` turns it into the node and direction; the window selects that node | The most common question a new user has: where is it free? |
+| 0.2.1 | Analyze automatically is a per-user option (on by default): 400 ms after an edit, 300 ms after opening; quiet (no tab switch, toasts only when something is wrong and changed) | Results that follow the typing; fast enough on every example |
+| 0.2.1 | Typed units: the engine sends every unit symbol with its factor, offset and dimension (`units::typed`) and each display quantity's dimension; `parseQ` in `ui/src/units.ts` adds number-unit pairs (' and " for feet and inches), refuses a wrong dimension | The engine stays the only source of factors |
+| 0.2.1 | 3D view: right-click menus; a node within 14 px of the pointer wins over the pipe under it, for left and right clicks | Nodes are small targets |
+| plan | Stage 0.3 split into 0.2.1–0.2.6 with 0.3.0 as the milestone; the owner asked for ease of use and efficiency too, so those come first (0.2.1, 0.2.2) | Small releases, as the owner asked; usability before new checks |
 | 0.2.0 | Touching one-way or gapped supports held exactly on one unknown share its reaction equally (`CondSolve.share`), with the shared-support warning | Found by the review; the same rule as linear supports |
 | 0.2.0 | A custom bend radius ≤ D/2 is refused by `check` (and repaired on open); `bend_factor` returns an infinite intrados factor there so a wall check fails | Found by the review: the factor turned negative |
 | 0.2.0 | Hanger travel = the pipe's movement minus the hanger's own imposed movement in case 1 | Found by the review: C must give H in operation |
@@ -183,7 +188,13 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.1.10 | Spring hanger selection (spring data entered by the user) | ✅ |
 | 0.1.11 | Import of plain-text piping component files (the regulator benchmarks moved to 0.4: they are dynamic) | ✅ |
 | 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | ✅ |
-| 0.3 | Pump, compressor and turbine nozzle checks, flange leakage, local stresses at vessel nozzles, relief valve thrust (to be split into 0.2.x steps before it starts) | 🔜 |
+| 0.2.1 | Ease of use: where a model is free, analyze automatically, values typed with units, right-click menus in the 3D view | ✅ |
+| 0.2.2 | Speed on large models (table, 3D view, analysis), with speed checks; the grey blocks the 3D view draws for the compressor example under the test display | 🔜 |
+| 0.2.3 | Pump, compressor and steam turbine nozzle checks (published equations; allowable tables are inputs) | ⬜ |
+| 0.2.4 | Flange leakage (equivalent pressure method) | ⬜ |
+| 0.2.5 | Relief valve thrust (open discharge reaction, occasional) | ⬜ |
+| 0.2.6 | Vessel nozzle flexibility and local stresses, only from published equations | ⬜ |
+| 0.3.0 | Milestone: 0.2.1–0.2.6 reviewed; no new features | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum; the regulator's public piping benchmark problems (NUREG/CR-1677) | ⬜ |
 | 0.5 | Power piping and European piping code equations, buried pipe, cold spring | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
@@ -270,6 +281,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - **Works:** every support is linear or settles by iteration (contact, gaps, friction) with balanced loads; occasional loads; hangers sized from the user's spring table; import from design tools; 18 benchmarks (48 checks) and 35 hand-worked cases.
 - **Moved:** the regulator's public benchmarks to 0.4 (they are dynamic).
 - **Next:** stage 0.3 (equipment and flanges), to be split into small 0.2.x releases first.
+
+### 2026-10-31: Session 2, continued (0.2.1: ease of use)
+- Owner asked to start the third stage and to make the app more efficient and easier: the stage was split into 0.2.1–0.2.6 with ease of use (0.2.1) and speed (0.2.2) first.
+- Engine: mechanism location in `sparse.rs` (`mechanism(Option<dof>)`, `locate`) and `solve.rs` (`locate_free`); `units::typed` and `Shown.dim`; one worked case. UI: auto-analyze option and quiet solves (`rstate.ts`), `parseQ` and `numInQ` in number fields, table and V3 inputs, 3D right-click menus and node picking; four UI checks. Checked in the real app (node and element menus).
 
 ## 5. Known limits (0.2.0)
 

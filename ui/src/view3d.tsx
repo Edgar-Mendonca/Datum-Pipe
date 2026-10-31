@@ -8,8 +8,9 @@ import { onMount, onCleanup, createEffect, on, Show, For } from "solid-js";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Geom, Model, Seg, V3, num } from "./api";
-import { out, model, sel, setSel, opts, themeTick } from "./store";
-import { C, setFit, setStdView } from "./cmds";
+import { out, model, sel, setSel, opts, themeTick, openMenu, act, Item } from "./store";
+import { C, setFit, setStdView, SUPPORTS } from "./cmds";
+import { COMPS, compFrom, compKey } from "./table";
 import { results, stale, show, curCase, segRatios, setShowPart } from "./rstate";
 import { fmt } from "./units";
 
@@ -266,12 +267,36 @@ export const View3D = () => {
     // Click (not drag) to select.
     let down: [number, number] | null = null;
     renderer.domElement.addEventListener("pointerdown", e => { down = [e.clientX, e.clientY]; });
+    // What is under the pointer: a node within 14 px wins (nodes are small targets), else what the
+    // ray hits first.
+    const pickAt = (e: MouseEvent): Record<string, number> => {
+      const r = renderer!.domElement.getBoundingClientRect();
+      const m = model();
+      let best: [number, number] | null = null;
+      for (const n of m?.nodes ?? []) {
+        const v = V([n.x, n.y, n.z]).project(camera);
+        if (v.z > 1) continue;
+        const d = Math.hypot((v.x + 1) / 2 * r.width - (e.clientX - r.left), (1 - v.y) / 2 * r.height - (e.clientY - r.top));
+        if (d < 14 && (!best || d < best[1])) best = [n.num, d];
+      }
+      if (best) return { node: best[0] };
+      const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), camera);
+      const u = ray.intersectObjects(pickables, true)[0]?.object.userData ?? {};
+      return u;
+    };
+    // Right-click (not a right-drag, which pans): select what is under the pointer and offer what
+    // can be done to it.
+    renderer.domElement.addEventListener("contextmenu", e => {
+      e.preventDefault();
+      if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
+      const u = pickAt(e);
+      const s = u.node !== undefined ? { kind: "node" as const, id: u.node } : u.support !== undefined ? { kind: "support" as const, id: u.support } : u.nozzle !== undefined ? { kind: "nozzle" as const, id: u.nozzle } : u.element !== undefined ? { kind: "element" as const, id: u.element } : null;
+      setSel(s);
+      openMenu(e, contextItems(s));
+    });
     renderer.domElement.addEventListener("pointerup", e => {
       if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4 || e.button !== 0) return;
-      const r = renderer!.domElement.getBoundingClientRect();
-      const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), camera);
-      const hit = ray.intersectObjects(pickables, true)[0];
-      const u = hit?.object.userData ?? {};
+      const u = pickAt(e);
       if (u.node !== undefined) setSel({ kind: "node", id: u.node });
       else if (u.support !== undefined) setSel({ kind: "support", id: u.support });
       else if (u.nozzle !== undefined) setSel({ kind: "nozzle", id: u.nozzle });
@@ -351,4 +376,27 @@ const supportSymbol = (kind: Model["supports"][number]["kind"], s: number, t: Ve
     case "constant": add(new THREE.CylinderGeometry(s * 0.08, s * 0.08, s * 2, 6), [0, s * 1.2, 0]); add(new THREE.BoxGeometry(s * 1.4, s * 1.0, s * 1.0), [0, s * 2.6, 0]); break;
   }
   return g;
+};
+
+/** What the 3D view's right-click menu offers for what is under the pointer. */
+const contextItems = (s: { kind: "node" | "support" | "nozzle" | "element"; id: number } | null): Item[] => {
+  const m = model();
+  if (!s || !m) return [{ label: "Fit the model", run: () => C.fit(), keys: "F" }, { label: "Analyze", run: () => C.analyze(), keys: "F5" }];
+  if (s.kind === "node") return [
+    { label: "Add a support", sub: SUPPORTS.map(([k, l]) => ({ label: l, run: () => C.support(k) })) },
+    { label: "Nozzle point", run: () => C.nozzle() },
+    { label: "Force or moment", run: () => C.load() },
+  ];
+  if (s.kind === "element") {
+    const e = m.elements.find(x => x.id === s.id);
+    return [
+      { label: "Component", sub: COMPS.map(([k, l]) => ({ label: l, on: !!e && compKey(e.comp) === k, run: () => { if (e) act({ Set: { item: { Element: { ...e, comp: compFrom(k, e, m) } } } }); } })) },
+      { label: "Insert a node (split)", run: () => C.split() },
+      { label: "Add an element after it", run: () => C.addAfter(), keys: "Ctrl+Enter" },
+      { label: "Expansion loop…", run: () => import("./tools").then(t => t.loopWizard()) },
+      "-",
+      { label: "Delete", run: () => C.del(), keys: "Del" },
+    ];
+  }
+  return [{ label: "Delete", run: () => C.del(), keys: "Del" }];
 };

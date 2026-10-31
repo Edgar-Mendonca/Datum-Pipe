@@ -9,7 +9,7 @@ import "@fontsource/ibm-plex-mono/latin-400.css";
 import "@fontsource/ibm-plex-mono/latin-500.css";
 import "@fontsource/ibm-plex-mono/latin-600.css";
 import "./styles.css";
-import { invoke, listen, Out, Options, Shown } from "./api";
+import { invoke, listen, Out, Options, Shown, Typed } from "./api";
 import { out, setOut, view, setView, View, backstage, setBackstage, setOpts, opts, dialogs, toast, loadOut, setThemeRaw, applyTheme, sel, model } from "./store";
 import { C } from "./cmds";
 import { TitleBar, Ribbon, palette } from "./ribbon";
@@ -42,7 +42,7 @@ const App = () => {
   onMount(async () => {
     try {
       const o = await invoke<Options>("options"); setOpts(o); setThemeRaw(o.theme || "auto"); applyTheme();
-      setUnitTable(await invoke<[Shown[], Shown[]]>("unit_table"));
+      setUnitTable(await invoke<[Shown[], Shown[], Typed[]]>("unit_table"));
       setOut(await invoke<Out>("state"));
       const start = await invoke<string | null>("startup_file");
       if (start) { await loadOut("open", { path: start }); setTimeout(C.fit, 80); }

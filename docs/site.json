@@ -12,7 +12,7 @@
   "steps": [
     {
       "title": "Route the piping",
-      "text": "Type each element's From node, To node and lengths in the table, or import a piping component file; pick the pipe, material, line conditions and component (bend, tee, reducer, valve, flange). It draws in 3D at once."
+      "text": "Type each element's From node, To node and lengths in the table, or import a piping component file; pick the pipe, material, line conditions and component (bend, tee, reducer, valve, flange). Type values with their units if you like (20 ft, 150 mm). It draws in 3D at once, and analyses as you go."
     },
     {
       "title": "Support and load it",
@@ -111,15 +111,64 @@
       ]
     },
     {
-      "v": "0.3",
-      "title": "Equipment and flanges",
+      "v": "0.2.1",
+      "title": "Ease of use",
+      "when": "Done",
+      "items": [
+        "When a model can move freely, the node and direction that nothing holds",
+        "Analyze automatically after each edit",
+        "Values typed with their units (20 ft, 6 in, 150 mm)",
+        "Right-click menus on nodes and elements in the 3D view"
+      ]
+    },
+    {
+      "v": "0.2.2",
+      "title": "Speed on large models",
       "when": "Next",
       "items": [
-        "Nozzle checks to the published pump, compressor and steam turbine standards",
-        "Flange leakage check",
-        "Local stresses at vessel nozzles",
-        "Relief valve thrust",
-        "Broken into small 0.x.y steps before it starts"
+        "Large models (1500+ elements) measured in the table, the 3D view and the analysis, and made fast",
+        "Speed checks that guard it"
+      ]
+    },
+    {
+      "v": "0.2.3",
+      "title": "Rotating equipment nozzles",
+      "when": "Planned",
+      "items": [
+        "Pump, compressor and steam turbine nozzle checks by the standards' published equations, with the allowable tables as your inputs"
+      ]
+    },
+    {
+      "v": "0.2.4",
+      "title": "Flange leakage",
+      "when": "Planned",
+      "items": [
+        "Flange leakage by the equivalent pressure method against the flange rating"
+      ]
+    },
+    {
+      "v": "0.2.5",
+      "title": "Relief valve thrust",
+      "when": "Planned",
+      "items": [
+        "The reaction of an open discharge as an occasional load"
+      ]
+    },
+    {
+      "v": "0.2.6",
+      "title": "Vessel nozzles",
+      "when": "Planned",
+      "items": [
+        "Nozzle flexibility and local stresses at vessels, where published equations allow (not copyrighted charts)"
+      ]
+    },
+    {
+      "v": "0.3.0",
+      "title": "Equipment and flanges, complete",
+      "when": "Milestone",
+      "items": [
+        "Everything in 0.2.1–0.2.6 reviewed, with the verification record and examples updated",
+        "No new features: 0.3.0 marks the stage as finished"
       ]
     },
     {

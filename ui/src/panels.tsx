@@ -5,10 +5,10 @@ import { Element, Support, Nozzle, Load, SupKind, V3, num } from "./api";
 import { model, sel, setSel, act } from "./store";
 import { C, SUPPORTS } from "./cmds";
 import { Help } from "./help";
-import { F, T, numIn } from "./props";
+import { F, T, numIn, numInQ } from "./props";
 import * as P from "./props";
 import * as Tools from "./tools";
-import { toU, fromU, unit, fmt } from "./units";
+import { toU, fromU, unit, fmt, Q } from "./units";
 import { compName, COMPS, compKey, compFrom } from "./table";
 
 export const SUP_NAMES: Record<string, string> = { anchor: "Anchor", rest: "Rest (+Y)", guide: "Guide", linestop: "Line stop", restraint: "Restraint", spring: "Spring", rotspring: "Rotational spring", constant: "Constant-force support", hanger: "Spring hanger" };
@@ -18,7 +18,7 @@ export const dirName = (d: V3) => { const n = Math.hypot(...d); if (n === 0) ret
 const Sec = (p: { t: string; h?: string; children: JSX.Element }) => <><h4>{p.t}{p.h && <Help k={p.h} />}</h4>{p.children}</>;
 const V3In = (p: { l: string; q: "force" | "moment" | "disp" | "rot" | "ratio"; v: V3; set: (v: V3) => void }) => (
   <div class="iprow"><label>{p.l}<span class="unit">{p.q === "ratio" ? "" : unit(p.q)}</span></label>
-    <div class="v3"><For each={[0, 1, 2]}>{i => <input class="mono" title={"XYZ"[i]} value={num(p.q === "ratio" ? p.v[i] : toU(p.q, p.v[i]), 6).replace("−", "-")} onChange={numIn(v => p.set(p.v.map((x, k) => k === i ? (p.q === "ratio" ? v : fromU(p.q, v)) : x) as V3), () => num(p.q === "ratio" ? p.v[i] : toU(p.q, p.v[i]), 6))} />}</For></div></div>
+    <div class="v3"><For each={[0, 1, 2]}>{i => <input class="mono" title={"XYZ"[i]} value={num(p.q === "ratio" ? p.v[i] : toU(p.q, p.v[i]), 6).replace("−", "-")} onChange={(p.q === "ratio" ? numIn : (f: (v: number) => unknown, sh: () => string) => numInQ(p.q as Q, f, sh))(v => p.set(p.v.map((x, k) => k === i ? (p.q === "ratio" ? v : fromU(p.q, v)) : x) as V3), () => num(p.q === "ratio" ? p.v[i] : toU(p.q, p.v[i]), 6))} />}</For></div></div>
 );
 
 const ElementPanel = (p: { e: Element }) => {

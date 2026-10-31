@@ -325,6 +325,21 @@ fn restraints(kind: &SupKind, k: f64, t: V) -> Vec<(V, bool, f64)> {
     }
 }
 
+/// Turn the solver's "[dof n]" mark in a mechanism message into the node and the direction nothing
+/// holds, so the person can go there.
+fn locate_free(e: String, g: &Geom) -> String {
+    let Some(i) = e.find(" [dof ") else { return e };
+    let Some(j) = e[i..].find(']') else { return e };
+    let Ok(dof) = e[i + 6..i + j].parse::<usize>() else { return e };
+    let (pt, d) = (dof / 6, dof % 6);
+    let Some(p) = g.points.get(pt) else { return e };
+    let how = ["along X", "along Y (vertically)", "along Z", "turning about X", "turning about Y", "turning about Z"][d];
+    let node = p.node.map_or(p.label.clone(), |n| n.to_string());
+    let rest = e[i + j + 1..].trim_start_matches(':').trim();
+    let head = &e[..i];
+    format!("{head} at node {node}, {how}: nothing holds it there. {}{}", rest[..1].to_uppercase(), &rest[1..])
+}
+
 /// Which global axis a direction is along, if any.
 fn axis_of(d: V) -> Option<usize> {
     (0..3).find(|&i| (d[i].abs() - 1.0).abs() < 1e-12)
@@ -974,7 +989,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     // each case is solved by iteration with its own support states.
     let dcases: Vec<u8> = sums.iter().map(|c| match c.recipe { Recipe::Sum { d, .. } => d, _ => 0 }).collect();
     let (sols, ku, rhs_f, states, springs_k, shares, iters, frout, stats) = if conds.is_empty() && frics.is_empty() {
-        let (sols, stats) = sys.solve_many(&held, &rhs)?;
+        let (sols, stats) = sys.solve_many(&held, &rhs).map_err(|e| locate_free(e, &g))?;
         let ku: Vec<Vec<f64>> = sols.iter().map(|u| sys.mul(u)).collect();
         let n_c = sols.len();
         (sols, ku, rhs.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![vec![]; n_c], vec![vec![]; n_c], vec![vec![]; n_c], vec![1u32; n_c], vec![vec![]; n_c], stats)
@@ -984,7 +999,8 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         let mut stats = Stats::default();
         for (k, (f, fixed)) in rhs.iter().enumerate() {
             let cs = solve_conditional(&sys, &held, f, fixed, &conds, &frics, &lin, dcases[k]).map_err(|e| {
-                if e.contains("without resistance") {
+                let e = locate_free(e, &g);
+                if e.contains("without resistance") && !e.contains(" at node ") {
                     format!("In case {}, with the one-way rests that lift off, the gaps that stay open and the supports that slide, the piping can move without resistance. Add a support that holds it both ways, such as a guide or an anchor.", sums[k].name)
                 } else {
                     e

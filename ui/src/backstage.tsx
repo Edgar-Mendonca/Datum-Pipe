@@ -110,6 +110,7 @@ const OptionsPage = () => {
       <Sec t="General" about="How the window looks.">
         <Opt l="Theme" hint="Auto follows the Windows light or dark setting."><Pick value={o().theme || "auto"} set={v => { put("theme", v); setThemeRaw(v); applyTheme(); }} options={[["auto", "Auto (follow Windows)"], ["light", "Light"], ["dark", "Dark"]]} /></Opt>
         <Opt l="3D view" hint="Node numbers in the 3D view, and the deformed shape's scale (0 picks one that shows the movement clearly)."><span class="inline"><Check label="Node numbers" value={o().labels} set={v => put("labels", v)} /> Deformation × <input type="number" min="0" style={{ width: "70px" }} value={o().deform} onChange={e => put("deform", Math.max(0, +e.currentTarget.value))} /></span></Opt>
+        <Opt l="Analysis" hint="Analyze again after every edit, so the results, colours and tables follow what you type. Turn it off for very large models."><Check label="Analyze automatically" value={o().autoAnalyze ?? true} set={v => put("autoAnalyze", v)} /></Opt>
         <Opt l="Stress ratio colours" hint="Blue (low) to red (high), or viridis, which people with colour-blindness read as well as anyone."><Pick value={o().contours} set={v => put("contours", v as any)} options={[["rainbow", "Blue to red"], ["viridis", "Viridis (colour-blind safe)"]]} /></Opt>
       </Sec>
       <Sec t="Start-up and saving" about="What happens when Datum Pipe starts, and how your work is protected.">

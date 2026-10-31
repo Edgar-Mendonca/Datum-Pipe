@@ -60,10 +60,11 @@ export interface LibMaterial { id: string; name: string; family: string; rho: nu
 export interface Library { sizes: Size[]; materials: LibMaterial[]; source: string; springs: SpringSize[] }
 export interface SpringSize { name: string; k: number; min: number; max: number }
 export interface HangerDesign { support: number; node: number; hot: number; travel: number; size: string; k: number; cold: number; variability: number; range: [number, number] }
-export interface Shown { q: string; label: string; factor: number; offset: number }
+export interface Shown { q: string; label: string; factor: number; offset: number; dim?: number[] }
+export interface Typed { sym: string; factor: number; offset: number; dim: number[] }
 export interface Options {
   autosave: number; beta: boolean; theme: string; openLast: boolean; units: "SI" | "US"; contours: "rainbow" | "viridis"; labels: boolean; deform: number;
-  paper: string; landscape: boolean; company: string;
+  paper: string; landscape: boolean; company: string; autoAnalyze: boolean;
 }
 
 /** Rounding noise to zero: values smaller than a billionth of the scale they belong to. */

@@ -3,12 +3,13 @@
 // table), so this file holds no conversion factors of its own: it only applies them.
 import { createSignal } from "solid-js";
 import { out } from "./store";
-import { num, Shown } from "./api";
+import { num, parseNum, Shown, Typed } from "./api";
 
 export type Q = "coord" | "len" | "disp" | "rot" | "force" | "moment" | "stress" | "press" | "wpress" | "modulus" | "temp" | "dtemp" | "density" | "expansion" | "mass" | "wlen" | "tstiff" | "rstiff" | "radius" | "ratio";
 
 const [tables, setTables] = createSignal<[Shown[], Shown[]] | null>(null);
-export const setUnitTable = (t: [Shown[], Shown[]]) => setTables(t);
+let typedUnits: Typed[] = [];
+export const setUnitTable = (t: [Shown[], Shown[], Typed[]?]) => { setTables([t[0], t[1]]); typedUnits = t[2] ?? []; };
 
 const row = (q: Q, us?: boolean): Shown => {
   const t = tables(); const sys = us ?? out()?.m.units === "US";
@@ -24,3 +25,28 @@ export const unit = (q: Q, us?: boolean) => row(q, us).label;
 export const fmt = (q: Q, v: number, sig = 4) => `${num(toU(q, v), sig)}${unit(q) ? " " + unit(q) : ""}`;
 /** A temperature difference or rise has no offset. */
 export const fmtD = (q: Q, v: number, sig = 4) => `${num(v / row(q).factor, sig)}${unit(q) ? " " + unit(q) : ""}`;
+
+/** A value as a person types it, in the display unit of `q`: a plain number ("20"), or numbers with
+ *  units, added up ("20 ft", "6 in", "3' 6\"", "1 ft 6 in", "150 mm", "3.5 bar", "300 °F"). The
+ *  units and their factors come from the engine's unit table. Gives the value in display units, or
+ *  a reason it cannot be read. */
+export const parseQ = (s: string, q: Q): number | string => {
+  const plain = parseNum(s);
+  if (plain !== null) return plain;
+  const t = s.trim().replace(/[′’']/g, " ft ").replace(/[″”"]/g, " in ").replace(/[−–]/g, "-");
+  const parts = [...t.matchAll(/(-?\d[\d.,]*(?:[eE]-?\d+)?)\s*([^\d\s-][^\d\s]*)?/g)];
+  if (!parts.length || parts.map(p => p[0]).join("").replace(/\s/g, "") !== t.replace(/\s/g, "")) return `“${s}” is not a number.`;
+  const r = row(q);
+  let si = 0;
+  for (const [, n, sym] of parts) {
+    const v = parseNum(n);
+    if (v === null) return `“${s}” is not a number.`;
+    if (!sym) { si += fromU(q, v); continue; }
+    const u = typedUnits.find(x => x.sym === sym) ?? typedUnits.find(x => x.sym.toLowerCase() === sym.toLowerCase());
+    if (!u) return `“${sym}” is not a unit Datum Pipe knows.`;
+    if (r.dim && u.dim.some((d, i) => d !== r.dim![i])) return `“${sym}” is not a unit of ${QNAME[q] ?? "this value"}.`;
+    si += v * u.factor + (parts.length === 1 ? u.offset : 0);
+  }
+  return toU(q, si);
+};
+const QNAME: Partial<Record<Q, string>> = { coord: "length", len: "length", disp: "length", radius: "length", force: "force", moment: "moment", stress: "stress", press: "pressure", wpress: "pressure", temp: "temperature", mass: "mass", density: "density", wlen: "load per length", tstiff: "stiffness", rot: "angle" };

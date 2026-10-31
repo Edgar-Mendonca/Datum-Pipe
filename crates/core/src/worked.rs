@@ -747,3 +747,20 @@ fn a_hanger_on_a_moving_attachment_carries_its_hot_load() {
     assert!(close(react(&r, "OPE1", 20)[1], h.hot, 1e-9), "{} {}", react(&r, "OPE1", 20)[1], h.hot);
     assert!(close(h.cold, h.hot + h.k * h.travel, 1e-12));
 }
+
+#[test]
+fn a_free_model_says_where_it_is_free() {
+    // A pipe along X anchored at 10 only along Y and Z by restraints: nothing holds it along X, and
+    // it can turn. The message names a node and a direction to go to.
+    let mut d = table("free", &[(10, 20, 3.0, 0.0, 0.0), (20, 30, 3.0, 0.0, 0.0)]);
+    sup(&mut d, 10, SupKind::Restraint { dir: [0.0, 1.0, 0.0] });
+    sup(&mut d, 30, SupKind::Restraint { dir: [0.0, 1.0, 0.0] });
+    sup(&mut d, 10, SupKind::Restraint { dir: [0.0, 0.0, 1.0] });
+    sup(&mut d, 30, SupKind::Restraint { dir: [0.0, 0.0, 1.0] });
+    let e = analyze(&d.m).unwrap_err();
+    assert!(e.contains("without resistance at node ") && (e.contains("along X") || e.contains("turning about X")), "{e}");
+    // With a line stop along X, it is the twist about the pipe that is free.
+    sup(&mut d, 20, SupKind::Linestop);
+    let e = analyze(&d.m).unwrap_err();
+    assert!(e.contains("turning about X"), "{e}");
+}

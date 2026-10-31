@@ -96,6 +96,16 @@ const shots = process.env.SHOTS;
   await dx.fill("3000"); await dx.press("Tab"); await p.waitForTimeout(200);
   const add = await lastOp();
   check("typing DX in the last row adds an element", !!add?.Add?.item?.Element && add.Add.item.Element.from === 10 && add.Add.item.Element.to === 20 && Math.abs(add.Add.item.Element.d[0] - 3) < 1e-12, JSON.stringify(add));
+  // Values can carry their units: 10 ft in a field shown in mm, and feet-and-inches.
+  const dz = await p.$('.newrow input[placeholder="DZ"]');
+  await dz.fill("10 ft"); await dz.press("Tab"); await p.waitForTimeout(200);
+  check("a length typed in feet goes in as metres", Math.abs((await lastOp())?.Add?.item?.Element?.d?.[2] - 3.048) < 1e-12, JSON.stringify(await lastOp()));
+  const dy0 = await p.$('.newrow input[placeholder="DY"]');
+  await dy0.fill("3' 6\""); await dy0.press("Tab"); await p.waitForTimeout(200);
+  check("feet and inches add up", Math.abs((await lastOp())?.Add?.item?.Element?.d?.[1] - 1.0668) < 1e-12, JSON.stringify(await lastOp()));
+  const n0 = (await ops()).length;
+  await dy0.fill("3 kg"); await dy0.press("Tab"); await p.waitForTimeout(200);
+  check("a unit of the wrong kind is refused with a reason", (await ops()).length === n0 && (await p.textContent("#toast")).includes("not a unit of length"));
 
   // 4. Units: US sends SetSettings; Options shows the units in words.
   await p.click('.ribbon button[title="US: ft, in, lbf, psi"]'); await p.waitForTimeout(150);
@@ -146,6 +156,11 @@ const shots = process.env.SHOTS;
   await open("lbend");
   check("the table lists the L-bend's elements", (await p.$$(".egrid tbody tr:not(.newrow)")).length === fix.models.lbend.m.elements.length);
   check("the 3D view has a canvas", !!(await p.$(".v3d canvas")));
+  // Right-click on empty space in the 3D view offers Fit and Analyze; Escape closes the menu.
+  const cv = await (await p.$(".v3d canvas")).boundingBox();
+  await p.mouse.click(cv.x + 12, cv.y + cv.height - 12, { button: "right" }); await p.waitForTimeout(200);
+  check("right-clicking the 3D view opens a menu", ((await p.textContent(".menu").catch(() => "")) ?? "").includes("Fit the model"));
+  await p.keyboard.press("Escape"); await p.mouse.click(cv.x + 12, cv.y + 12); await p.waitForTimeout(150);
   check("node numbers are drawn", (await p.$$eval(".nlabel", els => els.map(e => e.textContent))).includes("20"));
   // Typing across a row keeps the keyboard in the table after each edit (0.1.2: every row was rebuilt).
   const dy = await p.$('.egrid tbody tr:first-child td:nth-child(5) input');

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1 — 2026-10-31
+
+Ease of use: the first step of the third stage.
+
+**Where a model is free.** When the piping can move without resistance, Analyze names the node and the direction nothing holds ("at node 30, turning about X") and shows that node.
+
+**Analyze automatically.** Every edit is analysed again a moment later, and a model is analysed when it opens, so the stress colours, tables and support loads follow what you type. It stays quiet unless something is wrong. File › Options turns it off.
+
+**Values with units.** Any number field, and the element table, takes a value with its unit: 20 ft, 3' 6", 1 ft 6 in, 150 mm, 3.5 bar, 300 °F. A unit of the wrong kind is refused with the reason.
+
+**Right-click in the 3D view.** A node offers its supports, a nozzle point and a load; an element its component, Insert Node, Add an Element After, the expansion loop and Delete; empty space Fit and Analyze. A click within a few pixels of a node picks the node.
+
+**Roadmap.** The third stage (equipment and flanges) is split into 0.2.1–0.2.6, with 0.3.0 as its milestone (File › Roadmap).
+
 ## 0.2.0 — 2026-10-30
 
 The milestone that closes the second stage: nonlinear supports, occasional loads, spring hangers and import (0.1.5–0.1.11), reviewed. No new features.

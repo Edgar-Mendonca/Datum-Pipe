@@ -89,12 +89,19 @@ impl System {
                 _ => {}
             }
         }
-        if !diag.iter().all(|d| *d > 0.0 && d.is_finite()) {
-            return Err(mechanism());
+        // The free unknowns, back to the full numbering (to say where a mechanism is).
+        let inv: Vec<usize> = (0..self.n).filter(|&i| map[i] != usize::MAX).collect();
+        if let Some(a) = diag.iter().position(|d| !(*d > 0.0 && d.is_finite())) {
+            return Err(mechanism(Some(inv[a])));
         }
         let a = SparseColMat::<usize, f64>::try_new_from_triplets(m, m, &tri).map_err(|e| format!("Could not build the stiffness matrix: {e:?}"))?;
         let nonzeros = a.compute_nnz();
-        let llt = a.sp_cholesky(Side::Lower).map_err(|_| mechanism())?;
+        let llt = match a.sp_cholesky(Side::Lower) {
+            Ok(l) => l,
+            // Not positive definite: find where with a slightly stiffened copy, whose answer to the
+            // probe load is largest at the unknown nothing holds.
+            Err(_) => return Err(mechanism(locate(m, &tri, &diag).map(|a| inv[a]))),
+        };
         // Column 0.. are the loads; the last a probe load scaled by the diagonal, whose answer is
         // about 1 in a compact model, larger in long chains of members, and enormous when rounding
         // hid a zero pivot (a mechanism).
@@ -118,7 +125,8 @@ impl System {
         let x = llt.solve(&b);
         // A member split into n pieces answers about 3n⁴ (2.4e14 at 3 000); a singular matrix far more.
         if (0..m).any(|i| !(x[(i, nc)].abs() < 1e15)) {
-            return Err(mechanism());
+            let worst = (0..m).max_by(|&i, &j| x[(i, nc)].abs().total_cmp(&x[(j, nc)].abs()));
+            return Err(mechanism(worst.map(|a| inv[a])));
         }
         let mut out = vec![];
         let mut worst = 0.0f64;
@@ -130,7 +138,7 @@ impl System {
                 }
             }
             if !u.iter().all(|v| v.is_finite()) {
-                return Err(mechanism());
+                return Err(mechanism(None));
             }
             // Iterative refinement with the same factors: long chains of members lose digits to
             // rounding, and two steps win them back.
@@ -164,8 +172,29 @@ impl System {
     }
 }
 
-fn mechanism() -> String {
-    "The model can move without resistance: add supports so it cannot slide or turn as a whole, and check that every part is connected (a truss needs triangles).".into()
+/// The message for a model that can move freely; with the unknown it is free at, marked
+/// "[dof n]" for the caller to turn into a node and a direction.
+fn mechanism(dof: Option<usize>) -> String {
+    let at = dof.map(|d| format!(" [dof {d}]")).unwrap_or_default();
+    format!("The model can move without resistance{at}: add supports so it cannot slide or turn as a whole, and check that every part is connected.")
+}
+
+/// Where a matrix that is not positive definite is free: factorise it stiffened by 1e-9 of its
+/// diagonal and load it with its diagonal; the largest answer is the free unknown.
+fn locate(m: usize, tri: &[Triplet<usize, usize, f64>], diag: &[f64]) -> Option<usize> {
+    let mut t2: Vec<Triplet<usize, usize, f64>> = tri.to_vec();
+    let top = diag.iter().cloned().fold(0.0f64, |a, b| a.max(b.abs())).max(1.0);
+    for (i, d) in diag.iter().enumerate() {
+        t2.push(Triplet::new(i, i, 1e-9 * d.abs().max(1e-6 * top)));
+    }
+    let a = SparseColMat::<usize, f64>::try_new_from_triplets(m, m, &t2).ok()?;
+    let llt = a.sp_cholesky(Side::Lower).ok()?;
+    let mut b = Mat::<f64>::zeros(m, 1);
+    for i in 0..m {
+        b[(i, 0)] = diag[i].abs().max(1e-6 * top);
+    }
+    let x = llt.solve(&b);
+    (0..m).max_by(|&i, &j| x[(i, 0)].abs().total_cmp(&x[(j, 0)].abs()))
 }
 
 #[cfg(test)]

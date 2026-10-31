@@ -29,7 +29,7 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 
 ## What it does
 
-- **An element table that draws as you type**: From node, To node, DX, DY, DZ, pipe, material, line conditions and component. Node numbers step by 10; new rows copy the row above.
+- **An element table that draws as you type**: From node, To node, DX, DY, DZ, pipe, material, line conditions and component, with values in any unit (20 ft, 150 mm). Node numbers step by 10; new rows copy the row above. Analysis runs again after every edit, and right-click menus in the 3D view add supports and change components.
 - **Pipe data**: nominal sizes ½" to 24" in every schedule, your own sizes, corrosion allowance, mill tolerance, insulation, cladding and contents; carbon, low-alloy, stainless 304 and 316 and duplex steels with modulus and expansion against temperature and their sources.
 - **Components**: long and short radius bends or your own radius, welding, fabricated and reinforced tees, concentric reducers, valves and flanged joints with their weight.
 - **Supports**: anchors, one-way rests the pipe can lift off, guides, line stops, restraints in any direction (rests, guides, line stops and restraints with gaps and friction), springs, spring hangers sized from your spring table, constant-force supports, nozzle points and imposed equipment movements.

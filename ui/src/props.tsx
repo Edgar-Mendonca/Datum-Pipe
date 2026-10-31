@@ -6,7 +6,7 @@ import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, num
 import { openDialog, act, call, model, toast } from "./store";
 import { C } from "./cmds";
 import { Dialog, Icon } from "./ui";
-import { Q, toU, fromU, unit } from "./units";
+import { Q, toU, fromU, unit, parseQ } from "./units";
 
 let lib: Promise<Library | undefined> | null = null;
 export const library = () => (lib ??= call<Library>("library"));
@@ -15,12 +15,18 @@ export const numIn = (f: (v: number) => unknown, shown: () => string | number) =
   const v = parseNum(e.currentTarget.value);
   if (v === null || f(v) === false) e.currentTarget.value = String(shown());
 };
+/** A field in display units that also takes a value with its unit ("20 ft", "150 mm"). */
+export const numInQ = (q: Q, f: (v: number) => unknown, shown: () => string | number) => (e: Event & { currentTarget: HTMLInputElement }) => {
+  const v = parseQ(e.currentTarget.value, q);
+  if (typeof v === "string") { toast(v); e.currentTarget.value = String(shown()); return; }
+  if (f(v) === false) e.currentTarget.value = String(shown());
+};
 const show = (q: Q, v: number) => num(toU(q, v), 6).replace("−", "-");
 
 /** A number field shown in display units and stored in SI. */
 export const F = (p: { l: string; q: Q; v: number; set: (v: number) => unknown; hint?: string }) => (
   <div class="iprow"><label>{p.l}<span class="unit">{unit(p.q)}</span></label>
-    <input class="mono" value={show(p.q, p.v)} onChange={numIn(v => p.set(fromU(p.q, v)), () => show(p.q, p.v))} />
+    <input class="mono" value={show(p.q, p.v)} onChange={numInQ(p.q, v => p.set(fromU(p.q, v)), () => show(p.q, p.v))} />
     {p.hint && <span class="hint">{p.hint}</span>}</div>
 );
 export const T = (p: { l: string; v: string; set: (v: string) => unknown }) => (

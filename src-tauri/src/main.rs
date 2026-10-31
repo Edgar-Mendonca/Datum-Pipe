@@ -32,11 +32,13 @@ struct Options {
     paper: String,
     landscape: bool,
     company: String,
+    /// Analyze again after every edit (results stay current while you work).
+    auto_analyze: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { autosave: 5, beta: false, theme: "auto".into(), open_last: false, units: "SI".into(), contours: "rainbow".into(), labels: true, deform: 0.0, paper: "A4".into(), landscape: false, company: String::new() }
+        Self { autosave: 5, beta: false, theme: "auto".into(), open_last: false, units: "SI".into(), contours: "rainbow".into(), labels: true, deform: 0.0, paper: "A4".into(), landscape: false, company: String::new(), auto_analyze: true }
     }
 }
 
@@ -175,8 +177,8 @@ fn library() -> Library {
 
 /// How every quantity is shown in SI and US units (from the engine's unit table).
 #[tauri::command]
-fn unit_table() -> (Vec<units::Shown>, Vec<units::Shown>) {
-    (units::shown(false), units::shown(true))
+fn unit_table() -> (Vec<units::Shown>, Vec<units::Shown>, Vec<units::Typed>) {
+    (units::shown(false), units::shown(true), units::typed())
 }
 
 // ---------------------------------------------------------------- files

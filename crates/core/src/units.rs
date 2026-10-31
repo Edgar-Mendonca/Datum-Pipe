@@ -260,6 +260,22 @@ pub struct Shown {
     pub label: String,
     pub factor: f64,
     pub offset: f64,
+    /// The quantity's dimension, so a value typed with another unit can be checked against it.
+    pub dim: Dim,
+}
+
+/// A unit a person may type after a value ("20 ft", "150 mm", "3.5 bar", "300 °F").
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct Typed {
+    pub sym: &'static str,
+    pub factor: f64,
+    pub offset: f64,
+    pub dim: Dim,
+}
+
+/// Every unit of the table that can be typed after a value.
+pub fn typed() -> Vec<Typed> {
+    UNITS.iter().chain(ABS_TEMPS).map(|u| Typed { sym: u.sym, factor: u.factor, offset: u.offset, dim: u.dim }).collect()
 }
 
 /// Every quantity Datum Pipe shows, and its unit in SI and US: (key, what it is, SI unit, US unit).
@@ -292,11 +308,11 @@ pub fn shown(us: bool) -> Vec<Shown> {
         .iter()
         .map(|&(q, _, si, usu)| {
             let sym = if us { usu } else { si };
-            let (factor, _, offset) = if sym.is_empty() { (1.0, NONE, 0.0) } else { expr(sym).unwrap_or((1.0, NONE, 0.0)) };
+            let (factor, dim, offset) = if sym.is_empty() { (1.0, NONE, 0.0) } else { expr(sym).unwrap_or((1.0, NONE, 0.0)) };
             // Thermal expansion is shown ×10⁻⁶ (µm/m per K, µin/in per °F) so typical values read 11.7, 6.5.
             let per = if us { lookup("Δ°F").map_or(1.0, |u| u.factor) } else { 1.0 };
             let (factor, label) = if q == "expansion" { (1e-6 / per, if us { "µin/in·°F".to_string() } else { "µm/m·K".to_string() }) } else { (factor, pretty(sym)) };
-            Shown { q, label, factor, offset: if factor != 0.0 { offset / factor } else { 0.0 } }
+            Shown { q, label, factor, offset: if factor != 0.0 { offset / factor } else { 0.0 }, dim }
         })
         .collect()
 }

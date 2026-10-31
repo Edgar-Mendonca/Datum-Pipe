@@ -45,7 +45,7 @@ const solve = async (quiet = false) => {
     batch(() => { setResults(r); setStale(false); if (!r.cases.some(c => c.id === caseId())) setCaseId(null); if (!quiet) setTab("results"); });
     const bad = r.cases.filter(c => c.imbalance > 1e-6);
     const worst = r.cases.flatMap(c => c.stresses).reduce((m, s) => Math.max(m, s.ratio), 0);
-    const fails = r.cases.flatMap(c => c.stresses).filter(s => !s.pass).length + r.walls.filter(w => !w.pass).length;
+    const fails = r.cases.flatMap(c => c.stresses).filter(s => !s.pass).length + r.walls.filter(w => !w.pass).length + r.cases.flatMap(c => c.equipment ?? []).filter(e => !e.pass).length;
     const ms = r.stats.ms < 1 ? "under 1 ms" : r.stats.ms < 2000 ? `${Math.round(r.stats.ms)} ms` : `${(r.stats.ms / 1000).toFixed(1)} s`;
     const msg = `Analyzed ${r.cases.length} load cases (${r.stats.equations} equations) in ${ms}. ${bad.length ? `The reactions do not balance the loads in ${bad.map(c => c.name).join(", ")}: see Results.` : "Reactions balance the loads in every case."} ${worst > 0 ? `Highest stress ratio ${num(worst, 3)}${fails ? `: ${fails} checks fail.` : ", every check passes."}` : ""}`;
     const text = [...r.warnings, msg].join(" ");

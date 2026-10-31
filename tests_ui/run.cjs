@@ -265,6 +265,20 @@ const shots = process.env.SHOTS;
     check(`${ex.name}: analyzes, draws its isometric, prints ${pages} pages`, ok && dims > 0 && pages >= 3, `${ok} ${dims} ${pages}`);
   }
 
+  // 13. Rotating equipment: the steam line's turbine in Results › Equipment, and the dialog.
+  await open("steam");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.side button[title="Results"]'); await p.waitForTimeout(200);
+  await p.click('.rtabs button:text-is("Equipment")'); await p.waitForTimeout(200);
+  await p.click('.ctabs button:has(b:text-is("OPE1"))'); await p.waitForTimeout(200);
+  const eqText = await p.textContent(".results, body");
+  check("Results › Equipment shows the turbine's criteria", eqText.includes("T-301") && eqText.includes("3F + 1M ≤ 500·De"), eqText.slice(0, 200));
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+  await p.click('.tabs > button:text-is("Supports")');
+  await p.click('.ribbon button[title^="Group nozzles into pumps"]'); await p.waitForTimeout(300);
+  check("the equipment dialog lists the turbine and its criteria", ((await p.textContent(".dlg")) ?? "").includes("All nozzles resolved at") && (await p.$$(".dlg .eqcard")).length === 1);
+  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

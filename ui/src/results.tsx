@@ -13,13 +13,19 @@ import { supName } from "./panels";
 import { Icon } from "./ui";
 
 export const [tableKind, setTableKind] = createSignal("summary");
-const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equilibrium", "Equilibrium"]];
+const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["equilibrium", "Equilibrium"]];
 const KIND: Record<string, string> = { sus: "Sustained", ope: "Operating", exp: "Expansion range", hyd: "Hydrotest", occ: "Occasional" };
 const CHECK: Record<string, string> = { sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" };
 const openTable = (k: string) => { setTableKind(k); setView("results"); };
 
 export const Badge = (p: { pass: boolean | null | undefined }) => p.pass === null || p.pass === undefined ? <span class="muted">—</span> : <span class={p.pass ? "pass" : "fail"}>{p.pass ? "PASS" : "FAIL"}</span>;
-const casePass = (c: CaseResult) => c.stresses.length ? c.stresses.every(s => s.pass) && c.nozzles.every(z => z.pass !== false) : c.nozzles.some(z => z.pass !== null) ? c.nozzles.every(z => z.pass !== false) : null;
+/** A case passes when its stresses, nozzle loads and equipment checks all do; null when nothing in it is checked. */
+const casePass = (c: CaseResult) => {
+  const eq = c.equipment ?? [];
+  const checked = c.stresses.length || c.nozzles.some(z => z.pass !== null) || eq.length;
+  if (!checked) return null;
+  return c.stresses.every(s => s.pass) && c.nozzles.every(z => z.pass !== false) && eq.every(e => e.pass);
+};
 
 export const ResultsRibbon = () => {
   const r = () => results();
@@ -68,6 +74,7 @@ export const ResultsPage = () => {
           <Show when={tableKind() === "nozzles" && c()}><Nozzles r={r()!} c={c()!} /></Show>
           <Show when={tableKind() === "wall"}><Walls r={r()!} /></Show>
           <Show when={tableKind() === "hangers"}><Hangers r={r()!} /></Show>
+          <Show when={tableKind() === "equip" && c()}><EquipTable c={c()!} /></Show>
           <Show when={tableKind() === "equilibrium"}><Equilibrium r={r()!} /></Show>
         </div>
       </Show>
@@ -146,6 +153,15 @@ export const Hangers = (p: { r: Results }) => <Show when={p.r.hangers?.length} f
     <For each={p.r.hangers}>{h => <tr class="f" onClick={() => jump(h.node)}><td>{h.node}</td><td>{model()?.supports.find(s => s.id === h.support)?.tag}</td><td>{h.size === "constant" ? "constant-force" : h.size}</td><td class="r">{h.k ? v("tstiff", h.k) : "—"}</td><td class="r">{v("force", h.hot)}</td><td class="r">{v("disp", h.travel)}</td><td class="r">{v("force", h.cold)}</td><td class="r">{h.k ? `${num(100 * h.variability, 3)} %` : "—"}</td><td class="r">{h.k ? `${v("force", h.range[0])}–${v("force", h.range[1])}` : "—"}</td></tr>}</For></tbody></table>
 </Show>;
 
+export const EquipTable = (p: { c: CaseResult }) => <Show when={p.c.equipment?.length} fallback={<p class="muted">{(model()?.equipment?.length ?? 0) ? "Equipment is checked in the cases that are loads (operating, sustained), not in ranges: pick one of those." : "No rotating equipment. Group the nozzle points of a pump, compressor or turbine with Supports › Equipment Checks."}</p>}>
+  <p class="muted small">Turbines and compressors: the published criteria as equations, in the standard's units (lb, ft·lb, inches). Pumps: the components and resultants against your table values. The coefficients are your inputs, filled with typical values: check them against your standard's edition.</p>
+  <For each={p.c.equipment ?? []}>{e => <>
+    <h4>{e.name} <Badge pass={e.pass} /></h4>
+    <table class="tbl rtable"><thead><tr><Th>Check</Th><Th r>Value</Th><Th r>Allowable</Th><Th>Unit</Th><Th r>Ratio</Th></tr></thead><tbody>
+      <For each={e.rows}>{r => <tr><td>{r.what}</td><td class="r">{r.unit === "N" ? v("force", r.value) : r.unit === "N·m" ? v("moment", r.value) : num(r.value, 5)}</td><td class="r">{r.unit === "N" ? v("force", r.allow) : r.unit === "N·m" ? v("moment", r.allow) : num(r.allow, 5)}</td><td>{r.unit === "N" ? unit("force") : r.unit === "N·m" ? unit("moment") : r.unit}</td><td class="r">{num(r.ratio, 3)}</td></tr>}</For></tbody></table>
+  </>}</For>
+</Show>;
+
 export const Walls = (p: { r: Results }) => {
   const el = (id: number) => { const e = model()?.elements.find(x => x.id === id); return e ? `${e.from}–${e.to}` : ""; };
   return <Show when={p.r.walls.length} fallback={<p class="muted">No element has an internal pressure.</p>}>
@@ -181,6 +197,7 @@ setResultBlocks(m => {
     ...(exp && exp.stresses.length ? [() => <div><h4>Highest expansion stress ranges ({exp.name})</h4><TopStresses r={r} c={exp} /></div>] : []),
     () => <div><h3>4. Support loads ({ope.name})</h3><Supports r={r} c={ope} /></div>,
     ...(r.hangers?.length ? [() => <div><h4>Spring hangers</h4><Hangers r={r} /></div>] : []),
+    ...(ope.equipment?.length ? [() => <div><h4>Rotating equipment ({ope.name})</h4><EquipTable c={ope} /></div>] : []),
     ...r.cases.filter(c => c.kind !== "ope" && c.id !== ope.id && c.kind !== "exp").map(c => () => <div><h4>Support loads ({c.name})</h4><Supports r={r} c={c} /></div>),
     ...(m.nozzles.length ? r.cases.filter(c => c.kind !== "exp").map(c => () => <div><h3>{c === r.cases.find(x => x.kind !== "exp") ? "5. Nozzle loads" : ""}</h3><h4>{c.name}</h4><Nozzles r={r} c={c} /></div>) : []),
     ...(r.walls.length ? [() => <div><h3>6. Minimum wall</h3><Walls r={r} /></div>] : []),

@@ -30,7 +30,7 @@
     "Anchors, one-way rests, guides, line stops and restraints with gaps and friction, skewed restraints, springs, spring hangers sized from your spring table, constant-force supports and imposed equipment movements",
     "Load cases built for you: sustained, operating, expansion range, hydrotest, and wind and static seismic as occasional cases",
     "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall (straight pipe, bends at their intrados, both ends of reducers), sustained stress, the displacement stress range and occasional stress, with PASS or FAIL at every point",
-    "Support loads for the civil team and nozzle loads in the nozzle's own axes, checked against your allowables",
+    "Support loads for the civil team, nozzle loads in the nozzle's own axes, and steam turbine, compressor and pump nozzle checks against their standards' published criteria",
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
     "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published"
   ],
@@ -133,7 +133,7 @@
     {
       "v": "0.2.3",
       "title": "Rotating equipment nozzles",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Pump, compressor and steam turbine nozzle checks by the standards' published equations, with the allowable tables as your inputs"
       ]
@@ -141,7 +141,7 @@
     {
       "v": "0.2.4",
       "title": "Flange leakage",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Flange leakage by the equivalent pressure method against the flange rating"
       ]

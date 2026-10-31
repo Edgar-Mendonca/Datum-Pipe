@@ -32,7 +32,7 @@ export interface Project { project: string; line: string; calc: string; by: stri
 export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3; springs: SpringSize[]; variability: number }
 export interface Model {
   format: number; name: string; notes: string; units: "SI" | "US"; project: Project; settings: Settings;
-  nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number;
+  nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number; equipment?: Equipment[];
 }
 export interface Out { m: Model; path: string | null; dirty: boolean; undo: boolean; redo: boolean; created: number[]; warnings: string[]; geom: Geom | null; geom_error: string | null }
 
@@ -46,7 +46,7 @@ export type Six = [number, number, number, number, number, number];
 export interface Reaction { support: number; node: number; f: Six }
 export interface NozzleLoad { nozzle: number; node: number; local: Six; shear: number; bending: number; ratios: [number, number, number, number]; pass: boolean | null }
 export interface Stress { seg: number; end: number; point: number; stress: number; allow: number; ratio: number; pass: boolean; ii: number; io: number }
-export interface CaseResult { id: number; name: string; kind: CaseKind; disp: Six[]; forces: [Six, Six][]; reactions: Reaction[]; nozzles: NozzleLoad[]; stresses: Stress[]; applied: Six; reacted: Six; imbalance: number; worst: number | null; contacts: Contact[]; iterations: number; friction: Friction[] }
+export interface CaseResult { id: number; name: string; kind: CaseKind; disp: Six[]; forces: [Six, Six][]; reactions: Reaction[]; nozzles: NozzleLoad[]; stresses: Stress[]; applied: Six; reacted: Six; imbalance: number; worst: number | null; contacts: Contact[]; iterations: number; friction: Friction[]; equipment?: EquipCheck[] }
 export interface Friction { support: number; node: number; state: "sticking" | "sliding" | "free"; force: V3; normal: number; mu: number }
 export interface Contact { support: number; node: number; dir: V3; state: "touching" | "open" | "lifted off"; movement: number; gap: number }
 export interface Wall { element: number; case: number; p: number; t: number; s: number; t_design: number; t_min: number; t_nominal_needed: number; t_nominal: number; hoop: number; ratio: number; pass: boolean; at: string; i: number; od: number; thick: boolean }
@@ -88,3 +88,10 @@ export const num = (v: number, sig = 4) => {
   if (a >= 1e7 || a < 1e-3) return v.toExponential(Math.max(0, sig - 1)).replace(/\.?0+e/, "e").replace("-", "−");
   return String(+v.toPrecision(Math.max(sig, Math.ceil(Math.log10(a + 1))))).replace("-", "−");
 };
+
+export type EquipKind = "turbine" | "compressor" | "pump";
+export interface Coef { single: [number, number, number]; de_cap: number; de_over: [number, number]; combined: [number, number, number]; dc_cap: number; dc_over: [number, number]; comp: [number, number, number, number, number, number] }
+export interface PumpAllow { nozzle: number; f: V3; m: V3; fr: number; mr: number }
+export interface Equipment { name: string; kind: EquipKind; nozzles: number[]; reference: number; shaft: V3; factor: number; coef: Coef; pump: PumpAllow[] }
+export interface EquipRow { what: string; unit: string; value: number; allow: number; ratio: number }
+export interface EquipCheck { name: string; kind: EquipKind; rows: EquipRow[]; pass: boolean }

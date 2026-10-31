@@ -2,7 +2,7 @@
 // against temperature and allowables, with sources), line conditions (T1–T3, P1–P3, hydrotest)
 // and the load cases. Each edit goes to the engine as one operation.
 import { For, Show, createSignal, createResource, JSX } from "solid-js";
-import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, num, parseNum } from "./api";
+import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, Equipment, EquipKind, num, parseNum } from "./api";
 import { openDialog, act, call, model, toast } from "./store";
 import { C } from "./cmds";
 import { Dialog, Icon } from "./ui";
@@ -179,6 +179,49 @@ export const springTable = () => openDialog(() => {
           <td><button class="x" title="Remove this size" onClick={() => set(s().springs.filter((_, k) => k !== i()))}>×</button></td></tr>}</For></tbody></table>
       <p class="ibtns"><button class="btn sm" onClick={() => set([...s().springs, { name: `S-${s().springs.length + 1}`, k: 1e5, min: 1000, max: 2000 }])}>Add a size</button>
         <button class="btn sm" onClick={() => L() && set(L()!.springs)}>Back to the generic table</button></p>
+    </Dialog>
+  );
+});
+
+/** The rotating equipment the nozzle points belong to, and the criteria each is checked against. */
+const COEF0 = { single: [3, 1, 500], de_cap: 8, de_over: [16, 3], combined: [2, 1, 250], dc_cap: 9, dc_over: [18, 3], comp: [50, 125, 100, 250, 125, 125] } as Equipment["coef"];
+export const equipmentDialog = () => openDialog(() => {
+  const list = () => model()?.equipment ?? [];
+  const zs = () => model()?.nozzles ?? [];
+  const set = (l: Equipment[]) => act({ SetEquipment: { list: l } });
+  const put = (i: number, x: Partial<Equipment>) => set(list().map((e, k) => k === i ? { ...e, ...x } : e));
+  const nIn = (val: number, f: (v: number) => void, w = 56) => <input class="mono" style={{ width: `${w}px` }} value={num(val, 6)} onChange={e => { const v = parseNum(e.currentTarget.value); if (v !== null && v >= 0) f(v); else e.currentTarget.value = num(val, 6); }} />;
+  const add = (kind: EquipKind) => set([...list(), { name: kind === "pump" ? "Pump" : kind === "compressor" ? "Compressor" : "Steam turbine", kind, nozzles: zs().map(z => z.id), reference: zs()[0]?.id ?? 0, shaft: [1, 0, 0], factor: kind === "compressor" ? 1.85 : 1, coef: JSON.parse(JSON.stringify(COEF0)), pump: [] }]);
+  return (
+    <Dialog title="Rotating equipment" wide help="equipment">
+      <p class="muted">Each machine groups its nozzle points (put a nozzle point and an anchor at each connection first). Steam turbines and compressors are checked against the published criteria as equations: each nozzle c1·F + c2·M ≤ c3·De, and all nozzles together at the reference nozzle c1·Fc + c2·Mc ≤ c3·Dc with limits on each component (lb, ft·lb, inches). Pumps are checked against the allowable loads of the pump standard's table, which you enter. Every number here is filled with typical values: check them against the edition of the standard that applies.</p>
+      <Show when={!zs().length}><p class="warnline">The model has no nozzle points yet: add one at each equipment connection (Supports › Nozzle Point).</p></Show>
+      <For each={list()}>{(e, i) => <div class="eqcard">
+        <div class="two"><T l="Name" v={e.name} set={name => put(i(), { name })} />
+          <div class="iprow"><label>Kind</label><select onChange={ev => put(i(), { kind: ev.currentTarget.value as EquipKind })}><For each={[["turbine", "Steam turbine"], ["compressor", "Compressor"], ["pump", "Pump"]]}>{([k, l]) => <option value={k} selected={k === e.kind}>{l}</option>}</For></select></div></div>
+        <div class="iprow"><label>Nozzles</label><span class="inline"><For each={zs()}>{z => <label class="chk"><input type="checkbox" checked={e.nozzles.includes(z.id)} onChange={ev => put(i(), { nozzles: ev.currentTarget.checked ? [...e.nozzles, z.id] : e.nozzles.filter(x => x !== z.id) })} />{z.name}</label>}</For></span></div>
+        <div class="two"><div class="iprow"><label>Shaft along</label><select onChange={ev => put(i(), { shaft: ev.currentTarget.value === "z" ? [0, 0, 1] : [1, 0, 0] })}><option value="x" selected={Math.abs(e.shaft[0]) >= Math.abs(e.shaft[2])}>X</option><option value="z" selected={Math.abs(e.shaft[2]) > Math.abs(e.shaft[0])}>Z</option></select></div>
+          <div class="iprow"><label>{e.kind === "pump" ? "Multiplier on the table values" : e.kind === "compressor" ? "Multiplier on the turbine criteria" : "Multiplier"}</label>{nIn(e.factor, factor => factor > 0 && put(i(), { factor }))}</div></div>
+        <Show when={e.kind !== "pump"}>
+          <div class="iprow"><label>All nozzles resolved at</label><select onChange={ev => put(i(), { reference: +ev.currentTarget.value })}><For each={zs().filter(z => e.nozzles.includes(z.id))}>{z => <option value={z.id} selected={z.id === e.reference}>{z.name}</option>}</For></select></div>
+          <p class="small">Each nozzle: {nIn(e.coef.single[0], v => put(i(), { coef: { ...e.coef, single: [v, e.coef.single[1], e.coef.single[2]] } }), 40)}·F + {nIn(e.coef.single[1], v => put(i(), { coef: { ...e.coef, single: [e.coef.single[0], v, e.coef.single[2]] } }), 40)}·M ≤ {nIn(e.coef.single[2], v => put(i(), { coef: { ...e.coef, single: [e.coef.single[0], e.coef.single[1], v] } }))}·De; De is the nominal size up to {nIn(e.coef.de_cap, v => put(i(), { coef: { ...e.coef, de_cap: v } }), 40)} in, above it ({nIn(e.coef.de_over[0], v => put(i(), { coef: { ...e.coef, de_over: [v, e.coef.de_over[1]] } }), 40)} + D) / {nIn(e.coef.de_over[1], v => v > 0 && put(i(), { coef: { ...e.coef, de_over: [e.coef.de_over[0], v] } }), 40)}.</p>
+          <p class="small">All nozzles: {nIn(e.coef.combined[0], v => put(i(), { coef: { ...e.coef, combined: [v, e.coef.combined[1], e.coef.combined[2]] } }), 40)}·Fc + {nIn(e.coef.combined[1], v => put(i(), { coef: { ...e.coef, combined: [e.coef.combined[0], v, e.coef.combined[2]] } }), 40)}·Mc ≤ {nIn(e.coef.combined[2], v => put(i(), { coef: { ...e.coef, combined: [e.coef.combined[0], e.coef.combined[1], v] } }))}·Dc; Dc from the nozzles' combined area up to {nIn(e.coef.dc_cap, v => put(i(), { coef: { ...e.coef, dc_cap: v } }), 40)} in, above it ({nIn(e.coef.dc_over[0], v => put(i(), { coef: { ...e.coef, dc_over: [v, e.coef.dc_over[1]] } }), 40)} + Dc) / {nIn(e.coef.dc_over[1], v => v > 0 && put(i(), { coef: { ...e.coef, dc_over: [e.coef.dc_over[0], v] } }), 40)}.</p>
+          <p class="small">Component limits (× Dc): <For each={["Fx", "Fy", "Fz", "Mx", "My", "Mz"]}>{(c, k) => <span class="inline">{c} {nIn(e.coef.comp[k()], v => { const comp = [...e.coef.comp] as Equipment["coef"]["comp"]; comp[k()] = v; put(i(), { coef: { ...e.coef, comp } }); }, 48)} </span>}</For></p>
+        </Show>
+        <Show when={e.kind === "pump"}>
+          <table class="tbl"><thead><tr><th>Nozzle</th><For each={["Fx", "Fy", "Fz", "FR"]}>{c => <th>{c} ({unit("force")})</th>}</For><For each={["Mx", "My", "Mz", "MR"]}>{c => <th>{c} ({unit("moment")})</th>}</For></tr></thead><tbody>
+            <For each={zs().filter(z => e.nozzles.includes(z.id))}>{z => { const a = () => e.pump.find(p => p.nozzle === z.id) ?? { nozzle: z.id, f: [0, 0, 0] as [number, number, number], m: [0, 0, 0] as [number, number, number], fr: 0, mr: 0 };
+              const putA = (x: Partial<Equipment["pump"][number]>) => put(i(), { pump: [...e.pump.filter(p => p.nozzle !== z.id), { ...a(), ...x }] });
+              return <tr><td>{z.name}</td>
+                <For each={[0, 1, 2]}>{k => <td>{nIn(toU("force", a().f[k]), v => { const f = [...a().f] as [number, number, number]; f[k] = fromU("force", v); putA({ f }); }, 70)}</td>}</For>
+                <td>{nIn(toU("force", a().fr), v => putA({ fr: fromU("force", v) }), 70)}</td>
+                <For each={[0, 1, 2]}>{k => <td>{nIn(toU("moment", a().m[k]), v => { const m = [...a().m] as [number, number, number]; m[k] = fromU("moment", v); putA({ m }); }, 70)}</td>}</For>
+                <td>{nIn(toU("moment", a().mr), v => putA({ mr: fromU("moment", v) }), 70)}</td></tr>; }}</For></tbody></table>
+          <p class="muted small">The allowable loads of your pump standard's table for each nozzle, in the pump's axes (x along the shaft, y up, z across); 0 is not checked.</p>
+        </Show>
+        <p class="ibtns"><button class="btn sm" onClick={() => set(list().filter((_, k) => k !== i()))}>Remove {e.name}</button></p>
+      </div>}</For>
+      <p class="ibtns"><button class="btn sm" onClick={() => add("turbine")}>Add a steam turbine</button><button class="btn sm" onClick={() => add("compressor")}>Add a compressor</button><button class="btn sm" onClick={() => add("pump")}>Add a pump</button></p>
     </Dialog>
   );
 });

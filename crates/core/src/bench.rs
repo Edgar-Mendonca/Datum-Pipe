@@ -6,7 +6,7 @@
 //! (the cantilever by beam theory, with the support touching or open), and friction at a rest
 //! (sliding and sticking, by statics and Hooke's law), and wind, static seismic and the
 //! occasional stress on a cantilever (beam theory), and a spring hanger sized by statics and free
-//! thermal growth. `run()` gives the rows of Help › Verification; the test fails on any row
+//! thermal growth, and a steam turbine's nozzle criteria with its nozzle loads by statics. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -435,6 +435,40 @@ pub fn run() -> Vec<Check> {
         out.push(row(18, name, "Cold load C = H + k Δ", "force", 20e3 + k * travel, h.cold, TOL, "Hooke's law"));
         out.push(row(18, name, "Hanger load in operation (OPE1)", "force", 20e3, reaction(&r, "OPE1", 30)[1], TOL, "C − k Δ = H"));
     }
+    // 19. A steam turbine with two 6" nozzles: the exhaust at node 10 (the origin) with 2 m of pipe
+    //     along X carrying 1000 lb down at its end, and an inlet at node 30, 5 m along X, with 1 m of
+    //     pipe along Z carrying 500 lb along X; no weight. By statics the exhaust carries F = 1000 lb
+    //     and M = 2 m × 1000 lb, the inlet 500 lb and 1 m × 500 lb; resolved at the exhaust the inlet's
+    //     force passes through it (it lies along the line between them), so Fc = (500, −1000, 0) lb and
+    //     Mc = (0, 1 m × 500 lb, −2 m × 1000 lb). Dc = √(6² + 6²) = 8.485 in (under 9).
+    {
+        use crate::equip::{EquipKind, Equipment, FT_LBF, LBF};
+        let mut d = table("Turbine", &[(10, 20, 2.0, 0.0, 0.0), (30, 40, 0.0, 0.0, 1.0)]);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        d.apply(Op::SetStart { num: 30, p: [5.0, 0.0, 0.0] }).unwrap();
+        anchor(&mut d, 10);
+        anchor(&mut d, 30);
+        let z1 = d.apply(Op::Add { item: Item::Nozzle(crate::model::Nozzle { node: 10, name: "Exhaust".into(), ..Default::default() }), after: None }).unwrap()[0];
+        let z2 = d.apply(Op::Add { item: Item::Nozzle(crate::model::Nozzle { node: 30, name: "Inlet".into(), ..Default::default() }), after: None }).unwrap()[0];
+        add(&mut d, Item::Load(Load { node: 20, f: [0.0, -1000.0 * LBF, 0.0], m: [0.0; 3], ..Default::default() }));
+        add(&mut d, Item::Load(Load { node: 40, f: [500.0 * LBF, 0.0, 0.0], m: [0.0; 3], ..Default::default() }));
+        d.apply(Op::SetEquipment { list: vec![Equipment { name: "T-301".into(), kind: EquipKind::Turbine, nozzles: vec![z1, z2], reference: z1, ..Default::default() }] }).unwrap();
+        let r = analyze(&d.m).unwrap();
+        let eq = &case(&r, "OPE1").equipment[0];
+        let row_of = |w: &str| eq.rows.iter().find(|x| x.what.starts_with(w)).map_or(f64::NAN, |x| x.value);
+        let m1 = 2.0 * 1000.0 * LBF / FT_LBF;
+        let mc = ((500.0 * LBF).powi(2) + (2.0 * 1000.0 * LBF).powi(2)).sqrt() / FT_LBF;
+        let fc = (500.0f64 * 500.0 + 1000.0 * 1000.0).sqrt();
+        let name = "A steam turbine's nozzle criteria";
+        let src = "Statics, and the turbine criteria as published equations";
+        out.push(row(19, name, "Exhaust: 3F + M (lb, ft·lb)", "ratio", 3.0 * 1000.0 + m1, row_of("Exhaust"), TOL, src));
+        out.push(row(19, name, "All nozzles at the exhaust: 2Fc + Mc", "ratio", 2.0 * fc + mc, row_of("All nozzles at"), TOL, src));
+        out.push(row(19, name, "All nozzles: Fy (lb)", "ratio", 1000.0, row_of("All nozzles: Fy"), TOL, src));
+        let allow = eq.rows.iter().find(|x| x.what.starts_with("All nozzles at")).map_or(f64::NAN, |x| x.allow);
+        out.push(row(19, name, "Combined allowable 250·Dc", "ratio", 250.0 * 72.0f64.sqrt(), allow, TOL, "Dc = √(6² + 6²) in"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -459,7 +493,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=18 {
+        for b in 1..=19 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

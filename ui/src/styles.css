@@ -834,3 +834,5 @@ tr.behind td { background: var(--err-bg); }
 .looppic { display: block; background: var(--panel); border: 1px solid var(--line); margin: 6px 0; }
 .isowrap .tblock { width: 0; min-width: 100%; }
 .egrid tr.spacer td { padding: 0; border: 0; background: transparent; }
+.eqcard { border: 1px solid var(--line2); padding: 8px 10px; margin: 8px 0; background: var(--bg2); }
+.eqcard .inline input { margin: 0 2px; }

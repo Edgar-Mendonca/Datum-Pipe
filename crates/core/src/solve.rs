@@ -123,6 +123,8 @@ pub struct CaseResult {
     pub iterations: u32,
     /// Supports with friction: sticking or sliding, and the friction force.
     pub friction: Vec<Friction>,
+    /// Rotating equipment checked against the published criteria (sum cases only).
+    pub equipment: Vec<crate::equip::EquipCheck>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1186,7 +1188,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                     }
                 }
                 let reacted = sum_reactions(&g, &reactions);
-                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction });
+                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction, equipment: vec![] });
                 raw.insert(c.id, std::mem::take(&mut raw_glob));
                 cr
             }
@@ -1202,7 +1204,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                 let applied: [f64; 6] = std::array::from_fn(|d| ra.applied[d] - rb.applied[d]);
                 let reacted = sum_reactions(&g, &reactions);
                 raw.insert(c.id, glob);
-                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![] }
+                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![] }
             }
         };
         by_id.insert(c.id, r.clone());
@@ -1311,6 +1313,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let wscale = parts.iter().map(|p| p.w.abs() * p.el.line.length()).sum::<f64>() + point_loads.iter().map(|v| v.abs()).sum::<f64>();
     for res in &mut results {
         // Nozzle loads: what the pipe puts on the nozzle (the support reaction reversed).
+        let mut at: Vec<crate::equip::NozzleAt> = vec![];
         for &(zid, pt, a) in &nozzle_axes {
             let z = m.nozzles.iter().find(|z| z.id == zid).unwrap();
             let mut r = [0.0; 6];
@@ -1319,6 +1322,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                     r[d] -= x.f[d];
                 }
             }
+            at.push(crate::equip::NozzleAt { id: zid, name: z.name.clone(), at: g.points[pt].p, size: crate::equip::size_at(m, z.node), f: [r[0], r[1], r[2]], m: [r[3], r[4], r[5]] });
             let (ax, b, cc) = axes(a);
             let f = [r[0], r[1], r[2]];
             let mm = [r[3], r[4], r[5]];
@@ -1331,6 +1335,10 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             res.nozzles.push(NozzleLoad { nozzle: zid, node: z.node, local, shear, bending, ratios, pass: checked.then(|| ratios.iter().all(|r| *r <= 1.0)) });
         }
         res.imbalance = imbalance(&g, res, wscale);
+        // Rotating equipment: in the cases that are loads (not ranges between two cases).
+        if m.cases.iter().any(|c| c.id == res.id && matches!(c.recipe, Recipe::Sum { .. })) {
+            res.equipment = m.equipment.iter().map(|e| crate::equip::check(e, &at)).collect();
+        }
     }
     for z in &m.nozzles {
         if !m.supports.iter().any(|s| s.node == z.node) {

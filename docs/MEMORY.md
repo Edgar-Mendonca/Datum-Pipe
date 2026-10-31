@@ -92,6 +92,10 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.2.3 | `Model.equipment` (`equip.rs`), edited whole with `Op::SetEquipment` like the load cases; nozzles that disappear are dropped from it in `finish` and on repair | No new item kind in every op; equipment is a few entries |
+| 0.2.3 | Turbines and compressors: the criteria as equations with every number a pre-filled input (`Coef`: 3, 1, 500; De cap 8 in, (16 + D)/3 above; 2, 1, 250; Dc cap 9 in, (18 + Dc)/3 above; component limits 50, 125, 100, 250, 125, 125 × Dc; compressor multiplier 1.85). The single-nozzle form, the combined form, the resolution at the exhaust and Dc from the combined area were confirmed against published descriptions; the over-cap rules and the component limits could not be (the sources were not reachable from the session), so they are inputs to check against the edition | The owner's rule: equations only, never a standard's tables; anything unconfirmed is an input |
+| 0.2.3 | Pumps: components and resultants against the user's table values in the pump's axes (x shaft, y up, z = x × y), with a multiplier; the pump standard's combined interaction equations are not implemented | The table is copyrighted; the interaction rules could not be confirmed in the session |
+| 0.2.3 | Equipment is checked in Sum cases only (not ranges); a case with a failing equipment check no longer shows PASS | Ranges are not loads on the machine |
 | 0.2.2 | Over 64 supports with friction (`EXACT_FRICS`), sliding forces use the node's own stiffness block as the flexibility estimate; after 40 solves (`FAST_ITER`) the exact unit-load columns take over | The exact columns cost one solve per sliding direction (1276 columns, 2 s per solve on 1441 elements); the estimate only changes how fast it settles, not the answer |
 | 0.2.2 | The element table draws only the rows in view (25 px rows, 15 rows of margin) with spacer rows; a selection elsewhere scrolls its row into view | 1441 rows of inputs and selects took seconds of layout |
 | 0.2.2 | The 3D view merges every still mesh sharing a material into one buffer (positions, normals, indices; triangle ranges map back to the tag for picking); straight pipe is a cylinder; models over 600 segments use 10 radial facets and 6 per arc | Thousands of draw calls and curve sampling dominated |
@@ -194,8 +198,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.2.0 | Milestone: 0.1.5–0.1.11 reviewed, verification record and examples updated; no new features | ✅ |
 | 0.2.1 | Ease of use: where a model is free, analyze automatically, values typed with units, right-click menus in the 3D view | ✅ |
 | 0.2.2 | Speed on large models (table, 3D view, analysis), with speed checks | ✅ |
-| 0.2.3 | Pump, compressor and steam turbine nozzle checks (published equations; allowable tables are inputs) | 🔜 |
-| 0.2.4 | Flange leakage (equivalent pressure method) | ⬜ |
+| 0.2.3 | Pump, compressor and steam turbine nozzle checks (published equations; allowable tables are inputs) | ✅ |
+| 0.2.4 | Flange leakage (equivalent pressure method) | 🔜 |
 | 0.2.5 | Relief valve thrust (open discharge reaction, occasional) | ⬜ |
 | 0.2.6 | Vessel nozzle flexibility and local stresses, only from published equations | ⬜ |
 | 0.3.0 | Milestone: 0.2.1–0.2.6 reviewed; no new features | ⬜ |
@@ -294,6 +298,11 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Measured (`examples/perf.rs`, `tests_ui/perf.cjs` on `examples::big(160)`): analysis 16.6 s → 0.18 s, window open 7.2 s → 1.8 s, edit 2.4 s → 0.6–0.75 s, code stresses table 1.2 s. Engine speed gate on the large rack; `npm run perf:ui` for the window. A Coulomb's-law test on a 30-bay rack guards the fast friction path.
 - Disk: the build cache filled the allowance again; `target/release` and incremental removed.
 
+### 2026-10-31: Session 2, continued (0.2.3: rotating equipment)
+- Engine: `equip.rs` (Equipment, Coef, PumpAllow, check, size_at), `Model.equipment`, `Op::SetEquipment`, check/repair; nozzle loads collected per case into `CaseResult.equipment`. Benchmark 19 (52 checks), unit tests by hand. Examples: K-201 (compressor, passes), T-301 (turbine, fails by 6.5: a lesson in the example's notes).
+- UI: Supports › Equipment Checks dialog (machines, nozzles, shaft, multiplier, coefficients, pump table), Results › Equipment and its report block, case badges and the analysis message count equipment; help, Sources; two UI checks.
+- Disk: `cargo clean` (19.8 GB) and CARGO_INCREMENTAL=0 for the session.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
@@ -306,4 +315,5 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Two rigid supports holding the same direction at one node share the reaction equally (the true split is indeterminate).
 - Spring hangers are sized from operating case 1 only, hold vertically only, and use one spring each (no double springs or load-to-travel charts).
 - The .pcf import reads geometry, sizes, in-line items and supports; schedules, materials, temperatures and pressures in the file are not read (set them in Datum Pipe).
+- Pump nozzle checks are component and resultant checks against the entered table values; the pump standard's combined interaction equations are not applied.
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

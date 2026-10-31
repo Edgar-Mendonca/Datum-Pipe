@@ -120,6 +120,12 @@ fn rigid(d: &mut Doc, to: u32, kind: RigidKind, mass: f64) {
 fn nozzle(d: &mut Doc, node: u32, name: &str, axis: [f64; 3], allow: [f64; 4]) {
     d.apply(Op::Add { item: Item::Nozzle(Nozzle { node, name: name.into(), axis, allow, ..Default::default() }), after: None }).expect("nozzle");
 }
+/// The machine a nozzle belongs to, checked against the published criteria.
+fn machine(d: &mut Doc, name: &str, kind: crate::equip::EquipKind, factor: f64, shaft: [f64; 3]) {
+    let nozzles: Vec<u32> = d.m.nozzles.iter().map(|z| z.id).collect();
+    let e = crate::equip::Equipment { name: name.into(), kind, nozzles: nozzles.clone(), reference: nozzles[0], shaft, factor, ..Default::default() };
+    d.apply(Op::SetEquipment { list: vec![e] }).expect("equipment");
+}
 fn displace(d: &mut Doc, node: u32, case: usize, v: [f64; 6]) {
     let mut s = d.m.supports.iter().find(|s| s.node == node).expect("support").clone();
     s.disp[case] = v;
@@ -165,6 +171,7 @@ fn compressor() -> Model {
     support(&mut d, 10, SupKind::Anchor, "K-201");
     displace(&mut d, 10, 0, [0.0, 0.0008, 0.0, 0.0, 0.0, 0.0]);
     nozzle(&mut d, 10, "K-201 suction", [0.0, 1.0, 0.0], [6000.0, 4500.0, 3000.0, 4000.0]);
+    machine(&mut d, "K-201", crate::equip::EquipKind::Compressor, 1.85, [1.0, 0.0, 0.0]);
     support(&mut d, 30, SupKind::Spring { dir: [0.0, 1.0, 0.0], k: 175e3 }, "SH-30");
     support(&mut d, 35, SupKind::Rest, "S-35");
     support(&mut d, 60, SupKind::Anchor, "A-60 header");
@@ -208,7 +215,8 @@ fn steam() -> Model {
     st.seis = [0.15, 0.0, 0.15];
     d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("occasional loads");
     nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, -1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
-    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests with friction (μ 0.3), with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot. Wind (0.8 kPa from the south) and 0.15 g of static seismic are checked as occasional cases.");
+    machine(&mut d, "T-301", crate::equip::EquipKind::Turbine, 1.0, [1.0, 0.0, 0.0]);
+    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests with friction (μ 0.3), with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot. The turbine's nozzle fails the turbine criteria (Results › Equipment): the line is too stiff near it, so try a loop or a spring near the turbine. Wind (0.8 kPa from the south) and 0.15 g of static seismic are checked as occasional cases.");
     d.m
 }
 

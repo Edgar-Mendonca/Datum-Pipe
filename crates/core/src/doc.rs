@@ -45,6 +45,8 @@ pub enum Op {
     SetMeta { name: String, notes: String, project: Project },
     /// Replace the load cases (turns automatic cases off).
     SetCases { cases: Vec<LoadCase> },
+    /// Replace the rotating equipment list.
+    SetEquipment { list: Vec<crate::equip::Equipment> },
     /// Build the recommended load cases again (turns automatic cases on).
     RecommendCases,
     Batch(Vec<Op>),
@@ -122,6 +124,11 @@ fn finish(m: &mut Model) -> Result<(), String> {
     m.supports.retain(|s| nodes.contains(&s.node));
     m.nozzles.retain(|s| nodes.contains(&s.node));
     m.loads.retain(|s| nodes.contains(&s.node));
+    // Equipment keeps only nozzles that are still there.
+    let zs: HashSet<u32> = m.nozzles.iter().map(|z| z.id).collect();
+    for e in &mut m.equipment {
+        e.nozzles.retain(|id| zs.contains(id));
+    }
     if m.settings.auto_cases {
         crate::cases::rebuild(m);
     }
@@ -432,6 +439,9 @@ fn exec(m: &mut Model, op: Op, created: &mut Vec<u32>) -> Result<(), String> {
             m.name = if name.trim().is_empty() { "Untitled".into() } else { name };
             m.notes = notes;
             m.project = project;
+        }
+        Op::SetEquipment { list } => {
+            m.equipment = list;
         }
         Op::SetCases { cases } => {
             m.cases = cases;

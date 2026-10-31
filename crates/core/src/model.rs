@@ -478,6 +478,8 @@ pub struct Model {
     pub conds: Vec<Cond>,
     pub supports: Vec<Support>,
     pub nozzles: Vec<Nozzle>,
+    /// Rotating equipment: groups of nozzles checked against the published criteria.
+    pub equipment: Vec<crate::equip::Equipment>,
     pub loads: Vec<Load>,
     pub cases: Vec<LoadCase>,
     /// The next id for any item.
@@ -500,6 +502,7 @@ impl Default for Model {
             conds: vec![Cond { id: 3, ..Cond::default() }],
             supports: vec![],
             nozzles: vec![],
+            equipment: vec![],
             loads: vec![],
             cases: vec![],
             next: 4,
@@ -721,6 +724,13 @@ impl Model {
                 return Err(format!("The support at node {} needs a direction and a stiffness above 0.", s.node));
             }
         }
+        for e in &self.equipment {
+            let c = &e.coef;
+            let nums = c.single.iter().chain(&c.combined).chain(&c.comp).chain(&c.de_over).chain(&c.dc_over).chain([&c.de_cap, &c.dc_cap, &e.factor]).chain(e.shaft.iter()).chain(e.pump.iter().flat_map(|p| p.f.iter().chain(&p.m).chain([&p.fr, &p.mr])));
+            if !nums.into_iter().all(|v| fin(*v) && *v >= -1e300) || !(e.factor > 0.0) || e.nozzles.iter().any(|id| !self.nozzles.iter().any(|z| z.id == *id)) {
+                return Err(format!("The equipment {} needs nozzles of the model, a factor above 0 and numbers in its criteria.", e.name));
+            }
+        }
         for z in &self.nozzles {
             if !nodes.contains(&z.node) || z.axis.iter().chain(z.allow.iter()).any(|v| !fin(*v)) || z.allow.iter().any(|v| *v < 0.0) {
                 return Err(format!("The nozzle {} must be on a node of the model, with allowables of 0 or more.", z.name));
@@ -791,7 +801,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
     }
     let mut v = migrate(v)?;
     let mut warn = vec![];
-    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases"];
+    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases", "equipment"];
     let mut keep: Vec<(String, Vec<Value>)> = vec![];
     if let Some(o) = v.as_object_mut() {
         for k in lists {
@@ -842,6 +852,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
             "nozzles" => m.nozzles = read(a, "nozzles", &mut warn),
             "loads" => m.loads = read(a, "loads", &mut warn),
             "cases" => m.cases = read(a, "load cases", &mut warn),
+            "equipment" => m.equipment = read(a, "equipment", &mut warn),
             _ => {}
         }
     }
@@ -1030,6 +1041,21 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     let (a, b, c) = (m.supports.len(), m.nozzles.len(), m.loads.len());
     m.supports.retain(|s| nodes.contains(&s.node));
     m.nozzles.retain(|z| nodes.contains(&z.node) && z.axis.iter().chain(z.allow.iter()).all(|v| fin(*v)) && z.allow.iter().all(|v| *v >= 0.0));
+    let zs: HashSet<u32> = m.nozzles.iter().map(|z| z.id).collect();
+    for e in &mut m.equipment {
+        e.nozzles.retain(|id| zs.contains(id));
+        if !(e.factor > 0.0 && fin(e.factor)) {
+            e.factor = 1.0;
+        }
+    }
+    let ne = m.equipment.len();
+    m.equipment.retain(|e| {
+        let c = &e.coef;
+        c.single.iter().chain(&c.combined).chain(&c.comp).chain(&c.de_over).chain(&c.dc_over).chain([&c.de_cap, &c.dc_cap]).chain(e.shaft.iter()).chain(e.pump.iter().flat_map(|p| p.f.iter().chain(&p.m).chain([&p.fr, &p.mr]))).all(|v| fin(*v))
+    });
+    if m.equipment.len() < ne {
+        warn.push("Equipment with damaged criteria was left out.".into());
+    }
     m.loads.retain(|l| nodes.contains(&l.node) && l.f.iter().chain(l.m.iter()).all(|v| fin(*v)));
     for s in &mut m.supports {
         let unit = |d: &mut [f64; 3]| {

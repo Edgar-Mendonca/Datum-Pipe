@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.3 — 2026-10-31
+
+Rotating equipment nozzle checks.
+
+**Equipment.** Supports › Equipment Checks groups the nozzle points of a steam turbine, a compressor or a pump.
+
+**Turbines and compressors** are checked against the criteria their standards publish as equations, in the standard's units (lb, ft·lb, inches):
+- each nozzle: 3F + M ≤ 500·De;
+- all nozzles, resolved at the reference (exhaust or discharge) nozzle: 2Fc + Mc ≤ 250·Dc, with Dc from the nozzles' combined area, and a limit on each component of the combined loads;
+- a compressor with a multiplier on every allowable (typically 1.85).
+
+**Pumps** are checked against the allowable loads of the pump standard's table, which you enter for each nozzle (components and resultants, with a multiplier of 1 or 2).
+
+**Your inputs.** Every coefficient, the rules for large nozzles, the component limits, the multipliers and the pump table values are your inputs, filled with typical values: check them against the edition of the standard that applies. No standard's tables are reproduced.
+
+**Results.** Results › Equipment lists each check with its value, allowable and ratio for the chosen case; the report has it for the operating case, and a case with a failing check no longer shows PASS.
+
+**Examples.** The compressor (K-201, factor 1.85) passes; the steam line's turbine (T-301) fails the turbine criteria, as a stiff line near a turbine does: a starting point for adding flexibility.
+
+**Verification.** A new benchmark: a steam turbine with two nozzle lines, its nozzle loads by statics and its criteria by hand (52 checks).
+
 ## 0.2.2 — 2026-10-31
 
 Speed on large models. Measured on a rack line of 1441 elements and 1602 supports (one-way rests with friction, guides, line stops):

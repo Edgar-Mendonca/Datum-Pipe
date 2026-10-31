@@ -300,6 +300,9 @@ pub const QUANTITIES: &[(&str, &str, &str, &str)] = &[
     ("rstiff", "rotational stiffness", "N*m/deg", "lbf*ft/deg"),
     ("radius", "bend radii", "mm", "in"),
     ("ratio", "ratios", "", ""),
+    ("mflow", "mass flows", "kg/s", "lb/h"),
+    ("area", "flow areas", "mm^2", "in^2"),
+    ("speed", "velocities", "m/s", "ft/s"),
 ];
 
 /// The display table for SI (`us` false) or US units, built from the unit table above.
@@ -340,5 +343,8 @@ mod tests {
         let p = si.iter().find(|s| s.q == "press").unwrap();
         assert!(p.label == "bar" && (p.factor - 1e5).abs() < 1e-9);
         assert_eq!(si.iter().find(|s| s.q == "moment").unwrap().label, "N·m");
+        // 1 lb/h, 1 in², 1 ft/s.
+        assert!((get("mflow").factor - 0.453_592_37 / 3600.0).abs() < 1e-12 && same(&get("mflow").dim, &MFLOW));
+        assert!((get("area").factor - 0.0254 * 0.0254).abs() < 1e-15 && (get("speed").factor - 0.3048).abs() < 1e-12);
     }
 }

@@ -2,7 +2,7 @@
 // against temperature and allowables, with sources), line conditions (T1–T3, P1–P3, hydrotest)
 // and the load cases. Each edit goes to the engine as one operation.
 import { For, Show, createSignal, createResource, JSX } from "solid-js";
-import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, Equipment, EquipKind, FlangeSpec, num, parseNum } from "./api";
+import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, Equipment, EquipKind, FlangeSpec, Relief, V3, num, parseNum } from "./api";
 import { openDialog, act, call, model, toast } from "./store";
 import { C } from "./cmds";
 import { Dialog, Icon } from "./ui";
@@ -133,7 +133,7 @@ const KINDS: [string, string][] = [["sus", "Sustained (SUS)"], ["ope", "Operatin
 export const recipeText = (c: LoadCase, all: LoadCase[]) => {
   const r = c.recipe;
   if (r.kind === "range") return `${all.find(x => x.id === r.a)?.name ?? "?"} − ${all.find(x => x.id === r.b)?.name ?? "?"}`;
-  return [r.w ? (r.water ? "W (full of water)" : "W") : "", r.t ? `T${r.t}` : "", r.d ? `D${r.d}` : "", r.p ? (r.p === 4 ? "HP" : `P${r.p}`) : "", r.wind ? "WIN" : "", r.seis ? "SEIS" : ""].filter(Boolean).join(" + ") || "nothing";
+  return [r.w ? (r.water ? "W (full of water)" : "W") : "", r.t ? `T${r.t}` : "", r.d ? `D${r.d}` : "", r.p ? (r.p === 4 ? "HP" : `P${r.p}`) : "", r.wind ? "WIN" : "", r.seis ? "SEIS" : "", r.relief ? "RV" : ""].filter(Boolean).join(" + ") || "nothing";
 };
 
 export const cases = () => openDialog(() => {
@@ -153,10 +153,10 @@ export const cases = () => openDialog(() => {
           <Show when={c.recipe.kind === "sum"} fallback={<><td colSpan={5} class="muted">The range between two cases</td><td>{c.recipe.kind === "range" && <span class="inline">{sel(c.recipe.a, a => putR(c, { a } as any), list().filter(x => x.id !== c.id).map(x => [x.id, x.name]))} − {sel(c.recipe.b, b => putR(c, { b } as any), list().filter(x => x.id !== c.id).map(x => [x.id, x.name]))}</span>}</td></>}>{_ => { const r = c.recipe as Extract<Recipe, { kind: "sum" }>; return <>
             <td><select onChange={e => putR(c, { w: e.currentTarget.value !== "0", water: e.currentTarget.value === "2" } as any)}><option value="0" selected={!r.w}>—</option><option value="1" selected={r.w && !r.water}>W</option><option value="2" selected={r.w && r.water}>W full of water</option></select></td>
             <td>{sel(r.t, t => putR(c, { t } as any), n03)}</td><td>{sel(r.d, d => putR(c, { d } as any), n03)}</td><td>{sel(r.p, p => putR(c, { p } as any), [...n03, [4, "Hydrotest"]])}</td>
-            <td>{sel((r.wind ? 1 : 0) + (r.seis ? 2 : 0), o => putR(c, { wind: !!(o & 1), seis: !!(o & 2) } as any), [[0, "—"], [1, "Wind"], [2, "Seismic"], [3, "Both"]])}</td><td /></>; }}</Show>
+            <td>{sel((r.wind ? 1 : 0) + (r.seis ? 2 : 0) + (r.relief ? 4 : 0), o => putR(c, { wind: !!(o & 1), seis: !!(o & 2), relief: !!(o & 4) } as any), [[0, "—"], [1, "Wind"], [2, "Seismic"], [3, "Wind and seismic"], [4, "Relief thrust"]])}</td><td /></>; }}</Show>
           <td class="muted">{recipeText(c, list())}</td>
           <td><button class="x" title="Remove this case" onClick={() => set(list().filter(x => x.id !== c.id))}>×</button></td></tr>}</For></tbody></table>
-      <p class="ibtns"><button class="btn sm" onClick={() => set([...list(), { id: 0, name: `L${list().length + 1}`, kind: "ope", recipe: { kind: "sum", w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false } }])}>Add a case</button>
+      <p class="ibtns"><button class="btn sm" onClick={() => set([...list(), { id: 0, name: `L${list().length + 1}`, kind: "ope", recipe: { kind: "sum", w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false, relief: false } }])}>Add a case</button>
         <button class="btn sm" onClick={() => { const a = list()[0], b = list()[1]; if (!a || !b) return toast("A range needs two cases."); set([...list(), { id: 0, name: `EXP${list().length + 1}`, kind: "exp", recipe: { kind: "range", a: a.id, b: b.id } }]); }}>Add a range</button>
         <button class="btn sm pri" onClick={C.recommendCases}>Recommend</button></p>
     </Dialog>
@@ -200,6 +200,44 @@ export const flangeDialog = () => openDialog(() => {
           <For each={rigid()}>{e => <tr><td>{e.from}–{e.to}</td><td>{(e.comp as any).rigid}</td><td>{cell("len", spec(e.id).gasket, gasket => put(e.id, { gasket }))}</td><td>{cell("press", spec(e.id).rating, rating => put(e.id, { rating }))}</td></tr>}</For>
         </tbody></table>
       </Show>
+    </Dialog>
+  );
+});
+
+/** Relief valves discharging to the open air: the thrust at the outlet's open end, from the
+ *  relieving flow and the gas, as an occasional load (the engine works it out). */
+const DIRS: [string, string, V3][] = [["pipe", "Along the pipe", [0, 0, 0]], ["+x", "+X", [1, 0, 0]], ["-x", "−X", [-1, 0, 0]], ["+y", "Up (+Y)", [0, 1, 0]], ["-y", "Down (−Y)", [0, -1, 0]], ["+z", "+Z", [0, 0, 1]], ["-z", "−Z", [0, 0, -1]]];
+export const reliefDialog = () => openDialog(() => {
+  const m = () => model()!;
+  const list = () => m().reliefs ?? [];
+  const set = (l: Relief[]) => act({ SetReliefs: { list: l } });
+  const put = (i: number, x: Partial<Relief>) => set(list().map((r, k) => k === i ? { ...r, ...x } : r));
+  // Open ends: nodes on one element only.
+  const ends = () => { const c = new Map<number, number>(); for (const e of m().elements) { c.set(e.from, (c.get(e.from) ?? 0) + 1); c.set(e.to, (c.get(e.to) ?? 0) + 1); } return [...c].filter(([, n]) => n === 1).map(([k]) => k); };
+  const qIn = (q: Q, val: number, f: (v: number) => void, empty = false) => <input class="mono" style={{ width: "68px" }} value={empty && !val ? "" : num(toU(q, val), 6)} placeholder={empty ? "bore" : ""} onChange={e => { const v = parseQ(e.currentTarget.value || "0", q); if (typeof v === "string") { e.currentTarget.value = empty && !val ? "" : num(toU(q, val), 6); return toast(v); } f(fromU(q, v)); }} />;
+  const nIn = (val: number, f: (v: number) => void) => <input class="mono" style={{ width: "58px" }} value={num(val, 6)} onChange={e => { const v = parseNum(e.currentTarget.value); if (v !== null) f(v); else e.currentTarget.value = num(val, 6); }} />;
+  const dirKey = (d: V3) => DIRS.find(x => x[2].every((v, k) => v === d[k]))?.[0] ?? "pipe";
+  const add = () => { const n = ends().slice(-1)[0] ?? m().nodes.slice(-1)[0]?.num ?? 0; set([...list(), { name: `PSV-${list().length + 1}`, node: n, flow: 1, k: 1.3, temp: 273.15 + 200, mw: 18.015, area: 0, dir: [0, 0, 0], dlf: 2, ambient: 101325 }]); };
+  return (
+    <Dialog title="Relief valves" wide help="relief">
+      <p class="muted">A relief valve discharging to the open air pushes its outlet pipe back with F = DLF × (ṁ V + (P − Pa) A) at the open end: the gas at sound speed V with exit pressure P, from the relieving flow ṁ, the ratio of specific heats k, the relieving temperature and the molar mass. It is added to operating case 1 (OPE1+RV), and OCC RV checks its stress as an occasional load. The flow, the gas and the dynamic load factor are your inputs: check the factor against your code edition.</p>
+      <Show when={list().length} fallback={<p class="warnline">No relief valves yet. Model the outlet pipe up to its open end, then add one.</p>}>
+        <table class="tbl"><thead><tr><th>Name</th><th>Open end</th><th>Flow ({unit("mflow")})</th><th>Temperature ({unit("temp")})</th><th>k</th><th>M (kg/kmol)</th><th>Exit area ({unit("area")})</th><th>Discharges</th><th>DLF</th><th /></tr></thead><tbody>
+          <For each={list()}>{(r, i) => <tr>
+            <td><input style={{ width: "64px" }} value={r.name} onChange={e => put(i(), { name: e.currentTarget.value })} /></td>
+            <td><select onChange={e => put(i(), { node: +e.currentTarget.value })}><For each={[...new Set([...ends(), r.node])]}>{n => <option value={n} selected={n === r.node}>{n}{ends().includes(n) ? "" : " (not an open end)"}</option>}</For></select></td>
+            <td>{qIn("mflow", r.flow, flow => flow > 0 ? put(i(), { flow }) : toast("The flow must be above 0."))}</td>
+            <td>{qIn("temp", r.temp, temp => temp > 0 ? put(i(), { temp }) : toast("The temperature must be above absolute zero."))}</td>
+            <td>{nIn(r.k, k => k > 1 && k < 2 ? put(i(), { k }) : toast("k must be between 1 and 2."))}</td>
+            <td>{nIn(r.mw, mw => mw > 0 ? put(i(), { mw }) : toast("The molar mass must be above 0."))}</td>
+            <td>{qIn("area", r.area, area => area >= 0 && put(i(), { area }), true)}</td>
+            <td><select onChange={e => put(i(), { dir: DIRS.find(x => x[0] === e.currentTarget.value)![2] })}><For each={DIRS}>{d => <option value={d[0]} selected={d[0] === dirKey(r.dir)}>{d[1]}</option>}</For></select></td>
+            <td>{nIn(r.dlf, dlf => dlf > 0 && dlf <= 10 ? put(i(), { dlf }) : toast("The dynamic load factor must be above 0 and at most 10."))}</td>
+            <td><button class="x" title="Remove this relief valve" onClick={() => set(list().filter((_, k) => k !== i()))}>×</button></td></tr>}</For>
+        </tbody></table>
+        <p class="muted small">M is the molar mass. Steam: k ≈ 1.3, M 18.015 kg/kmol; air: k 1.4, 28.96 kg/kmol. An empty exit area takes the bore of the pipe at the node.</p>
+      </Show>
+      <p class="ibtns"><button class="btn sm" onClick={add}>Add a relief valve</button></p>
     </Dialog>
   );
 });

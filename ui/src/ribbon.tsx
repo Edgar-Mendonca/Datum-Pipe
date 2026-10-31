@@ -125,6 +125,7 @@ export const Ribbon = () => {
         <G l="Displacements" h="disp"><B big i="disp" l="Imposed Displacement" run={() => C.support("anchor")} title="Put an anchor on the selected node and set its movements per case in the Inspector" /></G>
         <G l="Load Cases" h="cases"><B big i="cases" l="Load Cases" run={() => P.cases()} /><S><B i="check" l="Recommend" run={C.recommendCases} on={!!m()?.settings.auto_cases} /><label class="chk"><input type="checkbox" checked={!!m()?.settings.hydro} onChange={e => C.settings({ hydro: e.currentTarget.checked })} />Hydrotest case</label></S></G>
         <G l="Occasional" h="occasional"><S><B i="wind" l="Wind" run={() => setSel(null)} title="Wind: set the design pressure in the Inspector (Occasional loads)" /><B i="seismic" l="Static Seismic" run={() => setSel(null)} title="Static seismic: set the factors in the Inspector (Occasional loads)" /></S></G>
+        <G l="Relief" h="relief"><B big i="relief" l="Relief Valves" run={() => P.reliefDialog()} title="Relief valves discharging to the open air: their thrust as an occasional load" /></G>
         <G l="Flanges" h="flanges"><B big i="flange" l="Flange Leakage" run={() => P.flangeDialog()} title="Check flanged joints for leakage by the equivalent pressure method" /></G>
       </Show>
       <Show when={tab() === "supports"}>

@@ -6,8 +6,8 @@
 //! (the cantilever by beam theory, with the support touching or open), and friction at a rest
 //! (sliding and sticking, by statics and Hooke's law), and wind, static seismic and the
 //! occasional stress on a cantilever (beam theory), and a spring hanger sized by statics and free
-//! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, and a
-//! flange's equivalent pressure. `run()` gives the rows of Help › Verification; the test fails on any row
+//! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
+//! flange's equivalent pressure, and a relief valve's thrust at an open end. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -498,6 +498,34 @@ pub fn run() -> Vec<Check> {
         out.push(row(20, name, "Equivalent pressure", "stress", peq, fc.equivalent, TOL, src));
         out.push(row(20, name, "Ratio to the rating", "ratio", (1e6 + peq) / 5e6, fc.ratio, TOL, src));
     }
+    // 21. A relief valve's thrust: anchored at 10, 2 m of 6" Sch 40 along X to 20, then 1 m up to
+    //     the open end 30; no weight. 10 kg/s of steam (k 1.3, M 18.015 kg/kmol) at 200 °C leaves
+    //     upwards through the pipe's bore A. At sound speed V = √(2kRT/((k+1)M)) and the exit pressure
+    //     P = (ṁ/A)√(2RT/(k(k+1)M)), so F = 2 × (ṁ V + (P − 101 325 Pa) A) with a dynamic load
+    //     factor of 2 (the exit is choked: P is above the surroundings), pushing down at 30; by statics the anchor carries F and the moment F × 2 m.
+    {
+        let mut d = table("Relief", &[(10, 20, 2.0, 0.0, 0.0), (20, 30, 0.0, 1.0, 0.0)]);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        anchor(&mut d, 10);
+        let rv = crate::relief::Relief { name: "PSV-1".into(), node: 30, flow: 10.0, ..Default::default() };
+        d.apply(Op::SetReliefs { list: vec![rv] }).unwrap();
+        let r = analyze(&d.m).unwrap();
+        let p = &d.m.pipes[0];
+        let a = std::f64::consts::PI / 4.0 * (p.od - 2.0 * p.wall).powi(2);
+        let (rr, t, k, mw) = (8_314.462_618, K0 + 200.0, 1.3, 18.015);
+        let v = (2.0 * k * rr * t / ((k + 1.0) * mw)).sqrt();
+        let pe = 10.0 / a * (2.0 * rr * t / (k * (k + 1.0) * mw)).sqrt();
+        let f = 2.0 * (10.0 * v + (pe - 101_325.0) * a);
+        let occ = case(&r, "OCC RV");
+        let re = occ.reactions.iter().find(|x| x.node == 10).map_or([f64::NAN; 6], |x| x.f);
+        let name = "A relief valve's thrust at an open end";
+        let src = "Momentum and pressure thrust at a sonic exit (ideal gas), and statics";
+        out.push(row(21, name, "Thrust with the load factor", "force", f, r.reliefs[0].thrust, TOL, src));
+        out.push(row(21, name, "Anchor force (up)", "force", f, re[1], TOL, src));
+        out.push(row(21, name, "Anchor moment", "moment", 2.0 * f, re[5].abs(), TOL, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -522,7 +550,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=20 {
+        for b in 1..=21 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

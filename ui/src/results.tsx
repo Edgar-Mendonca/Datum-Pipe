@@ -13,7 +13,7 @@ import { supName } from "./panels";
 import { Icon } from "./ui";
 
 export const [tableKind, setTableKind] = createSignal("summary");
-const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["flanges", "Flanges"], ["equilibrium", "Equilibrium"]];
+const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["flanges", "Flanges"], ["relief", "Relief"], ["equilibrium", "Equilibrium"]];
 const KIND: Record<string, string> = { sus: "Sustained", ope: "Operating", exp: "Expansion range", hyd: "Hydrotest", occ: "Occasional" };
 const CHECK: Record<string, string> = { sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" };
 const openTable = (k: string) => { setTableKind(k); setView("results"); };
@@ -62,7 +62,7 @@ export const ResultsPage = () => {
         <Show when={stale()}><p class="warnline">The model changed since this analysis. Press F5 to analyze again.</p></Show>
         <Show when={r()!.warnings.length}><p class="warnline">{r()!.warnings.join(" ")}</p></Show>
         <div class="rtabs"><For each={TABLES}>{([k, l]) => <button classList={{ on: tableKind() === k }} onClick={() => setTableKind(k)}>{l}</button>}</For></div>
-        <Show when={!["summary", "wall", "equilibrium"].includes(tableKind())}>
+        <Show when={!["summary", "wall", "equilibrium", "relief"].includes(tableKind())}>
           <div class="ctabs"><For each={r()!.cases}>{x => <button classList={{ on: x.id === c()?.id }} onClick={() => setCaseId(x.id)}><b>{x.name}</b><small>{KIND[x.kind]}</small><Badge pass={casePass(x)} /></button>}</For></div>
         </Show>
         <div class="rtable">
@@ -76,6 +76,7 @@ export const ResultsPage = () => {
           <Show when={tableKind() === "hangers"}><Hangers r={r()!} /></Show>
           <Show when={tableKind() === "equip" && c()}><EquipTable c={c()!} /></Show>
           <Show when={tableKind() === "flanges" && c()}><FlangeTable c={c()!} /></Show>
+          <Show when={tableKind() === "relief"}><ReliefTable r={r()!} /></Show>
           <Show when={tableKind() === "equilibrium"}><Equilibrium r={r()!} /></Show>
         </div>
       </Show>
@@ -172,6 +173,15 @@ export const FlangeTable = (p: { c: CaseResult }) => {
   </Show>;
 };
 
+export const ReliefTable = (p: { r: Results }) => {
+  const list = () => p.r.reliefs ?? [];
+  return <Show when={list().length} fallback={<p class="muted">No relief valves. Add one in Loads › Relief Valves.</p>}>
+    <p class="muted small">The reaction at each open end: F = DLF × (ṁ V + (P − Pa) A), with the gas at sound speed V and exit pressure P (absolute). It acts in the cases with relief (OPE1+RV), and OCC RV is its own effect, checked as occasional. Where the exit is not choked the pressure term is 0 and the sound speed is kept, which overstates the thrust.</p>
+    <table class="tbl rtable"><thead><tr><Th>Valve</Th><Th>Node</Th><Th r>Exit area {u("area")}</Th><Th r>Velocity {u("speed")}</Th><Th r>Exit pressure {u("press")}</Th><Th>Choked</Th><Th r>Thrust {u("force")}</Th><Th r>DLF</Th><Th r>With DLF {u("force")}</Th></tr></thead><tbody>
+      <For each={list()}>{x => <tr><td>{x.name}</td><td>{x.node}</td><td class="r">{v("area", x.area)}</td><td class="r">{v("speed", x.velocity)}</td><td class="r">{v("press", x.pressure)}</td><td>{x.choked ? "yes" : "no"}</td><td class="r">{v("force", x.stat)}</td><td class="r">{num(x.dlf, 3)}</td><td class="r">{v("force", x.thrust)}</td></tr>}</For></tbody></table>
+  </Show>;
+};
+
 export const Walls = (p: { r: Results }) => {
   const el = (id: number) => { const e = model()?.elements.find(x => x.id === id); return e ? `${e.from}–${e.to}` : ""; };
   return <Show when={p.r.walls.length} fallback={<p class="muted">No element has an internal pressure.</p>}>
@@ -209,6 +219,7 @@ setResultBlocks(m => {
     ...(r.hangers?.length ? [() => <div><h4>Spring hangers</h4><Hangers r={r} /></div>] : []),
     ...(ope.equipment?.length ? [() => <div><h4>Rotating equipment ({ope.name})</h4><EquipTable c={ope} /></div>] : []),
     ...(ope.flanges?.length ? [() => <div><h4>Flange leakage ({ope.name})</h4><FlangeTable c={ope} /></div>] : []),
+    ...(r.reliefs?.length ? [() => <div><h4>Relief valve thrust</h4><ReliefTable r={r} /></div>] : []),
     ...r.cases.filter(c => c.kind !== "ope" && c.id !== ope.id && c.kind !== "exp").map(c => () => <div><h4>Support loads ({c.name})</h4><Supports r={r} c={c} /></div>),
     ...(m.nozzles.length ? r.cases.filter(c => c.kind !== "exp").map(c => () => <div><h3>{c === r.cases.find(x => x.kind !== "exp") ? "5. Nozzle loads" : ""}</h3><h4>{c.name}</h4><Nozzles r={r} c={c} /></div>) : []),
     ...(r.walls.length ? [() => <div><h3>6. Minimum wall</h3><Walls r={r} /></div>] : []),

@@ -374,7 +374,7 @@ pub enum Recipe {
     /// W weight (pipe, contents, insulation, extra loads, constant supports); `water` fills with
     /// water instead of the contents; `t` thermal case 1–3 (0 none); `d` imposed displacements of
     /// case 1–3; `p` pressure of case 1–3, or 4 for the hydrotest pressure; `wind` and `seis` the
-    /// occasional wind and static seismic loads of the settings.
+    /// occasional wind and static seismic loads of the settings; `relief` the relief valves' thrust.
     Sum {
         w: bool,
         water: bool,
@@ -385,6 +385,9 @@ pub enum Recipe {
         wind: bool,
         #[serde(default)]
         seis: bool,
+        /// The thrust of the relief valves discharging (0.2.5).
+        #[serde(default)]
+        relief: bool,
     },
     /// The results of case `a` minus case `b` (the expansion range).
     Range { a: u32, b: u32 },
@@ -401,7 +404,7 @@ pub struct LoadCase {
 
 impl Default for LoadCase {
     fn default() -> Self {
-        LoadCase { id: 0, name: "SUS".into(), kind: CaseKind::Sus, recipe: Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false } }
+        LoadCase { id: 0, name: "SUS".into(), kind: CaseKind::Sus, recipe: Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false } }
     }
 }
 
@@ -482,6 +485,8 @@ pub struct Model {
     pub equipment: Vec<crate::equip::Equipment>,
     /// Flanged joints checked for leakage (equivalent pressure).
     pub flanges: Vec<crate::flange::Flange>,
+    /// Relief valves discharging to the open air (thrust as an occasional load).
+    pub reliefs: Vec<crate::relief::Relief>,
     pub loads: Vec<Load>,
     pub cases: Vec<LoadCase>,
     /// The next id for any item.
@@ -506,6 +511,7 @@ impl Default for Model {
             nozzles: vec![],
             equipment: vec![],
             flanges: vec![],
+            reliefs: vec![],
             loads: vec![],
             cases: vec![],
             next: 4,
@@ -732,6 +738,11 @@ impl Model {
                 return Err("A flange check needs an element of the model, and a gasket diameter and rating of 0 or more.".into());
             }
         }
+        for r in &self.reliefs {
+            if !self.nodes.iter().any(|n| n.num == r.node) || !r.valid() {
+                return Err(format!("The relief valve {} needs a node of the model, a flow above 0, k between 1 and 2, a temperature and molar mass above 0, and a dynamic load factor between 0 and 10.", r.name));
+            }
+        }
         for e in &self.equipment {
             let c = &e.coef;
             let nums = c.single.iter().chain(&c.combined).chain(&c.comp).chain(&c.de_over).chain(&c.dc_over).chain([&c.de_cap, &c.dc_cap, &e.factor]).chain(e.shaft.iter()).chain(e.pump.iter().flat_map(|p| p.f.iter().chain(&p.m).chain([&p.fr, &p.mr])));
@@ -809,7 +820,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
     }
     let mut v = migrate(v)?;
     let mut warn = vec![];
-    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases", "equipment", "flanges"];
+    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases", "equipment", "flanges", "reliefs"];
     let mut keep: Vec<(String, Vec<Value>)> = vec![];
     if let Some(o) = v.as_object_mut() {
         for k in lists {
@@ -862,6 +873,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
             "cases" => m.cases = read(a, "load cases", &mut warn),
             "equipment" => m.equipment = read(a, "equipment", &mut warn),
             "flanges" => m.flanges = read(a, "flange checks", &mut warn),
+            "reliefs" => m.reliefs = read(a, "relief valves", &mut warn),
             _ => {}
         }
     }
@@ -1055,6 +1067,11 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     m.flanges.retain(|f| els.contains(&f.element) && f.gasket >= 0.0 && fin(f.gasket) && f.rating >= 0.0 && fin(f.rating));
     if m.flanges.len() < nf {
         warn.push("Flange checks on missing elements, or with damaged values, were left out.".into());
+    }
+    let nr = m.reliefs.len();
+    m.reliefs.retain(|r| nodes.contains(&r.node) && r.valid());
+    if m.reliefs.len() < nr {
+        warn.push("Relief valves at missing nodes, or with damaged values, were left out.".into());
     }
     let zs: HashSet<u32> = m.nozzles.iter().map(|z| z.id).collect();
     for e in &mut m.equipment {

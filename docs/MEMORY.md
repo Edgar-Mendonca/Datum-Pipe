@@ -37,6 +37,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | `crates/core/src/elements.rs` | The 3D pipe element from its exact flexibility ∫ Bᵀ C B ds (axial, shear with κ = 0.5, torsion, bending with the bend's k), inverted and moved to 12×12; uniform loads and thermal growth as equivalent nodal loads; end forces and section resultants |
 | `crates/core/src/code.rs` | The process piping code's equations: pressure design thickness and hoop stress, minimum wall with corrosion and mill tolerance, bend and tee SIFs and flexibility (h, pressure correction), reducer SIF, sustained stress, displacement stress range, allowable range (basic and liberal), f from cycles |
 | `crates/core/src/solve.rs` | The analysis: parts (sections, weights, strains, SIFs), assembly, supports (rigid axis-aligned ones held exactly with imposed displacements as prescribed values; skewed or flexible ones as springs), basic loads, every case solved together, ranges as differences, forces in local axes, reactions, code stresses per segment end, nozzle loads in nozzle axes, minimum wall, the equilibrium check |
+| `crates/core/src/relief.rs` | Relief valve thrust at an open discharge (ideal gas, sonic exit, dynamic load factor); `ReliefResult` in `Results.reliefs` |
+| `crates/core/src/flange.rs` | Flange leakage by the equivalent pressure |
 | `crates/core/src/import.rs` | Import of plain-text piping component files (.pcf) into a new model (`pcf`), with its warnings |
 | `crates/core/src/iso.rs` | The isometric: the 30° projection (x = (X − Z) cos 30°, y = (X + Z) sin 30° − Y), lines per segment (arcs sampled), node labels, a dimension per element offset away from the middle, symbols for supports, nozzles and tees, sheets of at most n elements in table order with their joins |
 | `crates/core/src/worked.rs` | Hand-worked cases for every component and support kind (spring, settlement, guide, line stop, rest, skewed restraint, valve weight, constant support, reducer taper and SIF, tee SIF, nozzle axes, liberal allowable and f) |
@@ -93,6 +95,10 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | Version | Decision | Why |
 | --- | --- | --- |
 | 0.2.4 | Flange leakage by Kellogg's equivalent pressure (`flange.rs`): `Model.flanges` (element, G, rating) via `Op::SetFlanges`; per Sum case the largest P_eq over the element's segment ends from |Fa| and the bending resultant; ratio (P + P_eq)/rating | A public method with every flange value the user's input; |Fa| is on the safe side |
+| 0.2.5 | Relief thrust from first principles (`relief.rs`): momentum and pressure thrust of an ideal gas at a sonic exit, F = DLF (ṁV + (P − Pa)A); matches the published API RP 520 Part II form (unit test in US units, < 0.5 %) | Physics anyone can derive, so nothing copyrighted; the standard is named by number only |
+| 0.2.5 | `Model.reliefs` via `Op::SetReliefs`; a point force at the open end in cases with `Recipe::Sum.relief` (serde default); cases OPE1+RV and OCC RV like wind; direction along the pipe out of the open end unless given; a non-open end without a direction is an analysis error | The same pattern as the other occasional loads; no silent guess at a direction |
+| 0.2.5 | Unchoked exit: pressure term 0, sound speed kept | Overstates the thrust (safe side); said in the help and the results |
+| 0.2.5 | New units `mflow`, `area`, `speed` in the display table | Inputs and results of the relief valves |
 | 0.2.4 | No flange check in the hydrotest (and none in ranges) | A hydrotest is judged against a test rating; the example's valve failed only there |
 | 0.2.3 | `Model.equipment` (`equip.rs`), edited whole with `Op::SetEquipment` like the load cases; nozzles that disappear are dropped from it in `finish` and on repair | No new item kind in every op; equipment is a few entries |
 | 0.2.3 | Turbines and compressors: the criteria as equations with every number a pre-filled input (`Coef`: 3, 1, 500; De cap 8 in, (16 + D)/3 above; 2, 1, 250; Dc cap 9 in, (18 + Dc)/3 above; component limits 50, 125, 100, 250, 125, 125 × Dc; compressor multiplier 1.85). The single-nozzle form, the combined form, the resolution at the exhaust and Dc from the combined area were confirmed against published descriptions; the over-cap rules and the component limits could not be (the sources were not reachable from the session), so they are inputs to check against the edition | The owner's rule: equations only, never a standard's tables; anything unconfirmed is an input |
@@ -202,8 +208,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.2.2 | Speed on large models (table, 3D view, analysis), with speed checks | ✅ |
 | 0.2.3 | Pump, compressor and steam turbine nozzle checks (published equations; allowable tables are inputs) | ✅ |
 | 0.2.4 | Flange leakage (equivalent pressure method) | ✅ |
-| 0.2.5 | Relief valve thrust (open discharge reaction, occasional) | 🔜 |
-| 0.2.6 | Vessel nozzle flexibility and local stresses, only from published equations | ⬜ |
+| 0.2.5 | Relief valve thrust (open discharge reaction, occasional) | ✅ |
+| 0.2.6 | Vessel nozzle flexibility and local stresses, only from published equations | 🔜 |
 | 0.3.0 | Milestone: 0.2.1–0.2.6 reviewed; no new features | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum; the regulator's public piping benchmark problems (NUREG/CR-1677) | ⬜ |
 | 0.5 | Power piping and European piping code equations, buried pipe, cold spring | ⬜ |
@@ -309,6 +315,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Engine: `flange.rs`, `Model.flanges`, `Op::SetFlanges`, check/repair/finish pruning; `CaseResult.flanges`. Benchmark 20 (54 checks). Example: the pump's valve (0.84 in OPE1).
 - UI: Loads › Flange Leakage dialog, Results › Flanges and its report block, case badges and the analysis message count flanges; help and Sources; two UI checks.
 
+### 2026-10-31: Session 2, continued (0.2.5: relief valve thrust)
+- Engine: `relief.rs`, `Model.reliefs`, `Op::SetReliefs`, check/repair/finish pruning, `Recipe::Sum.relief`, cases OPE1+RV and OCC RV, the thrust as a point load (and in the independent load sum), `Results.reliefs`. Benchmark 21 and the new example's equilibrium (58 checks), two worked tests, the US-units unit test. Example: Safety valve vent stack (3.61 kN, OCC RV 0.139). Units mflow, area, speed.
+- UI: Loads › Relief Valves dialog, Results › Relief and its report block, the case editor's Relief thrust option, the example tile; help and Sources; five UI checks. Checked in the real app (the dialog was too wide at first: narrowed).
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
@@ -322,4 +332,5 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Spring hangers are sized from operating case 1 only, hold vertically only, and use one spring each (no double springs or load-to-travel charts).
 - The .pcf import reads geometry, sizes, in-line items and supports; schedules, materials, temperatures and pressures in the file are not read (set them in Datum Pipe).
 - Pump nozzle checks are component and resultant checks against the entered table values; the pump standard's combined interaction equations are not applied.
+- Relief valve thrust is for an ideal gas at an open discharge only (no liquids, two-phase flow or closed discharge systems), acts with operating case 1 only, and is static (times the load factor; no time history).
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

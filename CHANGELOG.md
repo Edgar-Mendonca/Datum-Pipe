@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.5 — 2026-10-31
+
+Relief valve thrust.
+
+**The thrust at an open discharge.** Loads › Relief Valves puts a relief valve at the open end of its outlet pipe, with its relieving flow, temperature, ratio of specific heats k and molar mass. Datum Pipe calculates the reaction from the conservation of momentum, F = ṁ V + (P − Pa) A, with the gas leaving at sound speed: V = √(2kRT/((k+1)M)) and exit pressure P = (ṁ/A)√(2RT/(k(k+1)M)). This is the same result as the published open-discharge reaction equation of API RP 520 Part II. The force is multiplied by a dynamic load factor (2 by default; check it against your code edition). It pushes the pipe back along the pipe at the open end, or against a direction you give. The exit area is the pipe's bore unless you enter one.
+
+**Load cases.** With relief valves, OPE1+RV (operating case 1 with the thrust) and OCC RV (the thrust's own effect) are added; OCC RV is checked as an occasional load, the sustained stress plus its stress against 1.33 Sh. The load case editor has a Relief thrust option.
+
+**Results.** Results › Relief shows each valve's exit area, velocity, exit pressure, whether the exit is choked, and the thrust before and after the load factor; the report has it too. Where the exit is not choked the pressure term is 0 and the sound speed is kept, which overstates the thrust.
+
+**Example.** A new worked example, Safety valve vent stack: 3 kg/s of steam at 200 °C up a 4" stack, a 3.6 kN thrust with the load factor, OCC RV at 0.14.
+
+**Units.** Mass flows (kg/s, lb/h), flow areas (mm², in²) and velocities (m/s, ft/s).
+
+**Verification.** A new benchmark: a relief valve on an L-shaped outlet, its thrust by hand and the anchor's force and moment by statics, and the new example's equilibrium (58 checks). A unit test checks the thrust against the published form in US units.
+
 ## 0.2.4 — 2026-10-31
 
 Flange leakage.

@@ -141,6 +141,8 @@ pub struct Results {
     pub version: &'static str,
     /// The spring hangers as sized for this analysis.
     pub hangers: Vec<HangerDesign>,
+    /// The relief valves' thrust (applied in the cases with relief).
+    pub reliefs: Vec<crate::relief::ReliefResult>,
 }
 
 /// One spring hanger's sizing: its hot load (the weight it carries with the pipe held level there),
@@ -198,10 +200,10 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         solve_model(&mm).map_err(|e| format!("Sizing the spring hangers: {e}"))
     };
     // 1. The hot loads: the operating weight with each hanger held rigidly (contents, no heat).
-    let r1 = run(&|_| SupKind::Restraint { dir: [0.0, 1.0, 0.0] }, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 0, wind: false, seis: false })?;
+    let r1 = run(&|_| SupKind::Restraint { dir: [0.0, 1.0, 0.0] }, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 0, wind: false, seis: false, relief: false })?;
     let hot: HashMap<u32, f64> = hangers.iter().map(|&id| (id, r1.cases[0].reactions.iter().find(|x| x.support == id).map_or(0.0, |x| x.f[1]))).collect();
     // 2. The travels: operating case 1 with each hanger carrying its hot load as a constant force.
-    let r2 = run(&|id| SupKind::Constant { load: hot[&id].max(0.0) }, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false })?;
+    let r2 = run(&|id| SupKind::Constant { load: hot[&id].max(0.0) }, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false, relief: false })?;
     // 3. The springs.
     let mut warnings = vec![];
     let mut designs = vec![];
@@ -959,6 +961,36 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             }
         }
     }
+    // Relief valves: the thrust at the open end, pushing the pipe back against the discharge.
+    let mut relief_loads = vec![0.0; n];
+    let mut reliefs = vec![];
+    for r in &m.reliefs {
+        let Some(&pt) = g.node_point.get(&r.node) else { continue };
+        let segs: Vec<&crate::geom::Seg> = g.segs.iter().filter(|s| s.a == pt || s.b == pt).collect();
+        let Some(s) = segs.first() else { continue };
+        // Out of the pipe at the node: from its other end towards the node.
+        let (_, t) = g.at(s, if s.a == pt { 0.0 } else { 1.0 });
+        let out = if s.a == pt { scale(t, -1.0) } else { t };
+        let dir = if norm(r.dir) > 1e-9 {
+            unit(r.dir)
+        } else if segs.len() == 1 {
+            out
+        } else {
+            return Err(format!("The relief valve {} is at node {}, which is not an open end: give the direction it discharges in.", r.name, r.node));
+        };
+        let area = if r.area > 0.0 {
+            r.area
+        } else {
+            let p = m.pipe(if s.a == pt { s.pipe } else { s.pipe_b }).ok_or("A relief valve's pipe is missing.")?;
+            std::f64::consts::PI / 4.0 * (p.od - 2.0 * p.wall).powi(2)
+        };
+        let th = crate::relief::thrust(r, area);
+        let force = scale(dir, -th.thrust);
+        for d in 0..3 {
+            relief_loads[6 * pt + d] += force[d];
+        }
+        reliefs.push(crate::relief::ReliefResult { name: r.name.clone(), node: r.node, area, velocity: th.velocity, pressure: th.pressure, choked: th.choked, stat: th.stat, thrust: th.thrust, dlf: r.dlf, force });
+    }
     // Constant-force supports push up with their load whenever the weight acts.
     let mut const_loads = vec![0.0; n];
     for sp in &m.supports {
@@ -997,8 +1029,13 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let sums: Vec<&LoadCase> = m.cases.iter().filter(|c| matches!(c.recipe, Recipe::Sum { .. })).collect();
     let mut rhs = vec![];
     for c in &sums {
-        let Recipe::Sum { w, water, t, d, wind, seis, .. } = c.recipe else { unreachable!() };
+        let Recipe::Sum { w, water, t, d, wind, seis, relief, .. } = c.recipe else { unreachable!() };
         let mut f = vec![0.0; n];
+        if relief {
+            for i in 0..n {
+                f[i] += relief_loads[i];
+            }
+        }
         if w {
             for i in 0..n {
                 f[i] += w_rhs[water as usize][i] + point_loads[i] + const_loads[i];
@@ -1084,7 +1121,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let mut results: Vec<CaseResult> = vec![];
     for c in &m.cases {
         let r = match c.recipe {
-            Recipe::Sum { w, water, t, wind, seis, .. } => {
+            Recipe::Sum { w, water, t, wind, seis, relief, .. } => {
                 let k = sums.iter().position(|x| x.id == c.id).unwrap();
                 // The distributed load on each segment in this case, and its fixed-end part.
                 let q_of = |i: usize| -> (V, [f64; 6]) {
@@ -1186,6 +1223,16 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                         for d in 0..3 {
                             applied[d] += f3[d];
                             applied[3 + d] += point_loads[6 * pt + 3 + d] + mo[d];
+                        }
+                    }
+                }
+                if relief {
+                    for pt in 0..np {
+                        let f3 = [relief_loads[6 * pt], relief_loads[6 * pt + 1], relief_loads[6 * pt + 2]];
+                        let mo = cross(g.points[pt].p, f3);
+                        for d in 0..3 {
+                            applied[d] += f3[d];
+                            applied[3 + d] += mo[d];
                         }
                     }
                 }
@@ -1312,7 +1359,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     }
     // The size of the model's loads, so a case with almost no reactions (a free thermal growth) is
     // judged against the loads of the model and not against its own rounding noise.
-    let wscale = parts.iter().map(|p| p.w.abs() * p.el.line.length()).sum::<f64>() + point_loads.iter().map(|v| v.abs()).sum::<f64>();
+    let wscale = parts.iter().map(|p| p.w.abs() * p.el.line.length()).sum::<f64>() + point_loads.iter().chain(&relief_loads).map(|v| v.abs()).sum::<f64>();
     for res in &mut results {
         // Nozzle loads: what the pipe puts on the nozzle (the support reaction reversed).
         let mut at: Vec<crate::equip::NozzleAt> = vec![];
@@ -1417,7 +1464,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let mut stats = stats;
     stats.ms = t0.elapsed().as_secs_f64() * 1e3;
     let sifs = parts.iter().map(|p| p.sif).collect();
-    Ok(Results { geom: g, cases: results, walls, sifs, stats, warnings, version: env!("CARGO_PKG_VERSION"), hangers: vec![] })
+    Ok(Results { geom: g, cases: results, walls, sifs, stats, warnings, version: env!("CARGO_PKG_VERSION"), hangers: vec![], reliefs })
 }
 
 /// The reactions' total force and moment about the origin.

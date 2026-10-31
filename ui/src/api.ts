@@ -26,13 +26,13 @@ export interface Support { id: number; node: number; kind: SupKind; k: number; d
 export interface Nozzle { id: number; node: number; name: string; axis: V3; allow: [number, number, number, number] }
 export interface Load { id: number; node: number; f: V3; m: V3 }
 export type CaseKind = "sus" | "ope" | "exp" | "hyd" | "occ";
-export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean } | { kind: "range"; a: number; b: number };
+export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean; relief?: boolean } | { kind: "range"; a: number; b: number };
 export interface LoadCase { id: number; name: string; kind: CaseKind; recipe: Recipe }
 export interface Project { project: string; line: string; calc: string; by: string; checked: string; rev: string; client: string }
 export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3; springs: SpringSize[]; variability: number }
 export interface Model {
   format: number; name: string; notes: string; units: "SI" | "US"; project: Project; settings: Settings;
-  nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number; equipment?: Equipment[]; flanges?: FlangeSpec[];
+  nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number; equipment?: Equipment[]; flanges?: FlangeSpec[]; reliefs?: Relief[];
 }
 export interface Out { m: Model; path: string | null; dirty: boolean; undo: boolean; redo: boolean; created: number[]; warnings: string[]; geom: Geom | null; geom_error: string | null }
 
@@ -52,7 +52,7 @@ export interface Contact { support: number; node: number; dir: V3; state: "touch
 export interface Wall { element: number; case: number; p: number; t: number; s: number; t_design: number; t_min: number; t_nominal_needed: number; t_nominal: number; hoop: number; ratio: number; pass: boolean; at: string; i: number; od: number; thick: boolean }
 export interface Sif { ii: number; io: number; k: number; h: number }
 export interface SolveStats { equations: number; nonzeros: number; residual: number; ms: number }
-export interface Results { geom: Geom; cases: CaseResult[]; walls: Wall[]; sifs: [Sif, Sif][]; stats: SolveStats; warnings: string[]; version: string; hangers: HangerDesign[] }
+export interface Results { geom: Geom; cases: CaseResult[]; walls: Wall[]; sifs: [Sif, Sif][]; stats: SolveStats; warnings: string[]; version: string; hangers: HangerDesign[]; reliefs?: ReliefResult[] }
 export interface Check { bench: number; name: string; quantity: string; q: string; reference: number; result: number; error: number; tolerance: number; source: string; pass: boolean }
 export interface Example { id: string; name: string; what: string }
 export interface Size { nps: string; od: number; schedules: [string, number][] }
@@ -95,5 +95,7 @@ export interface PumpAllow { nozzle: number; f: V3; m: V3; fr: number; mr: numbe
 export interface Equipment { name: string; kind: EquipKind; nozzles: number[]; reference: number; shaft: V3; factor: number; coef: Coef; pump: PumpAllow[] }
 export interface EquipRow { what: string; unit: string; value: number; allow: number; ratio: number }
 export interface EquipCheck { name: string; kind: EquipKind; rows: EquipRow[]; pass: boolean }
+export interface Relief { name: string; node: number; flow: number; k: number; temp: number; mw: number; area: number; dir: V3; dlf: number; ambient: number }
+export interface ReliefResult { name: string; node: number; area: number; velocity: number; pressure: number; choked: boolean; stat: number; thrust: number; dlf: number; force: V3 }
 export interface FlangeSpec { element: number; gasket: number; rating: number }
 export interface FlangeCheck { element: number; at: string; force: number; moment: number; pressure: number; equivalent: number; rating: number; ratio: number; pass: boolean }

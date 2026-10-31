@@ -39,6 +39,7 @@ const shots = process.env.SHOTS;
             const nx = { ...JSON.parse(JSON.stringify(window.__cur)), dirty: true, undo: true, created: [999] };
             if (a.op.SetSettings) { nx.m.units = a.op.SetSettings.units; nx.m.settings = a.op.SetSettings.s; }
             if (a.op.Add?.item?.Support) nx.m.supports.push({ ...a.op.Add.item.Support, id: 999 });
+            if (a.op.SetReliefs) nx.m.reliefs = a.op.SetReliefs.list;
             window.__cur = nx; return nx;
           }
           if (c === "history") return window.__cur;
@@ -290,6 +291,24 @@ const shots = process.env.SHOTS;
   await p.click('.tabs > button:text-is("Loads")');
   await p.click('.ribbon button[title^="Check flanged joints"]'); await p.waitForTimeout(300);
   check("the flange dialog lists the valve with its gasket and rating", (await p.$$(".dlg .tbl tbody tr")).length === 1 && ((await p.textContent(".dlg")) ?? "").includes("16M/(πG³)"));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+
+  // 15. Relief valve thrust: the vent stack's thrust in Results › Relief, its cases, and the dialog.
+  await open("relief");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.side button[title="Results"]'); await p.waitForTimeout(200);
+  await p.click('.rtabs button:text-is("Relief")'); await p.waitForTimeout(200);
+  check("Results › Relief shows the valve's thrust", (await p.$$(".rtable tbody tr")).length === 1 && ((await p.textContent(".rtable tbody")) ?? "").includes("PSV-1"));
+  await p.click('.rtabs button:text-is("Code stresses")'); await p.waitForTimeout(200);
+  check("the relief cases OPE1+RV and OCC RV are there", (await p.$$('.ctabs button:has(b:text-is("OCC RV"))')).length === 1 && (await p.$$('.ctabs button:has(b:text-is("OPE1+RV"))')).length === 1);
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+  await p.click('.tabs > button:text-is("Loads")');
+  await p.click('.ribbon button[title^="Relief valves discharging"]'); await p.waitForTimeout(300);
+  check("the relief dialog lists the valve at its open end", (await p.$$(".dlg .tbl tbody tr")).length === 1 && ((await p.textContent(".dlg")) ?? "").includes("DLF"));
+  await p.click('.dlg button:text-is("Add a relief valve")'); await p.waitForTimeout(300);
+  check("adding a relief valve adds a row", (await p.$$(".dlg .tbl tbody tr")).length === 2);
+  await p.click('.dlg .tbl tbody tr:nth-child(2) button.x'); await p.waitForTimeout(300);
+  check("removing it takes the row away", (await p.$$(".dlg .tbl tbody tr")).length === 1);
   await p.keyboard.press("Escape"); await p.waitForTimeout(150);
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));

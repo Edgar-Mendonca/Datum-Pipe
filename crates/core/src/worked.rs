@@ -259,7 +259,7 @@ fn an_occasional_case_is_checked_against_a_third_more() {
     // 1.33 Sh and its stress the sustained stress.
     let mut m = crate::examples::get("lbend").unwrap();
     let mut cs = m.cases.clone();
-    cs.push(crate::model::LoadCase { id: 0, name: "OCC".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false } });
+    cs.push(crate::model::LoadCase { id: 0, name: "OCC".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false } });
     let mut d = Doc::new(m.clone());
     d.apply(Op::SetCases { cases: cs }).unwrap();
     m = d.m;
@@ -792,4 +792,60 @@ fn friction_on_a_long_rack_settles_to_coulomb_s_law() {
             }
         }
     }
+}
+
+#[test]
+fn a_relief_valve_pushes_back_against_its_discharge() {
+    // 2 m along X from an anchor, discharging along +Z (given) at the end: the thrust pushes the pipe
+    // along −Z, so the anchor carries +Z and a moment about Y of F × 2 m. Only the cases with relief
+    // carry it; it is an occasional range OCC RV.
+    let mut d = table("rv", &[(10, 20, 2.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    let rv = crate::relief::Relief { node: 20, flow: 10.0, dir: [0.0, 0.0, 3.0], ..Default::default() };
+    d.apply(Op::SetReliefs { list: vec![rv] }).unwrap();
+    let names: Vec<&str> = d.m.cases.iter().map(|c| c.name.as_str()).collect();
+    assert!(names.contains(&"OPE1+RV") && names.contains(&"OCC RV"), "{names:?}");
+    let r = analyze(&d.m).unwrap();
+    let f = r.reliefs[0].thrust;
+    assert!(f > 0.0 && r.reliefs[0].choked);
+    assert!(close(r.reliefs[0].force[2], -f, 1e-12));
+    let a = react(&r, "OPE1+RV", 10);
+    assert!(close(a[2], f, 1e-9), "{a:?}");
+    assert!(close(a[4].abs(), 2.0 * f, 1e-9), "{a:?}");
+    assert!(react(&r, "OPE1", 10)[2].abs() < 1e-6 * f);
+    assert!(close(react(&r, "OCC RV", 10)[2], f, 1e-9));
+    assert!(r.cases.iter().all(|c| c.imbalance < 1e-9), "balance");
+    // The default direction at the open end is along the pipe, out of it: the thrust is along −X.
+    let rv = crate::relief::Relief { node: 20, flow: 10.0, ..Default::default() };
+    d.apply(Op::SetReliefs { list: vec![rv] }).unwrap();
+    let r = analyze(&d.m).unwrap();
+    assert!(close(r.reliefs[0].force[0], -r.reliefs[0].thrust, 1e-12));
+    assert!(close(react(&r, "OCC RV", 10)[0], r.reliefs[0].thrust, 1e-9));
+}
+
+#[test]
+fn a_relief_valve_away_from_an_open_end_needs_a_direction_and_goes_with_its_node() {
+    let mut d = table("rv", &[(10, 20, 2.0, 0.0, 0.0), (20, 30, 2.0, 0.0, 0.0)]);
+    sup(&mut d, 10, SupKind::Anchor);
+    let rv = crate::relief::Relief { node: 20, ..Default::default() };
+    d.apply(Op::SetReliefs { list: vec![rv] }).unwrap();
+    let e = analyze(&d.m).unwrap_err();
+    assert!(e.contains("not an open end"), "{e}");
+    // Damaged values are refused by the model check.
+    let mut bad = d.m.clone();
+    bad.reliefs[0].k = 0.5;
+    assert!(bad.check().is_err());
+    // A file with a damaged relief valve loads without it.
+    let mut v: serde_json::Value = serde_json::from_str(&crate::model::to_json(&d.m)).unwrap();
+    v["reliefs"][0]["flow"] = serde_json::json!(-1.0);
+    let (m, warn) = crate::model::from_json(&v.to_string()).unwrap();
+    assert!(m.reliefs.is_empty() && warn.iter().any(|w| w.contains("Relief")), "{warn:?}");
+    // Removing the node's elements removes the relief valve, and its cases.
+    let last = d.m.elements.iter().find(|e| e.to == 30).unwrap().id;
+    d.apply(Op::Delete { ids: vec![last] }).unwrap();
+    let mid = d.m.elements[0].id;
+    d.apply(Op::Delete { ids: vec![mid] }).unwrap();
+    assert!(d.m.reliefs.is_empty());
+    assert!(!d.m.cases.iter().any(|c| c.name.contains("RV")));
 }

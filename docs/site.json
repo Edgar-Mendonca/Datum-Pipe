@@ -30,7 +30,7 @@
     "Anchors, one-way rests, guides, line stops and restraints with gaps and friction, skewed restraints, springs, spring hangers sized from your spring table, constant-force supports and imposed equipment movements",
     "Load cases built for you: sustained, operating, expansion range, hydrotest, and wind and static seismic as occasional cases",
     "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall (straight pipe, bends at their intrados, both ends of reducers), sustained stress, the displacement stress range and occasional stress, with PASS or FAIL at every point",
-    "Support loads for the civil team, nozzle loads in the nozzle's own axes, and steam turbine, compressor and pump nozzle checks against their standards' published criteria; flange leakage by the equivalent pressure method",
+    "Support loads for the civil team, nozzle loads in the nozzle's own axes, and steam turbine, compressor and pump nozzle checks against their standards' published criteria; flange leakage by the equivalent pressure method; relief valve thrust at an open discharge as an occasional load",
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
     "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published"
   ],
@@ -149,7 +149,7 @@
     {
       "v": "0.2.5",
       "title": "Relief valve thrust",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "The reaction of an open discharge as an occasional load"
       ]
@@ -157,7 +157,7 @@
     {
       "v": "0.2.6",
       "title": "Vessel nozzles",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Nozzle flexibility and local stresses at vessels, where published equations allow (not copyrighted charts)"
       ]

@@ -5,7 +5,7 @@ import { createSignal } from "solid-js";
 import { out } from "./store";
 import { num, parseNum, Shown, Typed } from "./api";
 
-export type Q = "coord" | "len" | "disp" | "rot" | "force" | "moment" | "stress" | "press" | "wpress" | "modulus" | "temp" | "dtemp" | "density" | "expansion" | "mass" | "wlen" | "tstiff" | "rstiff" | "radius" | "ratio";
+export type Q = "coord" | "len" | "disp" | "rot" | "force" | "moment" | "stress" | "press" | "wpress" | "modulus" | "temp" | "dtemp" | "density" | "expansion" | "mass" | "wlen" | "tstiff" | "rstiff" | "radius" | "ratio" | "mflow" | "area" | "speed";
 
 const [tables, setTables] = createSignal<[Shown[], Shown[]] | null>(null);
 let typedUnits: Typed[] = [];
@@ -49,4 +49,4 @@ export const parseQ = (s: string, q: Q): number | string => {
   }
   return toU(q, si);
 };
-const QNAME: Partial<Record<Q, string>> = { coord: "length", len: "length", disp: "length", radius: "length", force: "force", moment: "moment", stress: "stress", press: "pressure", wpress: "pressure", temp: "temperature", mass: "mass", density: "density", wlen: "load per length", tstiff: "stiffness", rot: "angle" };
+const QNAME: Partial<Record<Q, string>> = { coord: "length", len: "length", disp: "length", radius: "length", force: "force", moment: "moment", stress: "stress", press: "pressure", wpress: "pressure", temp: "temperature", mass: "mass", density: "density", wlen: "load per length", tstiff: "stiffness", rot: "angle", mflow: "mass flow", area: "area", speed: "speed" };

@@ -18,6 +18,7 @@ pub fn list() -> Vec<Example> {
         Example { id: "compressor", name: "Compressor suction to a header", what: "8\" suction line from a header down to a compressor nozzle, a spring hanger, nozzle loads in the nozzle's axes." },
         Example { id: "steam", name: "Steam line on a pipe rack", what: "8\" insulated steam at 250 °C along a rack: rests, guides and a line stop, then down to a turbine." },
         Example { id: "tank", name: "Tank outlet with settlement", what: "10\" tank outlet with a valve; the tank settles 12 mm (case 2) and the nozzle grows when hot." },
+        Example { id: "relief", name: "Safety valve vent stack", what: "4\" steam safety valve on a header, discharging up a vent stack to the open air: the valve's thrust as an occasional load." },
         Example { id: "lbend", name: "A simple L-bend", what: "6\" carbon steel at 200 °C between two anchors, with a long-radius bend. Check it by hand." },
         Example { id: "zbend", name: "A Z-bend", what: "6\" carbon steel at 250 °C: two bends between two anchors, the classic hand-check case." },
     ]
@@ -30,6 +31,7 @@ pub fn get(id: &str) -> Option<Model> {
         "compressor" => Some(compressor()),
         "steam" => Some(steam()),
         "tank" => Some(tank()),
+        "relief" => Some(relief()),
         "lbend" => Some(lbend()),
         "zbend" => Some(zbend()),
         _ => None,
@@ -74,6 +76,25 @@ fn meta(d: &mut Doc, name: &str, line: &str, notes: &str) {
     pr.calc = format!("EX-{line}");
     pr.rev = "A".into();
     d.apply(Op::SetMeta { name: name.into(), notes: notes.into(), project: pr }).expect("meta");
+}
+
+fn relief() -> Model {
+    // The valve on the header nozzle (anchored), a short riser, 1.5 m east to a rest under the bend,
+    // then 3 m up to the open end, guided halfway.
+    let mut d = table("Safety valve vent stack", &[(10, 20, 0.0, 0.6, 0.0), (20, 25, 0.0, 0.3, 0.0), (25, 30, 1.5, 0.0, 0.0), (30, 35, 0.0, 1.5, 0.0), (35, 40, 0.0, 1.5, 0.0)]);
+    pipe(&mut d, "4", "40", 0.0, 0.0);
+    rigid(&mut d, 20, RigidKind::Valve, 120.0);
+    bends(&mut d, &[25, 30]);
+    conditions(&mut d, "Steam vent 200 °C", [200.0, 21.0, 21.0], [0.0, 0.0, 0.0], 0.0);
+    support(&mut d, 10, SupKind::Anchor, "PSV-1 inlet");
+    support(&mut d, 30, SupKind::Rest, "S-30");
+    support(&mut d, 35, SupKind::Guide, "G-35");
+    // Example values: 3 kg/s of steam (k 1.3, 18.015 kg/kmol) relieving at 200 °C, out of the
+    // stack's open end; the bore of the 4" pipe is the exit; a dynamic load factor of 2.
+    let rv = crate::relief::Relief { name: "PSV-1".into(), node: 40, flow: 3.0, k: 1.3, temp: K0 + 200.0, mw: 18.015, ..Default::default() };
+    d.apply(Op::SetReliefs { list: vec![rv] }).expect("relief valve");
+    meta(&mut d, "Safety valve vent stack", "4\"-SV-01", "A safety valve on a steam header, its 4\" Sch 40 outlet running east and then up a 3 m vent stack to the open air. When the valve lifts, the steam leaving the stack pushes it back down: 3 kg/s at 200 °C (example values) with a dynamic load factor of 2. OPE1+RV adds the thrust to the hot operating case; OCC RV checks the sustained stress plus the thrust's own stress against 1.33 Sh.");
+    d.m
 }
 
 fn lbend() -> Model {

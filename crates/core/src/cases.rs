@@ -6,7 +6,8 @@
 //!   against the allowable stress range; with more than one operating case, also the range between them.
 //! - HYD: weight full of water and the hydrotest pressure, when the settings ask for it.
 //! - With wind or static seismic in the settings: OPE1+WIN (OPE1 with the wind) and OCC WIN, the
-//!   range OPE1+WIN − OPE1 (the wind's own effect), checked as occasional; the same for seismic.
+//!   range OPE1+WIN − OPE1 (the wind's own effect), checked as occasional; the same for seismic,
+//!   and for the relief valves' thrust (OPE1+RV, OCC RV).
 
 use crate::model::{CaseKind, LoadCase, Model, Recipe};
 
@@ -36,15 +37,15 @@ pub fn recommend(m: &Model) -> Vec<LoadCase> {
     for i in 0..3 {
         if u[i] {
             let n = i as u8 + 1;
-            ope[i] = push(&mut out, format!("OPE{n}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: n, d: n, p: n, wind: false, seis: false });
+            ope[i] = push(&mut out, format!("OPE{n}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: n, d: n, p: n, wind: false, seis: false, relief: false });
         }
     }
-    let sus = push(&mut out, "SUS".into(), CaseKind::Sus, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false });
+    let sus = push(&mut out, "SUS".into(), CaseKind::Sus, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false });
     // A second or third sustained case where those cases' pressures differ from case 1's.
     for i in 1..3 {
         if u[i] && m.conds.iter().any(|c| c.p[i] != c.p[0]) {
             let n = i as u8 + 1;
-            push(&mut out, format!("SUS{n}"), CaseKind::Sus, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: n, wind: false, seis: false });
+            push(&mut out, format!("SUS{n}"), CaseKind::Sus, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: n, wind: false, seis: false, relief: false });
         }
     }
     for i in 0..3 {
@@ -61,14 +62,14 @@ pub fn recommend(m: &Model) -> Vec<LoadCase> {
     }
     // Occasional loads act with operating case 1: the case with them, and the range they add.
     let s = &m.settings;
-    for (on, tag, wind, seis) in [(s.wind_q > 0.0, "WIN", true, false), (s.seis.iter().any(|v| *v != 0.0), "SEIS", false, true)] {
+    for (on, tag, wind, seis, relief) in [(s.wind_q > 0.0, "WIN", true, false, false), (s.seis.iter().any(|v| *v != 0.0), "SEIS", false, true, false), (!m.reliefs.is_empty(), "RV", false, false, true)] {
         if on {
-            let with = push(&mut out, format!("OPE1+{tag}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind, seis });
+            let with = push(&mut out, format!("OPE1+{tag}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind, seis, relief });
             push(&mut out, format!("OCC {tag}"), CaseKind::Occ, Recipe::Range { a: with, b: ope[0] });
         }
     }
     if m.settings.hydro {
-        push(&mut out, "HYD".into(), CaseKind::Hyd, Recipe::Sum { w: true, water: true, t: 0, d: 0, p: 4, wind: false, seis: false });
+        push(&mut out, "HYD".into(), CaseKind::Hyd, Recipe::Sum { w: true, water: true, t: 0, d: 0, p: 4, wind: false, seis: false, relief: false });
     }
     out
 }

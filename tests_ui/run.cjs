@@ -367,6 +367,13 @@ const shots = process.env.SHOTS;
   check("Add a horizontal vessel adds one with two heads and a shell", Array.isArray(nv) && nv.length === 2 && nv[1].vertical === false && nv[1].parts.length === 3, JSON.stringify(nv?.[1]?.parts?.map(x => x.kind)));
   await p.click('.side button[title="Report"]'); await p.waitForTimeout(400);
   check("the report has the vessel", ((await p.textContent(".page")) ?? "").includes("Vessel V-101"));
+  // Saddles: the drum example's saddle stresses and drawing.
+  await open("drum");
+  await p.click('.side button[title="Vessels"]'); await p.waitForTimeout(300);
+  const dt = (await p.textContent(".vpage")) ?? "";
+  check("the drum shows its saddle stresses by Zick's method", dt.includes("Saddles") && dt.includes("saddle horn") && dt.includes("Tangential shear"));
+  check("the saddle editor shows for a horizontal vessel", dt.includes("On two saddles") && dt.includes("Contact angle"));
+  check("the drum passes", ((await p.textContent(".vpage .ctabs")) ?? "").includes("PASS"));
   // Results go out of date after an edit even with Analyze automatically off (a hook was lost before 0.3.1).
   await open("lbend");
   await p.keyboard.press("F5"); await p.waitForTimeout(400);

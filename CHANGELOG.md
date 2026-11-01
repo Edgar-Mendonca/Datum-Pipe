@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.3 — 2026-11-01
+
+Horizontal vessels on saddles.
+
+**Saddles.** A horizontal vessel can sit on two saddles: the distance from each tangent line to its saddle, the contact angle (120° to 180°), the saddle width, welded or not, and stiffening rings. The vessel is checked by Zick's method (1951): a beam on two saddles carrying the heavier of its operating weight and its weight full of water, with the shell at the design pressure, hot and corroded: the longitudinal stress at mid-span and at the saddles (with an unstiffened shell's effective section), the tangential shear in the shell (and in the heads when they stiffen the shell, the saddle within R/2 of the tangent line), the circumferential stress at the saddle horn and the compression at the bottom of the shell. The constants come from their closed forms in the contact angle; at 120° they are the familiar 0.107, 0.192, 1.171, 0.880, 0.760 and 0.0528. Allowables: S for the longitudinal stresses, 0.8 S for shear, 1.25 S at the horn, 0.5 Sy at the bottom.
+
+**Small openings.** A nozzle with a finished opening up to 60.3 mm, or up to 88.9 mm in a wall up to 10 mm, needs no reinforcement calculation (its neck is still checked).
+
+**On the page.** The saddles are drawn under the vessel; a Saddles table gives each stress, its allowable and ratio; the saddle data is under the nozzles for horizontal vessels. On a horizontal vessel a nozzle's angle 0 is on top and 180 underneath.
+
+**Example.** A new worked example, Horizontal drum D-201: 2.4 m × 9 m, 10 bar and 150 °C, on two 120° saddles 600 mm from the tangent lines, with an inlet, an outlet and a vent: every check passes, the highest the mid-span longitudinal stress at 0.46.
+
+**Verification.** A new benchmark: D-201's mid-span moment by statics, and its shear and horn stresses by hand with the published 120° constants (79 checks); a unit test of the constants against the published table.
+
 ## 0.3.2 — 2026-11-01
 
 Vessel nozzles.

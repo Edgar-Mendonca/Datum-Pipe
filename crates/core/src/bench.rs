@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, a vertical vessel's shell and heads, and a vessel nozzle's reinforcement. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, and a horizontal vessel on two saddles. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -670,6 +670,28 @@ pub fn run() -> Vec<Check> {
         out.push(row(26, name, "Area available", "area", avail, z.a_avail, TOL, src));
         out.push(row(26, name, "Neck's minimum thickness", "len", (trn + 0.003).max((tr + 0.003).min(std + 0.003)), z.t_neck_req, TOL, src));
     }
+    // 27. D-201 on two 120° saddles by Zick's method, with the published table constants for 120°
+    //     (K3 0.880, K6 0.0528, a quarter of it for A/R ≤ 0.5): Q the half weight full of water;
+    //     mid-span moment M2 = Q L/4 [(1 + 2 (R² − H²)/L²)/(1 + 4H/3L) − 4A/L]; shear K3 Q/(R t);
+    //     horn −Q/(4 t (b + 1.56 √(R t))) − 12 K6 Q R/(L t²) (here L = 9 m < 8R = 9.64 m).
+    {
+        let m = crate::examples::get("drum").unwrap();
+        let r = crate::vessel::check(&m.vessels[0]).unwrap();
+        let sd = r.saddles.as_ref().unwrap();
+        let q = r.test_weight.max(r.operating) * 9.806_65 / 2.0;
+        let t: f64 = 0.014 - 0.003;
+        let rm = (2.4 + t) / 2.0 + 0.003;
+        let (l, h, a) = (9.0, 0.6, 0.6);
+        let m2 = q * l / 4.0 * ((1.0 + 2.0 * (rm * rm - h * h) / (l * l)) / (1.0 + 4.0 * h / (3.0 * l)) - 4.0 * a / l);
+        assert!(l < 8.0 * rm);
+        let horn = -q / (4.0 * t * (0.3 + 1.56 * (rm * t).sqrt())) - 12.0 * (0.0528 / 4.0) * q * rm / (l * t * t);
+        let find = |w: &str| sd.rows.iter().find(|x| x.what.starts_with(w)).map_or(f64::NAN, |x| x.stress);
+        let name = "A horizontal vessel on two saddles (D-201)";
+        let src = "Zick's method (1951), the 120° table constants";
+        out.push(row(27, name, "Mid-span moment M2", "moment", m2, sd.m2, TOL, "Statics of the vessel as a beam on two saddles"));
+        out.push(row(27, name, "Tangential shear (stiffened by the head)", "stress", 0.880 * q / (rm * t), find("Tangential shear in the shell"), 2e-3, src));
+        out.push(row(27, name, "Circumferential stress at the horn", "stress", horn, find("Circumferential at the saddle horn"), 2e-3, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -694,7 +716,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=26 {
+        for b in 1..=27 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

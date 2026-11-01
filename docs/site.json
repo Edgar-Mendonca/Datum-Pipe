@@ -220,7 +220,7 @@
     {
       "v": "0.3.3",
       "title": "Vessels: horizontal on saddles",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Stresses in a horizontal vessel on two saddles"
       ]
@@ -228,7 +228,7 @@
     {
       "v": "0.3.4",
       "title": "Vessels: vertical",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Weight, wind and seismic on a vertical vessel; skirt, base ring and anchor bolts"
       ]

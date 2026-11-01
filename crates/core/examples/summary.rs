@@ -7,6 +7,7 @@ fn main() {
                 Ok(r) => {
                     println!("{} vessel {}: MAWP {:.4} MPa, test {:.4}, empty {:.0} kg, operating {:.0}, warnings {:?}", e.name, r.name, r.mawp / 1e6, r.test / 1e6, r.empty, r.operating, r.warnings);
                     for p in &r.parts { println!("  {:12} P {:.4} t_req {:.2} t_min {:.2} nom {:.1} MAWP {:.4} pass {}", p.name, p.p / 1e6, p.t_req * 1e3, p.t_min * 1e3, p.t_nom * 1e3, p.mawp_top / 1e6, p.pass); }
+                    if let Some(sd) = &r.saddles { println!("  saddles Q {:.0} N M1 {:.0} M2 {:.0} K {:?}", sd.q, sd.m1, sd.m2, sd.k); for x in &sd.rows { println!("    {:55} {:9.2} MPa / {:7.2} ratio {:.3} {}", x.what, x.stress / 1e6, x.allow / 1e6, x.ratio, x.pass); } }
                     for z in &r.nozzles { println!("  {:18} d {:.1} A {:.0} avail {:.0} (A1 {:.0} A2 {:.0} A41 {:.0} A5 {:.0} A42 {:.0}) neck {:.2}/{:.2} pass {}", z.name, z.d * 1e3, z.a_req * 1e6, z.a_avail * 1e6, z.a1 * 1e6, z.a2 * 1e6, z.a41 * 1e6, z.a5 * 1e6, z.a42 * 1e6, z.t_neck * 1e3, z.t_neck_req * 1e3, z.pass); }
                 }
                 Err(x) => println!("{} vessel ERROR {x}", e.name),

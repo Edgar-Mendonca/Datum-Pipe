@@ -97,6 +97,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.3.3 | `Vessel.saddles` (`Saddles`: a, θ, b, welded, rings); `zick_k` from the closed forms (Δ = π/6 + 5θ/12; α = 0.95(π − θ/2); β = π − θ/2; K6 quarter value at A/R ≤ 0.5, linear to the full at 1), unit-tested against the published 120° table; M1, M2 by the beam formulas; stiffened when A ≤ R/2 or rings (K3 shear in shell and head) else K2 shear and K1/K1* sections; horn by L ≥ 8R or not; bottom K5 with 0.1 when welded; weight = max(operating, full of water) with the design pressure | The free articles were blocked by the network; the closed forms reproduced every published 120° constant, which is the check |
+| 0.3.3 | Small openings exempt from the area calculation (finished d ≤ 60.3 mm, or ≤ 88.9 mm in walls ≤ 10 mm); the neck is still checked | The long-standing small-opening rule |
 | 0.3.2 | `Vessel.nozzles` (`VNozzle`: part, pos, angle, nps, od, t, pipe, leg, pad); `NozzleResult` by area replacement with tr at E = 1 and the part's design pressure (with static head), A1 = max(d, 2(t + tn))(t − tr), A2 = 5(tn − trn) min(t, tn), A41/A42 = leg², A5 = (min(Dp, 2d) − d − 2tn) te; pipe necks at 87.5 %; neck minimum max(trn + c, min(tr + c, 0.875 t_std + c)); heads use their own tr with E = 1 (conservative); no inward projection, fr factors 1 (same material) | The classic method, simply and on the safe side; plate necks have no standard-wall minimum |
 | 0.3.1 | `vessel.rs`: `Vessel` (design data, parts bottom→top), `Part` (kind, D, len, t, E), `check` → `VesselResult` (per part: static head at its lowest point, t_req, t_min, MAWP, MAWP at top, MAP, test stress vs 0.9 Sy; vessel MAWP = min at top, MAP, test 1.3 MAWP S_cold/S, volume and weights from profiles turned about the axis, outline for the drawing). `Model.vessels` via `Op::SetVessels`; shell `vessel_check`; the window refreshes on every edit and load | Vessels are independent of the piping solve: instant, and they live in the same file |
 | 0.3.1 | Heads only first or last; cones up to 30° half angle; torispherical crown ≤ D, knuckle ≥ 6 % D; head depth from the geometry (0.16934 D for L = D, r = 0.06 D) | Where these equations apply |
@@ -234,8 +236,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.3.0 | Milestone: 0.2.1–0.2.9 reviewed; no new features; **source audit**: every equation, value and benchmark checked against the open-sources rule (2026-11-01), anything that fails replaced by a first-principles derivation or a free public source, or removed | ✅ |
 | 0.3.1 | Vessels: a Vessel workspace in Datum Pipe; shells and heads under internal pressure (cylinder, sphere, 2:1 ellipsoidal, torispherical, hemispherical, cone), required thickness, MAWP, test pressure, report; equations of ASME VIII-1 taken from free public sources | ✅ |
 | 0.3.2 | Vessels: nozzle reinforcement (area replacement) and nozzle neck thickness | ✅ |
-| 0.3.3 | Vessels: horizontal vessels on two saddles (Zick's published method) | 🔜 |
-| 0.3.4 | Vessels: vertical vessels: weight, wind, seismic, skirt, base ring, anchor bolts | ⬜ |
+| 0.3.3 | Vessels: horizontal vessels on two saddles (Zick's published method) | ✅ |
+| 0.3.4 | Vessels: vertical vessels: weight, wind, seismic, skirt, base ring, anchor bolts | 🔜 |
 | 0.3.5 | Vessels: body flanges (the published Taylor-Forge method) | ⬜ |
 | 0.3.6 | Vessels: lifting lugs, trunnions, leg supports | ⬜ |
 | 0.3.7 | Vessels and piping linked: the piping model's nozzle loads checked on the vessel's nozzle | ⬜ |
@@ -392,6 +394,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Engine: `VNozzle`, `nozzles()` in `vessel.rs`, unit test of the rules; benchmark 26 (76 checks). V-101 gains N1–N3 and M1 with pads (first try failed as a real check would: heads need pads, Sch 80 4" neck too thin, a STD 20" manway neck too thin → Sch 160, plate neck).
 - UI: nozzle editor (pipe size and schedule or plate), nozzles on the drawing, Nozzles results table; four UI checks. Checked in the real app.
 
+### 2026-11-01: Session 2, continued (0.3.3: saddles)
+- Engine: `Saddles`, `zick_k`, `saddle_check`; small openings; unit test of the 120° constants; benchmark 27 (79 checks; first try had the long-vessel horn form, but D-201 is short: L 9 m < 8R 9.64 m, the engine was right). Example: Horizontal drum D-201.
+- UI: saddle editor, saddles drawn, Saddles table, wider drawing for horizontal vessels; three UI checks. Checked in the real app.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
@@ -408,6 +414,6 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Relief valve thrust is for an ideal gas at an open discharge only (no liquids, two-phase flow or closed discharge systems), acts with operating case 1 only, and is static (times the load factor; no time history).
 - The .pcf export writes geometry, bores, weights and supports only; expansion joints come back as rigid parts and springs or restraints as rests on import.
 - Expansion joints: one bellows per element, no hinged or gimbal joints, no movement or cycle check against the maker's limits.
-- Vessels: internal pressure and nozzles so far (no supports, wind, external pressure yet); nozzle reinforcement without inward projection, same material for neck, pad and shell, nozzles not counted in the weights; heads formed from one plate (no crown/knuckle thickness split); weights from the inside surface times the thickness.
+- Vessels: internal pressure, nozzles and saddles so far (no vertical supports, wind, external pressure yet); saddles: two equal saddles, no wear plates, stiffening rings not themselves checked, compression checked against S (no buckling allowable); nozzle reinforcement without inward projection, same material for neck, pad and shell, nozzles not counted in the weights; heads formed from one plate (no crown/knuckle thickness split); weights from the inside surface times the thickness.
 - Nozzle flexibility is the user's stiffness values only; vessel local stresses are not calculated.
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

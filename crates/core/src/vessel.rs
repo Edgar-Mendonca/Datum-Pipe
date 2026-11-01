@@ -25,7 +25,16 @@
 //! (t − tr), the neck's A2 = 5 (tn − trn) min(t, tn), the welds (leg²) and a reinforcing pad
 //! (Dp − d − 2 tn) te with Dp up to 2 d. The neck itself must be at least the larger of its own
 //! pressure thickness and the smaller of the shell's required thickness and the standard-wall
-//! pipe's minimum (87.5 % of its nominal), each with the corrosion allowance.
+//! pipe's minimum (87.5 % of its nominal), each with the corrosion allowance. Small openings (a
+//! finished opening up to 60.3 mm, or up to 88.9 mm in a wall up to 10 mm) need no reinforcement
+//! calculation.
+//!
+//! Horizontal vessels on two saddles (0.3.3) are checked by Zick's method (1951): the vessel as a
+//! beam carrying its heavier weight (operating or full of water) on two saddles; the longitudinal
+//! stress at mid-span and at the saddles (an unstiffened shell's effective section K1, K1*), the
+//! tangential shear (K2, or K3 where the heads stiffen the shell, A ≤ R/2), the circumferential
+//! stress at the saddle horn (K6) and the compression at the bottom (K5), with the constants from
+//! their closed forms in the contact angle.
 
 use serde::{Deserialize, Serialize};
 
@@ -96,11 +105,81 @@ pub struct Vessel {
     /// Nozzles (0.3.2).
     #[serde(default)]
     pub nozzles: Vec<VNozzle>,
+    /// Two saddles, for a horizontal vessel (0.3.3).
+    #[serde(default)]
+    pub saddles: Option<Saddles>,
+}
+
+/// Two equal saddles under a horizontal vessel: the distance from each tangent line to its saddle's
+/// centre (m), the contact angle (degrees), the saddle's width along the vessel (m), whether the
+/// saddles are welded to the shell, and whether the shell has stiffening rings at the saddles.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Saddles {
+    pub a: f64,
+    pub theta: f64,
+    pub b: f64,
+    pub welded: bool,
+    pub rings: bool,
+}
+
+impl Default for Saddles {
+    fn default() -> Self {
+        Saddles { a: 0.6, theta: 120.0, b: 0.3, welded: true, rings: false }
+    }
+}
+
+/// One stress of the saddle check, its allowable, and the ratio.
+#[derive(Clone, Debug, Serialize)]
+pub struct SaddleRow {
+    pub what: String,
+    pub stress: f64,
+    pub allow: f64,
+    pub ratio: f64,
+    pub pass: bool,
+}
+
+/// The saddle check: the load on each saddle, the bending moments, the constants and the stresses.
+#[derive(Clone, Debug, Serialize)]
+pub struct SaddleResult {
+    pub q: f64,
+    pub m1: f64,
+    pub m2: f64,
+    pub k: [f64; 6],
+    pub rows: Vec<SaddleRow>,
+    pub pass: bool,
+}
+
+/// The saddle constants of Zick's method for contact angle θ (radians) and A / R: K1 and K1* (the
+/// effective section at an unstiffened saddle, top and bottom), K2 (shear, shell not stiffened),
+/// K3 (shear, shell stiffened by the head), K5 (compression at the bottom), K6 (the horn).
+pub fn zick_k(theta: f64, a_over_r: f64) -> [f64; 6] {
+    let pi = std::f64::consts::PI;
+    let d = pi / 6.0 + 5.0 * theta / 12.0;
+    let (sd, cd) = (d.sin(), d.cos());
+    let num = d + sd * cd - 2.0 * sd * sd / d;
+    let k1 = num / (pi * (sd / d - cd));
+    let k1s = num / (pi * (1.0 - sd / d));
+    let al = 0.95 * (pi - theta / 2.0);
+    let (sa, ca) = (al.sin(), al.cos());
+    let den = pi - al + sa * ca;
+    let k2 = sa / den;
+    let k3 = sa / pi * (al - sa * ca) / den;
+    let k5 = (1.0 + ca) / den;
+    let b = pi - theta / 2.0;
+    let (sb, cb) = (b.sin(), b.cos());
+    let dd = (sb / b).powi(2) - 0.5 - (2.0 * b).sin() / (4.0 * b);
+    let k6full = (0.75 * cb * (sb / b).powi(2) - 5.0 * sb * cb * cb / (4.0 * b) + cb.powi(3) / 2.0 - sb / (4.0 * b) + cb / 4.0 - b * sb * dd) / (2.0 * pi * dd);
+    // A / R from 0.5 to 1: from a quarter of the value to the full value.
+    let f = ((a_over_r - 0.5) / 0.5).clamp(0.0, 1.0);
+    let k6 = k6full * (0.25 + 0.75 * f);
+    [k1, k1s, k2, k3, k5, k6]
 }
 
 /// A nozzle on a vessel: the part it is on, where (cylinders and cones: the distance from the
 /// part's start along the axis; heads: the offset from the axis), its direction round the vessel
-/// (degrees, for the drawing), the neck pipe (outside diameter and nominal wall, pipe with a 12.5 %
+/// (degrees, for the drawing: vertical vessels 0 to the right, 180 to the left; horizontal 0 on
+/// top, 180 underneath), the neck pipe (outside diameter and nominal wall, pipe with a 12.5 %
 /// under-tolerance when `pipe`), its nominal size for the standard-wall minimum, the outside fillet
 /// weld leg, and a reinforcing pad (outside diameter, thickness, its weld leg; 0 = none).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -143,6 +222,8 @@ pub struct NozzleResult {
     pub a5: f64,
     pub a42: f64,
     pub a_avail: f64,
+    /// A small opening that needs no reinforcement calculation.
+    pub small: bool,
     pub area_pass: bool,
     pub t_neck_req: f64,
     pub t_neck: f64,
@@ -175,6 +256,7 @@ impl Default for Vessel {
                 Part { name: "Top head".into(), kind: PartKind::Ellipsoidal, d: 1.5, len: 0.0, t: 0.014, e: 1.0 },
             ],
             nozzles: vec![],
+            saddles: None,
         }
     }
 }
@@ -226,6 +308,7 @@ pub struct VesselResult {
     /// the top, for the drawing; and the inside radius at the same points.
     pub outline: Vec<[f64; 3]>,
     pub nozzles: Vec<NozzleResult>,
+    pub saddles: Option<SaddleResult>,
     pub warnings: Vec<String>,
 }
 
@@ -368,6 +451,14 @@ impl Vessel {
                 _ => {}
             }
         }
+        if let Some(s) = &self.saddles {
+            if self.vertical {
+                return Err(format!("The vessel {} is vertical: saddles are for horizontal vessels.", self.name));
+            }
+            if !(s.a >= 0.0 && fin(s.a) && s.b > 0.0 && fin(s.b) && (120.0..=180.0).contains(&s.theta)) {
+                return Err(format!("The saddles of {}: the distance from the tangent line must be 0 or more, the width above 0 and the contact angle from 120° to 180°.", self.name));
+            }
+        }
         for z in &self.nozzles {
             if z.part >= n || ![z.pos, z.angle, z.od, z.t, z.leg, z.pad_od, z.pad_t, z.pad_leg, z.proj].iter().all(|v| fin(*v)) || !(z.od > 0.0 && z.t > 0.0 && 2.0 * z.t < z.od) || [z.leg, z.pad_od, z.pad_t, z.pad_leg, z.proj].iter().any(|v| *v < 0.0) {
                 return Err(format!("The nozzle {} of {}: it needs a part of the vessel, an outside diameter larger than twice its wall, and sizes of 0 or more.", z.name, self.name));
@@ -411,7 +502,10 @@ fn nozzles(v: &Vessel, pressures: &[f64], spans: &[[f64; 2]]) -> Vec<NozzleResul
             (0.0, 0.0)
         };
         let a_avail = a1.max(0.0) + a2 + a41 + a5 + a42;
-        let area_pass = a_avail + 1e-15 >= a_req;
+        // Small openings need no reinforcement calculation: a finished opening up to 60.3 mm in any
+        // wall, or up to 88.9 mm in a wall up to 10 mm.
+        let small = d <= 0.0603 + 1e-9 || (d <= 0.0889 + 1e-9 && p.t <= 0.010 + 1e-9);
+        let area_pass = small || a_avail + 1e-15 >= a_req;
         // The neck's minimum: its pressure thickness, but at least the smaller of the shell's need and
         // the standard-wall pipe's minimum, each with the corrosion allowance.
         let std = crate::library::pipe(&z.nps, "STD").filter(|s| (s.0 - z.od).abs() < 1e-4).map(|s| s.1 * 0.875);
@@ -438,8 +532,74 @@ fn nozzles(v: &Vessel, pressures: &[f64], spans: &[[f64; 2]]) -> Vec<NozzleResul
                 [z.pos, zt + sign * dz]
             }
         };
-        NozzleResult { name: z.name.clone(), d, tr, trn, a_req, a1, a2, a41, a5, a42, a_avail, area_pass, t_neck_req, t_neck: tn_nom, neck_pass, pass: area_pass && neck_pass, at, warnings }
+        NozzleResult { name: z.name.clone(), d, tr, trn, a_req, a1, a2, a41, a5, a42, a_avail, small, area_pass, t_neck_req, t_neck: tn_nom, neck_pass, pass: area_pass && neck_pass, at, warnings }
     }).collect()
+}
+
+/// The saddle check by Zick's method (L. P. Zick, Stresses in large horizontal cylindrical pressure
+/// vessels on two saddle supports, 1951): the vessel as a beam on two saddles carrying its heavier
+/// weight (operating or full of water), the shell at the design pressure, hot and corroded.
+fn saddle_check(v: &Vessel, s: &Saddles, weight: f64, spans: &[[f64; 2]], warnings: &mut Vec<String>) -> Result<SaddleResult, String> {
+    let shells: Vec<usize> = (0..v.parts.len()).filter(|&i| matches!(v.parts[i].kind, PartKind::Cylinder)).collect();
+    if shells.is_empty() || v.parts.iter().any(|p| matches!(p.kind, PartKind::Cone { .. })) {
+        return Err(format!("The saddles of {} need a cylindrical shell between two heads (no cones).", v.name));
+    }
+    let shell = &v.parts[shells[0]];
+    let n = v.parts.len();
+    let ca = v.corrosion;
+    let t = shell.t - ca - v.under;
+    let r = (shell.d + t) / 2.0 + ca;
+    let l = spans[n - 1][0] - spans[0][1];
+    let h = head_depth(&v.parts[n - 1].kind, v.parts[n - 1].d);
+    let th = v.parts[n - 1].t.min(v.parts[0].t) - ca - v.under;
+    let a = s.a;
+    if 2.0 * a >= l {
+        return Err(format!("The saddles of {} are past the middle of the vessel.", v.name));
+    }
+    let q = weight * G / 2.0;
+    let m1 = -q * a * (1.0 - (1.0 - a / l + (r * r - h * h) / (2.0 * a * l).max(1e-12)) / (1.0 + 4.0 * h / (3.0 * l)));
+    let m1 = if a > 0.0 { m1 } else { 0.0 };
+    let m2 = q * l / 4.0 * ((1.0 + 2.0 * (r * r - h * h) / (l * l)) / (1.0 + 4.0 * h / (3.0 * l)) - 4.0 * a / l);
+    let theta = s.theta.to_radians();
+    let k = zick_k(theta, a / r);
+    let pi = std::f64::consts::PI;
+    let pl = v.p * r / (2.0 * t);
+    let z = pi * r * r * t;
+    let stiff = s.rings || a <= r / 2.0;
+    let (sa, sy) = (v.s, v.sy);
+    let mut rows = vec![];
+    let mut row = |what: &str, stress: f64, allow: f64| {
+        let ratio = stress.abs() / allow;
+        rows.push(SaddleRow { what: what.into(), stress, allow, ratio, pass: ratio <= 1.0 + 1e-12 });
+    };
+    // Longitudinal: pressure plus bending, at mid-span and at the saddles, with and without pressure.
+    row("Longitudinal, mid-span (tension)", pl + m2.abs() / z, sa);
+    row("Longitudinal, mid-span (compression, no pressure)", -m2.abs() / z, sa);
+    let (zt, zb) = if stiff { (z, z) } else { (k[0] * z, k[1] * z) };
+    row("Longitudinal, at the saddles (tension)", pl + m1.abs() / zt.min(zb), sa);
+    row("Longitudinal, at the saddles (compression, no pressure)", -m1.abs() / zt.min(zb), sa);
+    // Tangential shear at the saddle.
+    let shear_load = q * (l - 2.0 * a) / (l + 4.0 * h / 3.0);
+    if stiff && !s.rings {
+        row("Tangential shear in the shell (stiffened by the head)", k[3] * q / (r * t), 0.8 * sa);
+        row("Tangential shear in the head", k[3] * q / (r * th), 0.8 * sa);
+    } else {
+        row("Tangential shear in the shell", k[2] * shear_load / (r * t), 0.8 * sa);
+    }
+    // Circumferential stress at the saddle horn, and compression at the bottom.
+    let spread = s.b + 1.56 * (r * t).sqrt();
+    let horn = if l >= 8.0 * r { -q / (4.0 * t * spread) - 3.0 * k[5] * q / (2.0 * t * t) } else { -q / (4.0 * t * spread) - 12.0 * k[5] * q * r / (l * t * t) };
+    if !s.rings {
+        row("Circumferential at the saddle horn", horn, 1.25 * sa);
+    } else {
+        warnings.push(format!("The saddles of {} have stiffening rings: the rings themselves are not checked.", v.name));
+    }
+    let kw = if s.welded { 0.1 } else { 1.0 };
+    if sy > 0.0 {
+        row("Circumferential compression at the bottom", -k[4] * q * kw / (t * spread), 0.5 * sy);
+    }
+    let pass = rows.iter().all(|x| x.pass);
+    Ok(SaddleResult { q, m1, m2, k, rows, pass })
 }
 
 /// Check a vessel.
@@ -537,8 +697,12 @@ pub fn check(v: &Vessel) -> Result<VesselResult, String> {
     for z in &nz {
         warnings.extend(z.warnings.iter().cloned());
     }
-    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass);
-    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, warnings })
+    let sad = match &v.saddles {
+        Some(s) => Some(saddle_check(v, s, operating.max(test_weight), &spans, &mut warnings)?),
+        None => None,
+    };
+    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass) && sad.as_ref().is_none_or(|s| s.pass);
+    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, saddles: sad, warnings })
 }
 
 /// The liquid's volume: up to the level (vertical, from the bottom tangent line) or the part of the
@@ -667,6 +831,21 @@ mod tests {
         // A pad smaller than the nozzle is refused.
         v.nozzles[0].pad_od = od * 0.9;
         assert!(check(&v).is_err());
+    }
+
+    #[test]
+    fn zick_constants_at_120_degrees() {
+        // The published table values for a 120° saddle: K1 0.107 and 0.192, K2 1.171, K3 0.880,
+        // K5 0.760, K6 0.0528 (A/R ≥ 1); at A/R ≤ 0.5 a quarter of K6.
+        let k = zick_k(120f64.to_radians(), 1.0);
+        for (got, want) in k.iter().zip([0.107, 0.192, 1.171, 0.880, 0.760, 0.0528]) {
+            assert!((got - want).abs() < 1.5e-3, "{k:?}");
+        }
+        let k = zick_k(120f64.to_radians(), 0.4);
+        assert!((k[5] - 0.0528 / 4.0).abs() < 1e-3, "{k:?}");
+        // At 150° the effective section is larger and the horn constant smaller.
+        let k150 = zick_k(150f64.to_radians(), 1.0);
+        assert!(k150[0] > 0.107 && k150[5] < 0.0528, "{k150:?}");
     }
 
     #[test]

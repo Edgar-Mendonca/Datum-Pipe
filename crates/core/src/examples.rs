@@ -21,6 +21,7 @@ pub fn list() -> Vec<Example> {
         Example { id: "relief", name: "Safety valve vent stack", what: "4\" steam safety valve on a header, discharging up a vent stack to the open air: the valve's thrust as an occasional load." },
         Example { id: "bellows", name: "Expansion joint between anchors", what: "8\" steam in a straight run with an untied bellows: guides each side, and main anchors that take the pressure thrust." },
         Example { id: "separator", name: "Vertical separator V-101", what: "A pressure vessel: 1.8 m two-phase separator with 2:1 heads at 16 bar and 200 °C; shell and head thickness, MAWP, test pressure and weights." },
+        Example { id: "drum", name: "Horizontal drum D-201 on saddles", what: "A pressure vessel: 2.4 m horizontal drum on two 120° saddles; shell and heads, nozzles, and the saddle stresses by Zick's method." },
         Example { id: "lbend", name: "A simple L-bend", what: "6\" carbon steel at 200 °C between two anchors, with a long-radius bend. Check it by hand." },
         Example { id: "zbend", name: "A Z-bend", what: "6\" carbon steel at 250 °C: two bends between two anchors, the classic hand-check case." },
     ]
@@ -36,6 +37,7 @@ pub fn get(id: &str) -> Option<Model> {
         "relief" => Some(relief()),
         "bellows" => Some(bellows()),
         "separator" => Some(separator()),
+        "drum" => Some(drum()),
         "lbend" => Some(lbend()),
         "zbend" => Some(zbend()),
         _ => None,
@@ -154,9 +156,42 @@ fn separator() -> Model {
             // The manway's neck is rolled from 16 mm plate (no pipe under-tolerance).
             VNozzle { name: "M1 manway".into(), part: 1, pos: 1.2, angle: 180.0, nps: String::new(), od: 0.54, t: 0.016, pipe: false, leg: 0.012, pad_od: 0.84, pad_t: 0.016, pad_leg: 0.012, proj: 0.3 },
         ],
+        saddles: None,
     };
     d.apply(Op::SetVessels { list: vec![v] }).expect("vessel");
     meta(&mut d, "Vertical separator V-101", "V-101", "A vertical two-phase separator: 1800 mm inside diameter, 6000 mm between tangent lines, 2:1 semi-ellipsoidal heads, an 8\" inlet, 6\" gas and 4\" liquid outlets and a 20\" manway with reinforcing pads; 16 bar and 200 °C, 3 mm corrosion allowance; carbon steel plate with an allowable stress of 138 MPa hot and cold and a yield of 260 MPa (example values); shell joint efficiency 0.85 (spot radiography), seamless heads 1.0. The liquid (850 kg/m³) stands 1.8 m above the bottom tangent line in operation; internals and platforms add 1500 kg. Open the Vessels view for the thicknesses, the MAWP, the test pressure and the weights.");
+    d.m
+}
+
+/// A horizontal drum on two saddles: the second vessel example (example values throughout).
+fn drum() -> Model {
+    use crate::vessel::{Part, PartKind, Saddles, VNozzle, Vessel};
+    let mut d = Doc::new(Model::new());
+    let head = |name: &str| Part { name: name.into(), kind: PartKind::Ellipsoidal, d: 2.4, len: 0.0, t: 0.014, e: 1.0 };
+    let noz = |name: &str, part: usize, pos: f64, angle: f64, nps: &str, sch: &str, pad: (f64, f64)| {
+        let (od, t) = crate::library::pipe(nps, sch).expect("nozzle size");
+        VNozzle { name: name.into(), part, pos, angle, nps: nps.into(), od, t, pipe: true, leg: 0.008, pad_od: pad.0, pad_t: pad.1, pad_leg: if pad.0 > 0.0 { 0.008 } else { 0.0 }, proj: 0.25 }
+    };
+    let v = Vessel {
+        name: "D-201".into(),
+        vertical: false,
+        p: 10e5,
+        temp: K0 + 150.0,
+        s: 138e6,
+        s_cold: 138e6,
+        sy: 260e6,
+        corrosion: 0.003,
+        under: 0.0,
+        rho: 7850.0,
+        liquid: 1000.0,
+        level: 1.6,
+        extra: 1000.0,
+        parts: vec![head("Left head"), Part { name: "Shell".into(), kind: PartKind::Cylinder, d: 2.4, len: 9.0, t: 0.014, e: 0.85 }, head("Right head")],
+        nozzles: vec![noz("N1 inlet", 1, 1.5, 0.0, "8", "80", (0.38, 0.014)), noz("N2 outlet", 1, 7.5, 180.0, "6", "80", (0.3, 0.014)), noz("N3 vent", 2, 0.0, 0.0, "2", "160", (0.0, 0.0))],
+        saddles: Some(Saddles { a: 0.6, theta: 120.0, b: 0.3, welded: true, rings: false }),
+    };
+    d.apply(Op::SetVessels { list: vec![v] }).expect("vessel");
+    meta(&mut d, "Horizontal drum D-201 on saddles", "D-201", "A horizontal drum: 2400 mm inside diameter, 9000 mm between tangent lines, 2:1 semi-ellipsoidal heads, 14 mm plate; 10 bar and 150 °C, 3 mm corrosion allowance; allowable stress 138 MPa, yield 260 MPa (example values); shell joint efficiency 0.85, seamless heads. Two 120° saddles 300 mm wide, welded, 600 mm from the tangent lines (within R/2, so the heads stiffen the shell there). Liquid 1.6 m deep in operation; the saddles carry the heavier of the operating weight and the weight full of water. Open the Vessels view for the shell, heads, nozzles and the saddle stresses by Zick's method.");
     d.m
 }
 

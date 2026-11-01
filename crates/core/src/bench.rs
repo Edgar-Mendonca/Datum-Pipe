@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, and lifting lugs. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, and a vessel nozzle under its piping's loads. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -752,6 +752,24 @@ pub fn run() -> Vec<Check> {
         out.push(row(30, name, "Tension across the hole", "stress", f / ((0.15 - 0.055) * 0.03), find("Lug: tension"), TOL, src));
         out.push(row(30, name, "Tension and bending at the base", "stress", fv / (0.25 * 0.03) + 6.0 * fh * 0.12 / (0.03 * 0.0625), find("Lug: tension and bending"), TOL, src));
     }
+    // 31. V-101's inlet line on N1: the piping analysis gives N1's loads in its own axes; the neck
+    //     (8" Sch 80 at 87.5 % less 3 mm) carries P d/(4 tn) + |Fa|/A + √(Mb² + Mc²)/Z, combined
+    //     with torsion Mt/(2Z) by the maximum shear stress, against 1.5 S.
+    {
+        let m = crate::examples::get("separator").unwrap();
+        let r = analyze(&m).unwrap();
+        let l = r.vessel_links.iter().find(|x| x.case == "OPE1").expect("N1 in OPE1");
+        let pi = std::f64::consts::PI;
+        let (od, t) = (8.625 * 0.0254, 0.5 * 0.0254);
+        let tn = 0.875 * t - 0.003;
+        let d = od - 2.0 * t + 0.006;
+        let dm = d + tn;
+        let (a, z) = (pi * dm * tn, pi * dm * dm * tn / 4.0);
+        let q = l.local;
+        let sl = 16e5 * d / (4.0 * tn) + q[0].abs() / a + (q[4] * q[4] + q[5] * q[5]).sqrt() / z;
+        let st = q[3].abs() / (2.0 * z);
+        out.push(row(31, "A vessel nozzle under its piping's loads (V-101, N1)", "Neck stress in OPE1", "stress", (sl * sl + 4.0 * st * st).sqrt(), l.stress, TOL, "Beam theory on the neck: pressure, axial force, bending and torsion"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -776,7 +794,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=30 {
+        for b in 1..=31 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

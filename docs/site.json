@@ -252,7 +252,7 @@
     {
       "v": "0.3.7",
       "title": "Vessels and piping together",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "The piping model's nozzle loads checked on the vessel's nozzle"
       ]
@@ -260,7 +260,7 @@
     {
       "v": "0.3.8",
       "title": "Vessels: external pressure",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "External pressure and stiffening rings from classical shell-buckling theory"
       ]

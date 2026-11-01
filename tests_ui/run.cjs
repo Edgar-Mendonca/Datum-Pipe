@@ -370,6 +370,8 @@ const shots = process.env.SHOTS;
   await p.selectOption(".vleft table:nth-of-type(2) tbody tr:nth-child(1) td:nth-child(5) select >> nth=0", "6"); await p.waitForTimeout(250);
   const nn = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetVessels).map(c => c[1].op.SetVessels.list[0].nozzles[0]).pop());
   check("picking a nozzle size sends its outside diameter in metres", Math.abs(nn.od - 0.168275) < 1e-6 && nn.t > 0.005 && nn.t < 0.02, JSON.stringify(nn));
+  await p.keyboard.press("F5"); await p.waitForTimeout(500);
+  check("V-101's inlet line loads are checked on N1's neck", ((await p.textContent(".vpage")) ?? "").includes("Piping loads on the nozzles") && ((await p.textContent(".vpage")) ?? "").includes("N1 inlet"));
   check("V-101's lifting lugs are checked", ((await p.textContent(".vpage")) ?? "").includes("Lug: tension across the hole") && ((await p.textContent(".vpage")) ?? "").includes("Lifting lugs and trunnions"));
   check("V-101's manway cover is checked by the bolted flange method", vt.includes("Bolted flanges and covers") && vt.includes("M1 cover (cover, thickness)"));
   await p.click('.vpage h1 button:has-text("Add a horizontal vessel")'); await p.waitForTimeout(300);
@@ -391,6 +393,11 @@ const shots = process.env.SHOTS;
   await p.click('.vpage h1 button:has-text("Add a vertical vessel")');
   await p.click('.side button[title="Results"]'); await p.waitForTimeout(60);
   check("an edit marks the results out of date (every edit hook runs)", ((await p.textContent(".page")) ?? "").includes("The model changed since this analysis"));
+
+  // Switching views many times releases the 3D view's GPU context each time (it ran out before 0.3.7).
+  await open("pump");
+  for (let k = 0; k < 30; k++) { await p.click('.side button[title="Isometric"]'); await p.waitForTimeout(40); await p.click('.side button[title="Model"]'); await p.waitForTimeout(60); }
+  check("the 3D view survives 30 view switches", !!(await p.$(".v3d canvas, canvas")));
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

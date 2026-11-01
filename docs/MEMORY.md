@@ -97,6 +97,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.3.7 | `VNozzle.link` = a piping `Nozzle` id; `vessel::link_checks(m, cases)` in `analyze` → `Results.vessel_links`: neck (pipe at 87.5 % less corrosion) P d/(4tn) (no pressure in EXP/OCC) + |Fa|/A + √(Mb² + Mc²)/Z, with torsion by max shear, ≤ 1.5 S; the window shows them on the Vessels page from the piping results | The piping engine gives the loads; the vessel side checks what it can without copyrighted local-stress methods |
+| 0.3.7 | Fixed: the 3D view's cleanup now calls `forceContextLoss()` and disposes the scene's geometry | Leaking a WebGL context per view switch crashed the UI suite (and could crash a long session) |
 | 0.3.6 | `Vessel.lifting` (`Lifting`: lugs and trunnions, impact, Sy) and `Vessel.legs` (`Legs`: n, len, A, Z, r, circle, Sy) as `CheckRow`s; lug load = impact × empty × g / n / cos φ; allowables 0.6/0.4/0.9/0.66 Sy; legs P = W/n + 4M/(n D), Euler K = 2 / factor 2 capped 0.6 Sy, bending V/n × L, interaction; legs take the base at −len for the moments; no skirt with legs | Statics and Euler only, with the usual working-stress fractions |
 | 0.3.5 | `Vessel.flanges` (`BodyFlange`): ring (loose, Y Mo/(t² B), Y = (0.66845 + 5.71690 K² log K/(K² − 1))/(K − 1)) and blind (G √(0.3 P/S + 1.9 W hG/(S G³))); b = b0 up to 6.35 mm else 2.52 √b0 (mm), G = gasket OD − 2b (or the mean); Wm1, Wm2, Am, W = (Am + Ab) Sa/2. Weld-neck (hub factors F, V, f) not done: their closed forms could not be verified from here | Only what could be checked against known values (Y at K = 1.5 = 4.96) |
 | 0.3.5 | Fixed: the nozzle editor multiplied the library's sizes (already in metres) by 0.0254; the schedule boxes now show their value (drawn after the library loads) | Found by a new UI check written for the display bug |
@@ -244,8 +246,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.3.4 | Vessels: vertical vessels: weight, wind, seismic, skirt, base ring, anchor bolts | ✅ |
 | 0.3.5 | Vessels: body flanges (the published Taylor-Forge method) | ✅ ring and blind; weld-neck later |
 | 0.3.6 | Vessels: lifting lugs, trunnions, leg supports | ✅ |
-| 0.3.7 | Vessels and piping linked: the piping model's nozzle loads checked on the vessel's nozzle | 🔜 |
-| 0.3.8 | Vessels: external pressure and stiffening rings, from classical shell-buckling theory in free public sources (no code charts) | ⬜ |
+| 0.3.7 | Vessels and piping linked: the piping model's nozzle loads checked on the vessel's nozzle | ✅ |
+| 0.3.8 | Vessels: external pressure and stiffening rings, from classical shell-buckling theory in free public sources (no code charts) | 🔜 |
 | 0.4.0 | Milestone: vessels reviewed | ⬜ |
 | 0.5 | Dynamics: modes, harmonic, response spectrum; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ⬜ |
 | 0.6 | Power piping and European piping code equations (EN 13445 for vessels too), buried pipe, cold spring | ⬜ |
@@ -413,6 +415,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 ### 2026-11-01: Session 2, continued (0.3.6: lifting and legs)
 - Engine: `Lifting`, `Legs`, `lifting_check`, `legs_check`, `CheckRow`; unit test of the legs, benchmark 30 (88 checks). V-101's lugs.
 - UI: lifting and legs editors, the Lifting and legs table; a UI check. Checked in the real app. (An insertion left a stray `fn cd0` line; the compiler caught it.)
+
+### 2026-11-01: Session 2, continued (0.3.7: vessels and piping together)
+- Engine: `VNozzle.link`, `LinkCheck`, `link_checks`, `Results.vessel_links`; V-101 gains its 8" inlet line (piping + vessel in one model); benchmark 31 and the separator's equilibrium (90 checks).
+- UI: Piping column in the nozzles table, Piping loads table on the Vessels page, failures counted in the analysis message; the WebGL context leak found by the UI suite crashing once the separator gained piping, fixed with a 30-switch UI check. Disk filled (18 GB target); `cargo clean` freed it.
 
 ## 5. Known limits (0.2.0)
 

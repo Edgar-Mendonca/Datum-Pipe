@@ -522,12 +522,57 @@ pub struct VNozzle {
     pub pad_leg: f64,
     /// Outward projection from the shell (m), for the drawing.
     pub proj: f64,
+    /// The piping model's nozzle point this nozzle carries (0 = none): its loads from the piping
+    /// analysis are checked on this nozzle's neck (0.3.7).
+    #[serde(default)]
+    pub link: u32,
+}
+
+/// A linked nozzle's neck under the piping loads of one case: the longitudinal stress of pressure,
+/// axial force and bending on the neck's corroded section, combined with torsion by the maximum
+/// shear stress, against 1.5 S.
+#[derive(Clone, Debug, Serialize)]
+pub struct LinkCheck {
+    pub vessel: String,
+    pub nozzle: String,
+    pub case: String,
+    pub local: [f64; 6],
+    pub stress: f64,
+    pub allow: f64,
+    pub ratio: f64,
+    pub pass: bool,
+}
+
+/// The neck stress of every linked vessel nozzle in every case of the piping analysis.
+pub fn link_checks(m: &crate::model::Model, cases: &[crate::solve::CaseResult]) -> Vec<LinkCheck> {
+    let mut out = vec![];
+    let pi = std::f64::consts::PI;
+    for v in &m.vessels {
+        for z in v.nozzles.iter().filter(|z| z.link != 0) {
+            let tn = if z.pipe { z.t * 0.875 } else { z.t } - v.corrosion;
+            let d_in = z.od - 2.0 * z.t + 2.0 * v.corrosion;
+            let dm = d_in + tn;
+            let (a, zs) = (pi * dm * tn, pi * dm * dm * tn / 4.0);
+            for c in cases {
+                let Some(nl) = c.nozzles.iter().find(|x| x.nozzle == z.link) else { continue };
+                let l = nl.local;
+                let p = if matches!(c.kind, crate::model::CaseKind::Exp | crate::model::CaseKind::Occ) { 0.0 } else { v.p };
+                let sl = p * d_in / (4.0 * tn) + l[0].abs() / a + (l[4] * l[4] + l[5] * l[5]).sqrt() / zs;
+                let st = l[3].abs() / (2.0 * zs);
+                let stress = (sl * sl + 4.0 * st * st).sqrt();
+                let allow = 1.5 * v.s;
+                let ratio = stress / allow;
+                out.push(LinkCheck { vessel: v.name.clone(), nozzle: z.name.clone(), case: c.name.clone(), local: l, stress, allow, ratio, pass: ratio <= 1.0 + 1e-12 });
+            }
+        }
+    }
+    out
 }
 
 impl Default for VNozzle {
     fn default() -> Self {
         let (od, t) = crate::library::pipe("4", "80").unwrap_or((0.1143, 0.00856));
-        VNozzle { name: "N1".into(), part: 1, pos: 1.0, angle: 0.0, nps: "4".into(), od, t, pipe: true, leg: 0.008, pad_od: 0.0, pad_t: 0.0, pad_leg: 0.0, proj: 0.2 }
+        VNozzle { name: "N1".into(), part: 1, pos: 1.0, angle: 0.0, nps: "4".into(), od, t, pipe: true, leg: 0.008, pad_od: 0.0, pad_t: 0.0, pad_leg: 0.0, proj: 0.2, link: 0 }
     }
 }
 

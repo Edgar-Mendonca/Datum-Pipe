@@ -128,10 +128,22 @@ fn bellows() -> Model {
 /// edition and the material certificate).
 fn separator() -> Model {
     use crate::vessel::{Part, PartKind, VNozzle, Vessel};
-    let mut d = Doc::new(Model::new());
+    // The inlet line: 8" Sch 80 from N1's flange, 2 m out, 4 m down, 3 m along to an anchor, at the
+    // vessel's 16 bar and 200 °C. N1 moves with the vessel when hot: 2 mm out, 15 mm up (the shell
+    // and skirt growing from the base, 7 m below).
+    let mut d = table("Vertical separator V-101", &[(10, 20, 2.0, 0.0, 0.0), (20, 30, 0.0, -4.0, 0.0), (30, 40, 3.0, 0.0, 0.0)]);
+    pipe(&mut d, "8", "80", 0.0, 850.0);
+    bends(&mut d, &[20, 30]);
+    conditions(&mut d, "Separator inlet 200 °C", [200.0, 21.0, 21.0], [16.0, 0.0, 0.0], 24.0);
+    support(&mut d, 10, SupKind::Anchor, "V-101 N1");
+    displace(&mut d, 10, 0, [0.002, 0.015, 0.0, 0.0, 0.0, 0.0]);
+    support(&mut d, 30, SupKind::Rest, "S-30");
+    support(&mut d, 40, SupKind::Anchor, "A-40");
+    nozzle(&mut d, 10, "V-101 N1", [1.0, 0.0, 0.0], [0.0; 4]);
+    let n1 = d.m.nozzles[0].id;
     let noz = |name: &str, part: usize, pos: f64, angle: f64, nps: &str, sch: &str, leg: f64, pad: (f64, f64, f64)| {
         let (od, t) = crate::library::pipe(nps, sch).expect("nozzle size");
-        VNozzle { name: name.into(), part, pos, angle, nps: nps.into(), od, t, pipe: true, leg, pad_od: pad.0, pad_t: pad.1, pad_leg: pad.2, proj: 0.25 }
+        VNozzle { name: name.into(), part, pos, angle, nps: nps.into(), od, t, pipe: true, leg, pad_od: pad.0, pad_t: pad.1, pad_leg: pad.2, proj: 0.25, link: 0 }
     };
     let head = |name: &str| Part { name: name.into(), kind: PartKind::Ellipsoidal, d: 1.8, len: 0.0, t: 0.016, e: 1.0 };
     let v = Vessel {
@@ -150,11 +162,11 @@ fn separator() -> Model {
         extra: 1500.0,
         parts: vec![head("Bottom head"), Part { name: "Shell".into(), kind: PartKind::Cylinder, d: 1.8, len: 6.0, t: 0.016, e: 0.85 }, head("Top head")],
         nozzles: vec![
-            noz("N1 inlet", 1, 4.5, 0.0, "8", "80", 0.010, (0.38, 0.016, 0.010)),
+            VNozzle { link: n1, ..noz("N1 inlet", 1, 4.5, 0.0, "8", "80", 0.010, (0.38, 0.016, 0.010)) },
             noz("N2 gas outlet", 2, 0.0, 0.0, "6", "80", 0.008, (0.3, 0.016, 0.008)),
             noz("N3 liquid outlet", 0, 0.0, 0.0, "4", "160", 0.008, (0.18, 0.016, 0.008)),
             // The manway's neck is rolled from 16 mm plate (no pipe under-tolerance).
-            VNozzle { name: "M1 manway".into(), part: 1, pos: 1.2, angle: 180.0, nps: String::new(), od: 0.54, t: 0.016, pipe: false, leg: 0.012, pad_od: 0.84, pad_t: 0.016, pad_leg: 0.012, proj: 0.3 },
+            VNozzle { name: "M1 manway".into(), part: 1, pos: 1.2, angle: 180.0, nps: String::new(), od: 0.54, t: 0.016, pipe: false, leg: 0.012, pad_od: 0.84, pad_t: 0.016, pad_leg: 0.012, proj: 0.3, link: 0 },
         ],
         saddles: None,
         // On a 2.5 m skirt with a base ring and twelve M30 anchor bolts (root diameter 26.2 mm),
@@ -172,7 +184,7 @@ fn separator() -> Model {
     st.wind_q = 1000.0;
     d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("wind");
     d.apply(Op::SetVessels { list: vec![v] }).expect("vessel");
-    meta(&mut d, "Vertical separator V-101", "V-101", "A vertical two-phase separator: 1800 mm inside diameter, 6000 mm between tangent lines, 2:1 semi-ellipsoidal heads, an 8\" inlet, 6\" gas and 4\" liquid outlets and a 20\" manway with reinforcing pads; 16 bar and 200 °C, 3 mm corrosion allowance; carbon steel plate with an allowable stress of 138 MPa hot and cold and a yield of 260 MPa (example values); shell joint efficiency 0.85 (spot radiography), seamless heads 1.0. The liquid (850 kg/m³) stands 1.8 m above the bottom tangent line in operation; internals and platforms add 1500 kg. It stands on a 2.5 m skirt with a base ring and twelve M30 anchor bolts, in a 1 kPa wind (Analysis settings) and 0.15 g of static seismic. Open the Vessels view for the thicknesses, the MAWP, the test pressure and the weights.");
+    meta(&mut d, "Vertical separator V-101", "V-101", "A vertical two-phase separator: 1800 mm inside diameter, 6000 mm between tangent lines, 2:1 semi-ellipsoidal heads, an 8\" inlet, 6\" gas and 4\" liquid outlets and a 20\" manway with reinforcing pads; 16 bar and 200 °C, 3 mm corrosion allowance; carbon steel plate with an allowable stress of 138 MPa hot and cold and a yield of 260 MPa (example values); shell joint efficiency 0.85 (spot radiography), seamless heads 1.0. The liquid (850 kg/m³) stands 1.8 m above the bottom tangent line in operation; internals and platforms add 1500 kg. It stands on a 2.5 m skirt with a base ring and twelve M30 anchor bolts, in a 1 kPa wind (Analysis settings) and 0.15 g of static seismic. Open the Vessels view for the thicknesses, the MAWP, the test pressure and the weights. The 8\" inlet line is modelled too: its loads on N1 (a nozzle point in the piping) are checked on N1's neck.");
     d.m
 }
 
@@ -183,7 +195,7 @@ fn drum() -> Model {
     let head = |name: &str| Part { name: name.into(), kind: PartKind::Ellipsoidal, d: 2.4, len: 0.0, t: 0.014, e: 1.0 };
     let noz = |name: &str, part: usize, pos: f64, angle: f64, nps: &str, sch: &str, pad: (f64, f64)| {
         let (od, t) = crate::library::pipe(nps, sch).expect("nozzle size");
-        VNozzle { name: name.into(), part, pos, angle, nps: nps.into(), od, t, pipe: true, leg: 0.008, pad_od: pad.0, pad_t: pad.1, pad_leg: if pad.0 > 0.0 { 0.008 } else { 0.0 }, proj: 0.25 }
+        VNozzle { name: name.into(), part, pos, angle, nps: nps.into(), od, t, pipe: true, leg: 0.008, pad_od: pad.0, pad_t: pad.1, pad_leg: if pad.0 > 0.0 { 0.008 } else { 0.0 }, proj: 0.25, link: 0 }
     };
     let v = Vessel {
         name: "D-201".into(),

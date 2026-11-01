@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.7 — 2026-11-01
+
+Vessels and piping together.
+
+**The link.** A vessel nozzle can be linked to the piping model's nozzle point at its flange (the Piping column of the nozzles table). After the piping analysis, the nozzle's neck is checked under the piping loads of every case: the pressure's P d / 4t, the axial force and the bending on its corroded section, combined with torsion by the maximum shear stress, against 1.5 S. The loads in the nozzle's own axes are listed for the vessel engineer, who checks the local stresses in the vessel wall.
+
+**Example.** V-101 now has its 8" inlet line: 2 m out from N1, 4 m down and 3 m along to an anchor, at 16 bar and 200 °C, with N1 moving 15 mm up and 2 mm out as the vessel grows. The piping and the vessel are in one model; N1's neck passes in every case.
+
+**Fixed.** The 3D view kept each WebGL context when the Model view was left, so switching views many times could run the graphics out of memory and crash the window; it now releases the context and the scene's geometry each time.
+
+**Verification.** A new benchmark: N1's neck stress in operation by hand from its piping loads, and the separator example's equilibrium (90 checks).
+
 ## 0.3.6 — 2026-11-01
 
 Lifting lugs, trunnions and legs.

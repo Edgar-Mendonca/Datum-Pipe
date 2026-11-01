@@ -9,6 +9,7 @@ import { Help } from "./help";
 import { F, T, library } from "./props";
 import { Q, toU, fromU, unit, parseQ } from "./units";
 import { Badge } from "./results";
+import { results, stale } from "./rstate";
 
 export const [vchecks, setVchecks] = createSignal<VesselCheck[]>([]);
 const refresh = () => {
@@ -110,6 +111,13 @@ export const VesselTables = (p: { v: Vessel; r: VesselResult }) => (
       </tbody></table>
       <p class="muted small">The bolted flange method: the gasket's effective width b and diameter G, the operating bolt load Wm1 = H + Hp (pressure end force and gasket compression m P) and the seating load Wm2 = π b G y; the bolts must give the larger area. A ring flange's tangential stress Y Mo / (t² B) from the moments of the end force, the face force and the gasket load about the bolt circle; a blind cover's thickness G √(0.3 P/S + 1.9 W hG/(S G³)). The gasket factors m and y and the allowables are your inputs.</p>
     </Show>
+    <Show when={(results()?.vessel_links ?? []).some(x => x.vessel === p.v.name)}>
+      <h4>Piping loads on the nozzles{stale() ? " (the model changed: analyze again)" : ""}</h4>
+      <table class="tbl rtable"><thead><tr><th>Nozzle</th><th>Case</th><th class="r">Axial {unit("force")}</th><th class="r">Torsion {unit("moment")}</th><th class="r">Bending</th><th class="r">Neck stress {unit("stress")}</th><th class="r">1.5 S</th><th class="r">Ratio</th><th>Result</th></tr></thead><tbody>
+        <For each={(results()?.vessel_links ?? []).filter(x => x.vessel === p.v.name)}>{x => <tr><td>{x.nozzle}</td><td>{x.case}</td><td class="r">{v4("force", x.local[0])}</td><td class="r">{v4("moment", x.local[3])}</td><td class="r">{v4("moment", Math.hypot(x.local[4], x.local[5]))}</td><td class="r">{v4("stress", x.stress)}</td><td class="r">{v4("stress", x.allow)}</td><td class="r">{num(x.ratio, 3)}</td><td><Badge pass={x.pass} /></td></tr>}</For>
+      </tbody></table>
+      <p class="muted small">From the piping analysis: the loads at the linked nozzle points, on the neck's corroded section (pressure P d/4t, axial force, bending and torsion by the maximum shear stress) against 1.5 S. The local stresses in the vessel wall are for the vessel engineer: the loads above in the nozzle's axes are what they need.</p>
+    </Show>
     <Show when={(p.r.lifting ?? []).length + (p.r.legs ?? []).length}>
       <h4>Lifting and legs</h4>
       <table class="tbl rtable"><thead><tr><th>Check</th><th class="r">Stress {unit("stress")}</th><th class="r">Allowable</th><th class="r">Ratio</th><th>Result</th></tr></thead><tbody>
@@ -185,7 +193,7 @@ const NozzlesTable = (p: { i: number; v: Vessel }) => {
   const add = () => { const shell = Math.max(0, p.v.parts.findIndex(x => x.kind === "cylinder")); set([...list(), { name: `N${list().length + 1}`, part: shell, pos: (p.v.parts[shell]?.len ?? 2) / 2, angle: 0, nps: "4", od: 0.1143, t: 0.00856, pipe: true, leg: 0.008, pad_od: 0, pad_t: 0, pad_leg: 0, proj: 0.2 }]); };
   return (
     <>
-      <table class="tbl vparts"><thead><tr><th>Nozzle</th><th>On</th><th>At ({unit("coord")})</th><th>Angle °</th><th>Size</th><th>Neck OD × t ({unit("len")})</th><th>Weld leg</th><th>Pad OD × t</th><th /></tr></thead><tbody>
+      <table class="tbl vparts"><thead><tr><th>Nozzle</th><th>On</th><th>At ({unit("coord")})</th><th>Angle °</th><th>Size</th><th>Neck OD × t ({unit("len")})</th><th>Weld leg</th><th>Pad OD × t</th><th>Piping</th><th /></tr></thead><tbody>
         <For each={list()}>{(z, j) => <tr>
           <td><input style={{ width: "90px" }} value={z.name} onChange={e => put(j(), { name: e.currentTarget.value })} /></td>
           <td><select style={{ width: "110px" }} onChange={e => put(j(), { part: +e.currentTarget.value })}><For each={p.v.parts}>{(x, k) => <option value={k()} selected={k() === z.part}>{x.name}</option>}</For></select></td>
@@ -196,6 +204,7 @@ const NozzlesTable = (p: { i: number; v: Vessel }) => {
           <td class="nowrap">{cell("len", z.od, od => od > 2 * z.t ? put(j(), { od, pipe: false, nps: "" }) : toast("The outside diameter must be over twice the wall."), 58)} × {cell("len", z.t, t => t > 0 && 2 * t < z.od ? put(j(), { t, pipe: false, nps: "" }) : toast("The wall must be above 0 and under half the diameter."), 46)}</td>
           <td>{cell("len", z.leg, leg => leg >= 0 && put(j(), { leg }), 40)}</td>
           <td class="nowrap">{cell("len", z.pad_od, pad_od => pad_od >= 0 && put(j(), { pad_od, pad_leg: z.pad_leg || z.leg }), 52)} × {cell("len", z.pad_t, pad_t => pad_t >= 0 && put(j(), { pad_t }), 40)}</td>
+          <td><select style={{ width: "100px" }} title="The piping model's nozzle point this nozzle carries" value={String(z.link ?? 0)} onChange={e => put(j(), { link: +e.currentTarget.value })}><option value="0">—</option><For each={model()?.nozzles ?? []}>{n => <option value={String(n.id)}>{n.name}</option>}</For></select></td>
           <td><button class="x" title="Remove this nozzle" onClick={() => set(list().filter((_, k) => k !== j()))}>×</button></td>
         </tr>}</For>
       </tbody></table>

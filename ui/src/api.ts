@@ -53,7 +53,8 @@ export interface Contact { support: number; node: number; dir: V3; state: "touch
 export interface Wall { element: number; case: number; p: number; t: number; s: number; t_design: number; t_min: number; t_nominal_needed: number; t_nominal: number; hoop: number; ratio: number; pass: boolean; at: string; i: number; od: number; thick: boolean }
 export interface Sif { ii: number; io: number; k: number; h: number }
 export interface SolveStats { equations: number; nonzeros: number; residual: number; ms: number }
-export interface Results { geom: Geom; cases: CaseResult[]; walls: Wall[]; sifs: [Sif, Sif][]; stats: SolveStats; warnings: string[]; version: string; hangers: HangerDesign[]; reliefs?: ReliefResult[] }
+export interface Results { geom: Geom; cases: CaseResult[]; walls: Wall[]; sifs: [Sif, Sif][]; stats: SolveStats; warnings: string[]; version: string; hangers: HangerDesign[]; reliefs?: ReliefResult[]; vessel_links?: LinkCheck[] }
+export interface LinkCheck { vessel: string; nozzle: string; case: string; local: Six; stress: number; allow: number; ratio: number; pass: boolean }
 export interface Check { bench: number; name: string; quantity: string; q: string; reference: number; result: number; error: number; tolerance: number; source: string; pass: boolean }
 export interface Example { id: string; name: string; what: string }
 export interface Size { nps: string; od: number; schedules: [string, number][] }
@@ -98,7 +99,7 @@ export interface EquipRow { what: string; unit: string; value: number; allow: nu
 export interface EquipCheck { name: string; kind: EquipKind; rows: EquipRow[]; pass: boolean }
 export type PartKind = { kind: "cylinder" } | { kind: "ellipsoidal" } | { kind: "torispherical"; crown: number; knuckle: number } | { kind: "hemispherical" } | { kind: "cone"; d_end: number };
 export type VPart = { name: string; d: number; len: number; t: number; e: number } & PartKind;
-export interface VNozzle { name: string; part: number; pos: number; angle: number; nps: string; od: number; t: number; pipe: boolean; leg: number; pad_od: number; pad_t: number; pad_leg: number; proj: number }
+export interface VNozzle { name: string; part: number; pos: number; angle: number; nps: string; od: number; t: number; pipe: boolean; leg: number; pad_od: number; pad_t: number; pad_leg: number; proj: number; link?: number }
 export interface NozzleResult { name: string; d: number; tr: number; trn: number; a_req: number; a1: number; a2: number; a41: number; a5: number; a42: number; a_avail: number; small?: boolean; area_pass: boolean; t_neck_req: number; t_neck: number; neck_pass: boolean; pass: boolean; at: [number, number]; warnings: string[] }
 export interface Saddles { a: number; theta: number; b: number; welded: boolean; rings: boolean }
 export interface SaddleRow { what: string; stress: number; allow: number; ratio: number; pass: boolean }

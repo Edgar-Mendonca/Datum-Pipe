@@ -387,7 +387,13 @@ export const View3D = () => {
     build(); setTimeout(fit, 30);
     const tick = (t: number) => { anim = requestAnimationFrame(tick); if (show().anim && show().deformed && deform.length) { animT = t / 600; draw(); } };
     anim = requestAnimationFrame(tick);
-    onCleanup(() => { cancelAnimationFrame(anim); ro.disconnect(); controls?.dispose(); renderer?.dispose(); renderer = null; });
+    // Leaving the view frees the GPU: the scene's geometry, and the WebGL context itself (dispose()
+    // alone keeps the context; switching views many times ran the GPU out of contexts, found 0.3.7).
+    onCleanup(() => {
+      cancelAnimationFrame(anim); ro.disconnect(); controls?.dispose();
+      scene.traverse(x => { const mm = x as THREE.Mesh; mm.geometry?.dispose?.(); });
+      renderer?.dispose(); renderer?.forceContextLoss(); renderer = null;
+    });
   });
   createEffect(on([() => out(), sel, results, stale, show, () => opts().labels, () => opts().contours, () => opts().deform, themeTick], () => { if (!failed) { if (renderer) renderer.setClearColor(new THREE.Color(css("--bg2"))); build(); } }, { defer: true }));
   // The model's first elements: fit as it grows from nothing.

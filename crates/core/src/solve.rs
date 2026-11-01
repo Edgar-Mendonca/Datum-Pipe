@@ -143,6 +143,8 @@ pub struct Results {
     pub hangers: Vec<HangerDesign>,
     /// The relief valves' thrust (applied in the cases with relief).
     pub reliefs: Vec<crate::relief::ReliefResult>,
+    /// Vessel nozzles linked to the piping's nozzle points: their necks under the piping loads.
+    pub vessel_links: Vec<crate::vessel::LinkCheck>,
 }
 
 /// One spring hanger's sizing: its hot load (the weight it carries with the pipe held level there),
@@ -186,7 +188,9 @@ pub fn choose_spring(table: &[crate::model::SpringSize], hot: f64, travel: f64, 
 pub fn analyze(m: &Model) -> Result<Results, String> {
     let hangers: Vec<u32> = m.supports.iter().filter(|s| matches!(s.kind, SupKind::Hanger { .. })).map(|s| s.id).collect();
     if hangers.is_empty() || m.elements.is_empty() {
-        return solve_model(m);
+        let mut r = solve_model(m)?;
+        r.vessel_links = crate::vessel::link_checks(m, &r.cases);
+        return Ok(r);
     }
     let run = |kind_of: &dyn Fn(u32) -> SupKind, recipe: Recipe| -> Result<Results, String> {
         let mut mm = m.clone();
@@ -237,6 +241,7 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
     let mut res = solve_model(&fm)?;
     res.warnings.extend(warnings);
     res.hangers = designs;
+    res.vessel_links = crate::vessel::link_checks(m, &res.cases);
     Ok(res)
 }
 
@@ -1567,7 +1572,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let mut stats = stats;
     stats.ms = t0.elapsed().as_secs_f64() * 1e3;
     let sifs = parts.iter().map(|p| p.sif).collect();
-    Ok(Results { geom: g, cases: results, walls, sifs, stats, warnings, version: env!("CARGO_PKG_VERSION"), hangers: vec![], reliefs })
+    Ok(Results { geom: g, cases: results, walls, sifs, stats, warnings, version: env!("CARGO_PKG_VERSION"), hangers: vec![], reliefs, vessel_links: vec![] })
 }
 
 /// The reactions' total force and moment about the origin.

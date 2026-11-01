@@ -30,7 +30,7 @@
     "Anchors, one-way rests, guides, line stops and restraints with gaps and friction, skewed restraints, springs, spring hangers sized from your spring table, constant-force supports and imposed equipment movements",
     "Load cases built for you: sustained, operating, expansion range, hydrotest, and wind and static seismic as occasional cases",
     "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall (straight pipe, bends at their intrados, both ends of reducers), sustained stress, the displacement stress range and occasional stress, with PASS or FAIL at every point",
-    "Support loads for the civil team, nozzle loads in the nozzle's own axes, and steam turbine, compressor and pump nozzle checks against their standards' published criteria; flange leakage by the equivalent pressure method; relief valve thrust at an open discharge as an occasional load; vessel and tank nozzle flexibility from your stiffness values; bellows expansion joints with their pressure thrust",
+    "Support loads for the civil team, nozzle loads in the nozzle's own axes, and steam turbine, compressor and pump nozzle checks against their standards' published criteria; flange leakage by the equivalent pressure method; relief valve thrust at an open discharge as an occasional load; vessel and tank nozzle flexibility from your stiffness values; bellows expansion joints with their pressure thrust; wind by height and occasional loads in both directions",
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
     "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published"
   ],
@@ -175,7 +175,7 @@
     {
       "v": "0.2.8",
       "title": "Wind by height, seismic both ways",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Wind pressure that changes with elevation, from your table",
         "Static seismic in both directions along each axis"
@@ -184,7 +184,7 @@
     {
       "v": "0.2.9",
       "title": "Export",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Export the model as a plain-text piping component file (.pcf)"
       ]

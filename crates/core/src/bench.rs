@@ -8,7 +8,8 @@
 //! occasional stress on a cantilever (beam theory), and a spring hanger sized by statics and free
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
-//! flexible nozzle (springs in series), and an expansion joint's rates and pressure thrust. `run()` gives the rows of Help › Verification; the test fails on any row
+//! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, and wind that changes with height in both
+//! directions. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -595,6 +596,33 @@ pub fn run() -> Vec<Check> {
         let pa = 1e6 * 0.03;
         out.push(row(23, name, "Anchor force from the pressure thrust", "force", pa * k1 / (k1 + 2.0 * 2e5), -reaction(&r, "SUS", 30)[0], TOL, src));
     }
+    // 24. Wind that changes with height: a 10 m vertical cantilever of 6" Sch 40 in 1 m elements,
+    //     anchored at the ground, wind along X from a profile rising from 0 at 0 m to 1 kPa at 10 m,
+    //     Cd 0.7, no weight. Each element carries its average pressure (exact for a straight-line
+    //     profile), so the base shear is the area under the profile, 0.7 D × 5000 N/m, and the base
+    //     moment the sum of each element's load times its mid-height. In both directions, the
+    //     reversed case gives the same shear the other way.
+    {
+        let rows: Vec<(u32, u32, f64, f64, f64)> = (0..10).map(|i| (10 * (i + 1), 10 * (i + 2), 0.0, 1.0, 0.0)).collect();
+        let mut d = table("Wind profile", &rows);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        s.wind_profile = vec![[0.0, 0.0], [10.0, 1000.0]];
+        s.wind_cd = 0.7;
+        s.wind_dir = [1.0, 0.0, 0.0];
+        s.occ_both = true;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        anchor(&mut d, 10);
+        let r = analyze(&d.m).unwrap();
+        let cd_d = 0.7 * d.m.pipes[0].od;
+        let shear = cd_d * 1000.0 * 10.0 / 2.0;
+        let moment: f64 = (0..10).map(|i| cd_d * 100.0 * (i as f64 + 0.5) * (i as f64 + 0.5)).sum();
+        let name = "Wind that changes with height, both ways";
+        let src = "Statics: the area under the profile and its moment, element by element";
+        out.push(row(24, name, "Base shear (OCC WIN)", "force", shear, -reaction(&r, "OCC WIN", 10)[0], TOL, src));
+        out.push(row(24, name, "Base moment (OCC WIN)", "moment", moment, reaction(&r, "OCC WIN", 10)[5], TOL, src));
+        out.push(row(24, name, "Base shear the other way (OCC −WIN)", "force", -shear, -reaction(&r, "OCC −WIN", 10)[0], TOL, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -619,7 +647,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=23 {
+        for b in 1..=24 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

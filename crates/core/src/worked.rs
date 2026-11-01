@@ -259,7 +259,7 @@ fn an_occasional_case_is_checked_against_a_third_more() {
     // 1.33 Sh and its stress the sustained stress.
     let mut m = crate::examples::get("lbend").unwrap();
     let mut cs = m.cases.clone();
-    cs.push(crate::model::LoadCase { id: 0, name: "OCC".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false } });
+    cs.push(crate::model::LoadCase { id: 0, name: "OCC".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false, neg: false } });
     let mut d = Doc::new(m.clone());
     d.apply(Op::SetCases { cases: cs }).unwrap();
     m = d.m;
@@ -936,4 +936,38 @@ fn an_expansion_joint_tied_or_not_and_its_checks() {
     let e = m.elements.iter_mut().find(|e| e.to == 21).unwrap();
     e.comp = Comp::Bellows(crate::model::Bellows { axial: -1.0, ..Default::default() });
     assert!(m.check().is_err());
+}
+
+#[test]
+fn seismic_both_ways_matters_with_one_way_rests() {
+    // 6 m from an anchor, a one-way rest at the end; 1.5 g of vertical seismic: upwards it lifts the
+    // pipe off the rest (the rest carries nothing), downwards the rest carries the extra load.
+    let mut d = table("both", &[(10, 20, 3.0, 0.0, 0.0), (20, 30, 3.0, 0.0, 0.0)]);
+    sup(&mut d, 10, SupKind::Anchor);
+    d.apply(Op::Add { item: Item::Support(Support { node: 30, kind: SupKind::Rest, one_way: true, ..Default::default() }), after: None }).unwrap();
+    let mut s = d.m.settings.clone();
+    s.seis = [0.0, 1.5, 0.0];
+    s.occ_both = true;
+    d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+    let names: Vec<&str> = d.m.cases.iter().map(|c| c.name.as_str()).collect();
+    assert!(names.contains(&"OPE1−SEIS") && names.contains(&"OCC −SEIS"), "{names:?}");
+    let r = analyze(&d.m).unwrap();
+    let up = react(&r, "OPE1+SEIS", 30)[1];
+    let down = react(&r, "OPE1−SEIS", 30)[1];
+    let still = react(&r, "OPE1", 30)[1];
+    assert!(up.abs() < 1e-6 * still, "lifted off: {up}");
+    assert!(down > 2.0 * still, "more load downwards: {down} vs {still}");
+    assert!(r.cases.iter().all(|c| c.imbalance < 1e-9));
+    // A profile out of order is refused; a damaged one in a file is dropped.
+    let mut bad = d.m.clone();
+    bad.settings.wind_profile = vec![[10.0, 500.0], [0.0, 400.0]];
+    assert!(bad.check().is_err());
+    let mut v: serde_json::Value = serde_json::from_str(&crate::model::to_json(&bad)).unwrap();
+    v["settings"]["wind_profile"] = serde_json::json!([[10.0, 500.0], [0.0, 400.0]]);
+    let (m, _) = crate::model::from_json(&v.to_string()).unwrap();
+    assert!(m.settings.wind_profile.is_empty());
+    // The profile: interpolated, held beyond its ends.
+    let st = crate::model::Settings { wind_profile: vec![[0.0, 400.0], [10.0, 600.0], [20.0, 700.0]], ..Default::default() };
+    assert!(close(st.wind_at(5.0), 500.0, 1e-12) && close(st.wind_at(15.0), 650.0, 1e-12));
+    assert!(close(st.wind_at(-3.0), 400.0, 1e-12) && close(st.wind_at(99.0), 700.0, 1e-12));
 }

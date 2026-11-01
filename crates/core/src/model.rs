@@ -435,6 +435,9 @@ pub enum Recipe {
         /// The thrust of the relief valves discharging (0.2.5).
         #[serde(default)]
         relief: bool,
+        /// The wind and seismic loads act the other way (0.2.8).
+        #[serde(default)]
+        neg: bool,
     },
     /// The results of case `a` minus case `b` (the expansion range).
     Range { a: u32, b: u32 },
@@ -451,7 +454,7 @@ pub struct LoadCase {
 
 impl Default for LoadCase {
     fn default() -> Self {
-        LoadCase { id: 0, name: "SUS".into(), kind: CaseKind::Sus, recipe: Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false } }
+        LoadCase { id: 0, name: "SUS".into(), kind: CaseKind::Sus, recipe: Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false, neg: false } }
     }
 }
 
@@ -499,15 +502,42 @@ pub struct Settings {
     pub wind_dir: [f64; 3],
     /// Static seismic: the acceleration along X, Y and Z as a fraction of g (all 0 = none).
     pub seis: [f64; 3],
+    /// Wind pressure against elevation (0.2.8): rows of (elevation Y in m, pressure in Pa) in
+    /// rising order, from the wind standard for the site. Empty: `wind_q` everywhere. Between
+    /// rows the pressure is interpolated; below the first and above the last it stays at their value.
+    pub wind_profile: Vec<[f64; 2]>,
+    /// Wind and seismic also act the other way (0.2.8): a second operating and occasional case each.
+    pub occ_both: bool,
     /// Spring hangers: the spring table (in order of preference) and the largest load variation
     /// allowed, |k Δ| / hot load.
     pub springs: Vec<SpringSize>,
     pub variability: f64,
 }
 
+impl Settings {
+    /// Whether there is any wind: a pressure, or a profile with one above 0.
+    pub fn has_wind(&self) -> bool {
+        self.wind_q > 0.0 || self.wind_profile.iter().any(|r| r[1] > 0.0)
+    }
+    /// The design wind pressure at elevation y (Pa).
+    pub fn wind_at(&self, y: f64) -> f64 {
+        let p = &self.wind_profile;
+        match p.len() {
+            0 => self.wind_q,
+            _ if y <= p[0][0] => p[0][1],
+            n if y >= p[n - 1][0] => p[n - 1][1],
+            _ => {
+                let i = p.windows(2).position(|w| y <= w[1][0]).unwrap_or(0);
+                let (a, b) = (p[i], p[i + 1]);
+                a[1] + (b[1] - a[1]) * (y - a[0]) / (b[0] - a[0])
+            }
+        }
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
-        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3], springs: typical_springs(), variability: 0.25 }
+        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3], wind_profile: vec![], occ_both: false, springs: typical_springs(), variability: 0.25 }
     }
 }
 
@@ -685,6 +715,9 @@ impl Model {
         let horiz = (s.wind_dir[0].powi(2) + s.wind_dir[2].powi(2)).sqrt();
         if !(s.wind_q >= 0.0 && fin(s.wind_q) && s.wind_cd > 0.0 && fin(s.wind_cd) && s.wind_dir.iter().all(|v| fin(*v)) && horiz > 1e-6) {
             return Err("Wind needs a pressure of 0 or more, a shape factor above 0 and a horizontal direction.".into());
+        }
+        if !s.wind_profile.iter().all(|r| fin(r[0]) && fin(r[1]) && r[1] >= 0.0) || s.wind_profile.windows(2).any(|w| w[1][0] <= w[0][0]) {
+            return Err("The wind profile needs elevations in rising order, each with a pressure of 0 or more.".into());
         }
         if !s.seis.iter().all(|v| fin(*v) && v.abs() <= 10.0) {
             return Err("The seismic factors must be numbers of g between −10 and 10.".into());
@@ -1050,6 +1083,9 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     }
     if !(s.wind_dir.iter().all(|v| fin(*v)) && (s.wind_dir[0].powi(2) + s.wind_dir[2].powi(2)).sqrt() > 1e-6) {
         s.wind_dir = d.settings.wind_dir;
+    }
+    if !s.wind_profile.iter().all(|r| fin(r[0]) && fin(r[1]) && r[1] >= 0.0) || s.wind_profile.windows(2).any(|w| w[1][0] <= w[0][0]) {
+        s.wind_profile = vec![];
     }
     if !s.seis.iter().all(|v| fin(*v) && v.abs() <= 10.0) {
         s.seis = [0.0; 3];

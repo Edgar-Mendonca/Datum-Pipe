@@ -200,10 +200,10 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         solve_model(&mm).map_err(|e| format!("Sizing the spring hangers: {e}"))
     };
     // 1. The hot loads: the operating weight with each hanger held rigidly (contents, no heat).
-    let r1 = run(&|_| SupKind::Restraint { dir: [0.0, 1.0, 0.0] }, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 0, wind: false, seis: false, relief: false })?;
+    let r1 = run(&|_| SupKind::Restraint { dir: [0.0, 1.0, 0.0] }, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 0, wind: false, seis: false, relief: false, neg: false })?;
     let hot: HashMap<u32, f64> = hangers.iter().map(|&id| (id, r1.cases[0].reactions.iter().find(|x| x.support == id).map_or(0.0, |x| x.f[1]))).collect();
     // 2. The travels: operating case 1 with each hanger carrying its hot load as a constant force.
-    let r2 = run(&|id| SupKind::Constant { load: hot[&id].max(0.0) }, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false, relief: false })?;
+    let r2 = run(&|id| SupKind::Constant { load: hot[&id].max(0.0) }, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false, relief: false, neg: false })?;
     // 3. The springs.
     let mut warnings = vec![];
     let mut designs = vec![];
@@ -1009,7 +1009,9 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     for (i, s) in g.segs.iter().enumerate() {
         let chord = unit(sub(parts[i].el.line.end(), parts[i].el.line.start()));
         let dia = m.pipe(s.pipe).map_or(0.0, |p| p.od + 2.0 * (p.ins_t + p.clad_t));
-        q_occ[0][i] = scale(sub(wd, scale(chord, dot(wd, chord))), m.settings.wind_q * m.settings.wind_cd * dia);
+        // The design pressure averaged along the segment (it changes with elevation with a profile).
+        let qw = (0..9).map(|k| m.settings.wind_at(parts[i].el.line.at(parts[i].el.line.length() * (k as f64 + 0.5) / 9.0).0[1])).sum::<f64>() / 9.0;
+        q_occ[0][i] = scale(sub(wd, scale(chord, dot(wd, chord))), qw * m.settings.wind_cd * dia);
         q_occ[1][i] = scale(m.settings.seis, parts[i].w);
         let (pa, pb, k, rigid) = props_of(i);
         let secf = |x: f64| sec_at(m, pa, pb, x);
@@ -1119,7 +1121,8 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let sums: Vec<&LoadCase> = m.cases.iter().filter(|c| matches!(c.recipe, Recipe::Sum { .. })).collect();
     let mut rhs = vec![];
     for c in &sums {
-        let Recipe::Sum { w, water, t, d, p, wind, seis, relief } = c.recipe else { unreachable!() };
+        let Recipe::Sum { w, water, t, d, p, wind, seis, relief, neg } = c.recipe else { unreachable!() };
+        let sg = if neg { -1.0 } else { 1.0 };
         let mut f = vec![0.0; n];
         if (1..=4).contains(&p) {
             for i in 0..n {
@@ -1139,7 +1142,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         for (o, on) in [wind, seis].into_iter().enumerate() {
             if on {
                 for i in 0..n {
-                    f[i] += occ_rhs[o][i];
+                    f[i] += sg * occ_rhs[o][i];
                 }
             }
         }
@@ -1205,16 +1208,17 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let mut results: Vec<CaseResult> = vec![];
     for c in &m.cases {
         let r = match c.recipe {
-            Recipe::Sum { w, water, t, wind, seis, relief, p: pcase, .. } => {
+            Recipe::Sum { w, water, t, wind, seis, relief, p: pcase, neg, .. } => {
+                let sg = if neg { -1.0 } else { 1.0 };
                 let k = sums.iter().position(|x| x.id == c.id).unwrap();
                 // The distributed load on each segment in this case, and its fixed-end part.
                 let q_of = |i: usize| -> (V, [f64; 6]) {
                     let (mut q, mut rb) = if w { ([0.0, -(if water { parts[i].w_water } else { parts[i].w }), 0.0], rb_w[water as usize][i]) } else { ([0.0; 3], [0.0; 6]) };
                     for (o, on) in [wind, seis].into_iter().enumerate() {
                         if on {
-                            q = add(q, q_occ[o][i]);
+                            q = add(q, scale(q_occ[o][i], sg));
                             for d in 0..6 {
-                                rb[d] += rb_occ[o][i][d];
+                                rb[d] += sg * rb_occ[o][i][d];
                             }
                         }
                     }

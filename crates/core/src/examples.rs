@@ -260,10 +260,12 @@ fn steam() -> Model {
     st.wind_cd = 0.7;
     st.wind_dir = [0.0, 0.0, -1.0];
     st.seis = [0.15, 0.0, 0.15];
+    // Both directions: with one-way rests, gapped guides and friction, the reversed loads differ.
+    st.occ_both = true;
     d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("occasional loads");
     nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, -1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
     machine(&mut d, "T-301", crate::equip::EquipKind::Turbine, 1.0, [1.0, 0.0, 0.0]);
-    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests with friction (μ 0.3), with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot. The turbine's nozzle fails the turbine criteria (Results › Equipment): the line is too stiff near it, so try a loop or a spring near the turbine. Wind (0.8 kPa from the south) and 0.15 g of static seismic are checked as occasional cases.");
+    meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests with friction (μ 0.3), with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot. The turbine's nozzle fails the turbine criteria (Results › Equipment): the line is too stiff near it, so try a loop or a spring near the turbine. Wind (0.8 kPa from the south) and 0.15 g of static seismic are checked as occasional cases, in both directions.");
     d.m
 }
 

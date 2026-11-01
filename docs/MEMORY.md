@@ -99,6 +99,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | 0.2.6 | `Nozzle.stiff` [axial, shear, torsion, longitudinal bending, circumferential bending] and `Nozzle.vessel` (serde default, 0 = rigid / vertical); an anchor at a flexible nozzle's node uses `nozzle_restraints` (axis a, circumferential c = a × v, longitudinal l = c × a) instead of its global directions | Reuses the support machinery: imposed growth, reactions and nozzle loads unchanged |
 | 0.2.7 | `Comp::Bellows(Bellows)` (axial, lateral, angular, torsion, area, tied, mass); the segment's stiffness overridden in `Props.over` by `bellows_beam` (EA = ka L, GJ = kt L, EI = kθ L, κGA from the lateral rate; 0 = the pipe's value × the rigid factor; tied = axially rigid, no thrust) | A beam with the maker's rates reuses the exact-flexibility element, its loads and its end forces |
 | 0.2.7 | Untied thrust P·A at both ends (cases with pressure 1–3 and the hydrotest), in the independent load sum; no code stress on a joint segment; area 0 = π/4 OD² | The anchors must see the thrust; the bellows is not pipe |
+| 0.2.8 | `Settings.wind_profile` [(Y, Pa)] interpolated and held beyond its ends, averaged along each segment (9 points); `Settings.has_wind()`, `wind_at()` | A profile from the site's standard as input; no standard's tables |
+| 0.2.8 | `Settings.occ_both` (default false, so old files keep their cases) and `Recipe::Sum.neg` (serde default): wind and seismic reversed in OPE1−WIN / OCC −WIN and −SEIS; relief thrust is never reversed | Nonlinear supports make the reversed case differ |
 | 0.2.4 | Flange leakage by Kellogg's equivalent pressure (`flange.rs`): `Model.flanges` (element, G, rating) via `Op::SetFlanges`; per Sum case the largest P_eq over the element's segment ends from |Fa| and the bending resultant; ratio (P + P_eq)/rating | A public method with every flange value the user's input; |Fa| is on the safe side |
 | 0.2.5 | Relief thrust from first principles (`relief.rs`): momentum and pressure thrust of an ideal gas at a sonic exit, F = DLF (ṁV + (P − Pa)A); matches the published API RP 520 Part II form (unit test in US units, < 0.5 %) | Physics anyone can derive, so nothing copyrighted; the standard is named by number only |
 | 0.2.5 | `Model.reliefs` via `Op::SetReliefs`; a point force at the open end in cases with `Recipe::Sum.relief` (serde default); cases OPE1+RV and OCC RV like wind; direction along the pipe out of the open end unless given; a non-open end without a direction is an analysis error | The same pattern as the other occasional loads; no silent guess at a direction |
@@ -216,8 +218,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.2.5 | Relief valve thrust (open discharge reaction, occasional) | ✅ |
 | 0.2.6 | Vessel nozzle flexibility from the user's stiffness values (local stresses not done: copyrighted bulletins) | ✅ |
 | 0.2.7 | Expansion joints (bellows: axial, lateral, angular, torsional stiffness; pressure thrust) | ✅ |
-| 0.2.8 | Wind pressure by height (user table); static seismic in both directions | 🔜 |
-| 0.2.9 | .pcf export | ⬜ |
+| 0.2.8 | Wind pressure by height (user table); static seismic in both directions | ✅ |
+| 0.2.9 | .pcf export | 🔜 |
 | 0.3.0 | Milestone: 0.2.1–0.2.9 reviewed; no new features | ⬜ |
 | 0.6 | Later: load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum; the regulator's public piping benchmark problems (NUREG/CR-1677) | ⬜ |
@@ -337,12 +339,16 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Engine: `Comp::Bellows`, `Seg.bellows`, `Props.over`, `bellows_beam`, thrust per pressure case, no stress points on joints, iso kind "bellows"; benchmark 23 and the example's equilibrium (65 checks), worked test. Example: Expansion joint between anchors (60 kN on each main anchor).
 - UI: component in the table and the ribbon, Inspector rates and Tied, 3D convolutions and tie rods, isometric zigzag, example tile, help and Sources; three UI checks. Checked in the real app.
 
+### 2026-11-01: Session 2, continued (0.2.8: wind by height, both directions)
+- Engine: `wind_profile`, `occ_both`, `Recipe::Sum.neg`, check/repair, the sign through the right-hand sides and the section loads; benchmark 24 (68 checks), worked test. The steam rack example uses both directions.
+- UI: Wind by height editor and the both-directions box in the Inspector, reversed options in the case editor, the report's settings line, help; four UI checks. Checked in the real app.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
 - Friction is the same in every direction across a support (no separate coefficients), and is path-independent: each case slides from the installed position.
 - Each case finds its own support states; there is no option to use the operating states for the sustained case.
-- No pressure thrust. Wind is one uniform pressure (no height profile or shielding) and acts on a bend's chord; seismic is one static vector (no ± or per-axis cases built for you); occasional loads go with operating case 1 only.
+- No pressure thrust on straight pipe from bends (only bellows). Wind has no shielding and acts on a bend's chord; seismic is one static vector (both directions as an option, no per-axis cases); occasional loads go with operating case 1 only.
 - The deformed shape moves arcs' vertices by the chord-interpolated displacement (fine to 45° per arc segment; bends are split in two).
 - Bends' pressure opening (Bourdon effect of curved pipe) is not modelled; pressure elongation is for straight pipe only and off by default.
 - Minimum wall: t ≥ D/6 fails rather than using a thick-wall equation; bends are checked at the intrados only.

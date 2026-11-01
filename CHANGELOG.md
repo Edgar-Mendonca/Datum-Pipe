@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.8 — 2026-11-01
+
+Wind by height, and occasional loads in both directions.
+
+**Wind that changes with height.** Occasional loads › Wind by height takes the design wind pressure at a few elevations (Y) from the wind standard for the site. It is interpolated between them and held beyond them, and each element carries its average along its length. Without a profile, one pressure applies everywhere, as before.
+
+**Both directions.** Tick Wind and seismic in both directions for OPE1−WIN and OCC −WIN (and the same for seismic): the loads reversed. With one-way rests, gaps and friction the reversed case can be worse: a rest that carries more load one way lifts off the other way. The load case editor has the reversed options too, and the report says what was used.
+
+**Example.** The steam rack example checks its wind and seismic in both directions.
+
+**Verification.** A new benchmark: a 10 m vertical cantilever under a wind profile, its base shear and moment by statics, and the reversed case (68 checks). A worked test shows a one-way rest lifting off under upward seismic and carrying more under downward.
+
 ## 0.2.7 — 2026-11-01
 
 Expansion joints.

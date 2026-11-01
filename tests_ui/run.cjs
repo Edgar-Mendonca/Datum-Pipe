@@ -332,6 +332,16 @@ const shots = process.env.SHOTS;
   check("the isometric draws", (await p.$$(".isosvg path")).length > 5);
   await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
 
+  // 18. Wind by height and both directions: the Inspector's profile editor and the checkbox.
+  await open("blank");
+  await p.click('.insp button:text-is("Wind by height")'); await p.waitForTimeout(200);
+  const prof = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetSettings).map(c => c[1].op.SetSettings.s.wind_profile).pop());
+  check("Wind by height starts a profile of two rows", Array.isArray(prof) && prof.length === 2 && prof[1][0] > prof[0][0], JSON.stringify(prof));
+  check("the profile table shows", (await p.$$('.insp .tbl tbody tr')).length === 2);
+  await p.click('.insp label.chk:has-text("both directions") input'); await p.waitForTimeout(200);
+  const both = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetSettings).map(c => c[1].op.SetSettings.s.occ_both).pop());
+  check("the both-directions box sets the option", both === true);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

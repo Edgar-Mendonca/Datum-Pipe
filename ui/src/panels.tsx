@@ -107,6 +107,23 @@ const SupportPanel = (p: { s: Support }) => {
   </>;
 };
 
+/** Wind pressure against elevation: rows of (elevation, pressure), from the wind standard for the site. */
+const WindProfile = () => {
+  const rows = () => model()?.settings.wind_profile ?? [];
+  const set = (wind_profile: [number, number][]) => C.settings({ wind_profile });
+  const cell = (q: Q, v: number, f: (x: number) => void) => <input class="mono" style={{ width: "86px" }} value={num(toU(q, v), 6)} onChange={numInQ(q, x => f(fromU(q, x)), () => num(toU(q, v), 6))} />;
+  const put = (i: number, k: 0 | 1, x: number) => { const r = rows().map(a => [...a] as [number, number]); r[i][k] = x; if (k === 1 && x < 0) return toast("A pressure must be 0 or more."); r.sort((a, b) => a[0] - b[0]); if (r.some((a, j) => j > 0 && a[0] === r[j - 1][0])) return toast("Each elevation once."); set(r); };
+  return <>
+    <Show when={rows().length}>
+      <table class="tbl"><thead><tr><th>Elevation Y ({unit("coord")})</th><th>Pressure ({unit("wpress")})</th><th /></tr></thead><tbody>
+        <For each={rows()}>{(r, i) => <tr><td>{cell("coord", r[0], x => put(i(), 0, x))}</td><td>{cell("wpress", r[1], x => put(i(), 1, x))}</td><td><button class="x" title="Remove this row" onClick={() => set(rows().filter((_, k) => k !== i()))}>×</button></td></tr>}</For>
+      </tbody></table>
+      <p class="muted small">Wind pressure by elevation, interpolated between rows and held beyond them; each element takes its average.</p>
+    </Show>
+    <p class="ibtns"><button class="btn sm" onClick={() => { const r = rows(); const top = r.length ? r[r.length - 1] : null; set(top ? [...r, [top[0] + 10, top[1]]] : [[0, model()!.settings.wind_q || 800], [10, model()!.settings.wind_q || 800]]); }}>{rows().length ? "Add a height" : "Wind by height"}</button></p>
+  </>;
+};
+
 const NozzlePanel = (p: { z: Nozzle }) => {
   const z = () => p.z;
   const put = (x: Partial<Nozzle>) => act({ Set: { item: { Nozzle: { ...z(), ...x } } } });
@@ -166,10 +183,12 @@ const ModelPanel = () => {
       <div class="iprow"><label>Node number step</label><input class="mono" value={m().settings.step} onChange={numIn(v => v >= 1 && v % 1 === 0 && C.settings({ step: v }), () => m().settings.step)} /></div>
     </Sec>
     <Sec t="Occasional loads" h="occasional">
-      <F l="Design wind pressure (0 = no wind)" q="wpress" v={m().settings.wind_q} set={wind_q => C.settings({ wind_q })} />
+      <Show when={!(m().settings.wind_profile ?? []).length}><F l="Design wind pressure (0 = no wind)" q="wpress" v={m().settings.wind_q} set={wind_q => C.settings({ wind_q })} /></Show>
+      <WindProfile />
       <F l="Shape factor Cd" q="ratio" v={m().settings.wind_cd} set={wind_cd => C.settings({ wind_cd })} />
       <V3In l="Wind blows towards (X, Y, Z; horizontal)" q="ratio" v={m().settings.wind_dir} set={wind_dir => C.settings({ wind_dir })} />
       <V3In l="Static seismic (g along X, Y, Z)" q="ratio" v={m().settings.seis} set={seis => C.settings({ seis })} />
+      <label class="chk"><input type="checkbox" checked={!!m().settings.occ_both} onChange={e => C.settings({ occ_both: e.currentTarget.checked })} />Wind and seismic in both directions</label>
       <p class="muted small">Your inputs: take the wind pressure and seismic factors from the standard for the site. With either, OPE1 is solved with it added and an occasional case checks the sustained stress plus its own stress against 1.33 Sh.</p>
     </Sec>
   </>;

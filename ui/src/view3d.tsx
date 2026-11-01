@@ -11,7 +11,7 @@ import { Geom, Model, Seg, V3, num } from "./api";
 import { out, model, sel, setSel, opts, themeTick, openMenu, act, Item } from "./store";
 import { C, setFit, setStdView, SUPPORTS } from "./cmds";
 import { COMPS, compFrom, compKey } from "./table";
-import { results, stale, show, curCase, segRatios, setShowPart } from "./rstate";
+import { results, stale, show, curCase, segRatios, setShowPart, modeNo, setModeNo } from "./rstate";
 import { fmt } from "./units";
 
 type Vec = [number, number, number];
@@ -60,7 +60,7 @@ export const View3D = () => {
   let controls: OrbitControls | null = null;
   let group = new THREE.Group();
   let pickables: THREE.Object3D[] = [];
-  let anim = 0, animT = 0;
+  let anim = 0, animT = 0, modeShown = false;
   /** Vertices to move for the deformed shape: [attribute, base positions, displacement per vertex]. */
   let deform: [THREE.BufferAttribute, Float32Array, Float32Array][] = [];
   let ampl = 1;
@@ -73,8 +73,9 @@ export const View3D = () => {
 
   const draw = () => {
     if (!renderer) return;
-    if (deform.length && show().anim) {
-      const f = 0.5 - 0.5 * Math.cos(animT);
+    if (deform.length && (show().anim || modeShown)) {
+      // A load case swings between installed and operating; a mode about the still position.
+      const f = modeShown ? Math.sin(animT * 1.6) : 0.5 - 0.5 * Math.cos(animT);
       for (const [attr, base, dv] of deform) { const a = attr.array as Float32Array; for (let i = 0; i < a.length; i++) a[i] = base[i] + f * ampl * dv[i]; attr.needsUpdate = true; }
     }
     renderer.render(scene, camera);
@@ -100,12 +101,17 @@ export const View3D = () => {
     const selEl = s?.kind === "element" ? s.id : null, selNode = s?.kind === "node" ? s.id : null;
     const res = results() && !stale() ? results() : null;
     const c = res ? curCase() : null;
-    const ratios = res && show().colour ? segRatios(c, g.segs.length) : null;
-    // Deformed shape: the case's displacements, scaled so the largest shows as 4 % of the model.
+    // A natural mode, when one is chosen, replaces the case's shape (and is always drawn moving).
+    const md = res && modeNo() !== null ? res.modes?.[modeNo()!] ?? null : null;
+    modeShown = !!md;
+    const dsrc = md ? md.shape : c?.disp ?? null;
+    const ratios = res && show().colour && !md ? segRatios(c, g.segs.length) : null;
+    // Deformed shape: the case's displacements (or the mode's), scaled so the largest shows as 4 %
+    // of the model (8 % for a mode, whose size has no meaning).
     const ext = extent(g);
-    const dmax = c ? Math.max(1e-12, ...c.disp.map(d => Math.hypot(d[0], d[1], d[2]))) : 1;
-    const auto = 0.04 * ext / dmax;
-    ampl = !c || !show().deformed ? 0 : show().scale > 0 ? show().scale : opts().deform > 0 ? opts().deform : auto;
+    const dmax = dsrc ? Math.max(1e-12, ...dsrc.map(d => Math.hypot(d[0], d[1], d[2]))) : 1;
+    const auto = (md ? 0.08 : 0.04) * ext / dmax;
+    ampl = !dsrc || (!show().deformed && !md) ? 0 : md ? auto : show().scale > 0 ? show().scale : opts().deform > 0 ? opts().deform : auto;
     const pipeOf = (id: number) => m.pipes.find(p => p.id === id);
     const steel = new THREE.MeshStandardMaterial({ color: 0x9aa5b1, metalness: 0.25, roughness: 0.55 });
     const selMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(css("--blue")), metalness: 0.2, roughness: 0.5, emissive: new THREE.Color(css("--blue")), emissiveIntensity: 0.25 });
@@ -120,8 +126,8 @@ export const View3D = () => {
       return sg.rigid ? darkMat : steel;
     };
     const dispAt = (sg: Seg, f: number): Vec => {
-      if (!c) return [0, 0, 0];
-      const da = c.disp[sg.a], db = c.disp[sg.b];
+      if (!dsrc) return [0, 0, 0];
+      const da = dsrc[sg.a], db = dsrc[sg.b];
       return [0, 1, 2].map(i => da[i] + (db[i] - da[i]) * f) as Vec;
     };
     // Detail by size: a large model is seen from far away, so fewer facets cost nothing visible.
@@ -197,7 +203,7 @@ export const View3D = () => {
       const pts: THREE.Vector3[] = [];
       g.segs.forEach(sg => { for (let k = 0; k < (sg.shape.kind === "arc" ? 8 : 1); k++) { const n = sg.shape.kind === "arc" ? 8 : 1; pts.push(V(segAt(g, sg, k / n)[0]), V(segAt(g, sg, (k + 1) / n)[0])); } });
       group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: 0x8090a0, dashSize: ext * 0.01, gapSize: ext * 0.006 })).computeLineDistances());
-      if (!show().anim) for (const [attr, base, dv] of deform) { const a = attr.array as Float32Array; for (let i = 0; i < a.length; i++) a[i] = base[i] + ampl * dv[i]; attr.needsUpdate = true; }
+      if (!show().anim && !modeShown) for (const [attr, base, dv] of deform) { const a = attr.array as Float32Array; for (let i = 0; i < a.length; i++) a[i] = base[i] + ampl * dv[i]; attr.needsUpdate = true; }
     }
     // A ground grid under the model.
     const lo = Math.min(...g.points.map(p => p.p[1])) - Math.max(od0 * 2, ext * 0.05);
@@ -385,7 +391,7 @@ export const View3D = () => {
     });
     setFit(fit); setStdView(stdView);
     build(); setTimeout(fit, 30);
-    const tick = (t: number) => { anim = requestAnimationFrame(tick); if (show().anim && show().deformed && deform.length) { animT = t / 600; draw(); } };
+    const tick = (t: number) => { anim = requestAnimationFrame(tick); if (((show().anim && show().deformed) || modeShown) && deform.length) { animT = t / 600; draw(); } };
     anim = requestAnimationFrame(tick);
     // Leaving the view frees the GPU: the scene's geometry, and the WebGL context itself (dispose()
     // alone keeps the context; switching views many times ran the GPU out of contexts, found 0.3.7).
@@ -424,12 +430,16 @@ const ViewBar = () => (
 
 const Legend = () => {
   const c = () => curCase();
+  const md = () => { const k = modeNo(); return k === null ? null : results()?.modes?.[k] ?? null; };
   const worst = () => { const x = c(); if (!x || x.worst === null) return null; return x.stresses[x.worst]; };
   return <div class="legend3d">
+    <Show when={md()}>{m => <b>Mode {m().n} · {num(m().freq, 4)} Hz <button class="btn sm" onClick={() => setModeNo(null)}>Stop</button></b>}</Show>
+    <Show when={!md()}>
     <b>{c()?.stresses.length ? `Stress ratio · ${c()!.name}` : "Highest stress ratio of any case"}</b>
     <div class="lbar"><For each={[0, 0.2, 0.4, 0.6, 0.8]}>{v => <i style={{ background: ratioColour(v + 0.1) }}><small>{num(v, 2)}</small></i>}</For><i style={{ background: ratioColour(1.5) }}><small>1.0</small></i><em>over 1</em></div>
     <Show when={worst()}>{w => <span class="mono">Worst {num(w().ratio, 3)} at {results()!.geom.points[w().point]?.label}: {fmt("stress", w().stress)} / {fmt("stress", w().allow)}</span>}</Show>
-    <Show when={show().deformed && c()}><span class="muted">Deformed × <input type="range" min="0" max="3" step="0.05" value={show().scale ? Math.log10(show().scale) / 3 + 0.5 : 0.5} onInput={e => setShowPart({ scale: Math.pow(10, (+e.currentTarget.value - 0.5) * 3) })} /> largest move {fmt("disp", Math.max(...c()!.disp.map(d => Math.hypot(d[0], d[1], d[2]))))}</span></Show>
+    </Show>
+    <Show when={show().deformed && c() && !md()}><span class="muted">Deformed × <input type="range" min="0" max="3" step="0.05" value={show().scale ? Math.log10(show().scale) / 3 + 0.5 : 0.5} onInput={e => setShowPart({ scale: Math.pow(10, (+e.currentTarget.value - 0.5) * 3) })} /> largest move {fmt("disp", Math.max(...c()!.disp.map(d => Math.hypot(d[0], d[1], d[2]))))}</span></Show>
   </div>;
 };
 

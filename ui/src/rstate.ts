@@ -9,6 +9,8 @@ export const [results, setResults] = createSignal<Results | null>(null);
 export const [stale, setStale] = createSignal(false);
 export const [solving, setSolving] = createSignal(false);
 export const [caseId, setCaseId] = createSignal<number | null>(null);
+/** The natural mode drawn in the 3D view (its index), or none: then the load case's shape. */
+export const [modeNo, setModeNo] = createSignal<number | null>(null);
 export type ShowRes = { colour: boolean; deformed: boolean; scale: number; anim: boolean; tags: boolean };
 export const [show, setShow] = createSignal<ShowRes>({ colour: true, deformed: false, scale: 0, anim: false, tags: true });
 export const setShowPart = (s: Partial<ShowRes>) => setShow({ ...show(), ...s });
@@ -29,7 +31,7 @@ export const segRatios = (c: CaseResult | null, nseg: number): number[] => {
 
 onEditHook(() => { if (results()) setStale(true); });
 onLoadHook(() => {
-  setResults(null); setStale(false); setCaseId(null);
+  setResults(null); setStale(false); setCaseId(null); setModeNo(null);
   // With Analyze automatically on, a model that opens is analysed too (quietly).
   if (opts().autoAnalyze ?? true) { clearTimeout(timer); timer = window.setTimeout(() => { if (model()?.elements.length) solve(true); }, 300); }
 });

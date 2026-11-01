@@ -7,7 +7,7 @@ import { model, setSel, setView, openMenu } from "./store";
 import { C } from "./cmds";
 import { G, S, B } from "./ribbon";
 import { Help } from "./help";
-import { results, stale, solving, show, setShowPart, curCase, setCaseId } from "./rstate";
+import { results, stale, solving, show, setShowPart, curCase, setCaseId, setModeNo } from "./rstate";
 import { unit, toU } from "./units";
 import { supName } from "./panels";
 import { Icon } from "./ui";
@@ -179,8 +179,8 @@ export const ModesTable = (p: { r: Results }) => {
   const cum = (k: number, d: number) => list().slice(0, k + 1).reduce((s, m) => s + m.mass_frac[d], 0);
   return <Show when={list().length} fallback={<p class="muted">No natural modes. Set the number to find under Dynamics in Analysis settings (select nothing on the Model view), then analyze.</p>}>
     <p class="muted small">Natural frequencies of the piping as it stands in operation, with its contents, insulation and rigid parts as masses at the points; one-way rests and gaps taken as touching, friction left out. The effective mass of each mode is a share of the mass that moves in each direction (X {num(p.r.mass?.[0] ?? 0, 4)}, Y {num(p.r.mass?.[1] ?? 0, 4)}, Z {num(p.r.mass?.[2] ?? 0, 4)} kg).</p>
-    <table class="tbl rtable"><thead><tr><Th>Mode</Th><Th r>Frequency Hz</Th><Th r>Period s</Th><Th r>Mass X %</Th><Th r>Mass Y %</Th><Th r>Mass Z %</Th><Th r>Total X %</Th><Th r>Total Y %</Th><Th r>Total Z %</Th></tr></thead><tbody>
-      <For each={list()}>{(m, k) => <tr><td>{m.n}</td><td class="r">{num(m.freq, 4)}</td><td class="r">{num(m.period, 4)}</td><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * m.mass_frac[d], 3)}</td>}</For><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * cum(k(), d), 3)}</td>}</For></tr>}</For></tbody></table>
+    <table class="tbl rtable"><thead><tr><Th>Mode</Th><Th r>Frequency Hz</Th><Th r>Period s</Th><Th r>Mass X %</Th><Th r>Mass Y %</Th><Th r>Mass Z %</Th><Th r>Total X %</Th><Th r>Total Y %</Th><Th r>Total Z %</Th><th /></tr></thead><tbody>
+      <For each={list()}>{(m, k) => <tr><td>{m.n}</td><td class="r">{num(m.freq, 4)}</td><td class="r">{num(m.period, 4)}</td><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * m.mass_frac[d], 3)}</td>}</For><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * cum(k(), d), 3)}</td>}</For><td><button class="btn sm" title="Draw this mode moving in the 3D view" onClick={() => { setModeNo(k()); setView("model"); }}>Show</button></td></tr>}</For></tbody></table>
   </Show>;
 };
 

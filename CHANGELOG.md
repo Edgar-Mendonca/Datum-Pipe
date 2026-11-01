@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.2 — 2026-11-01
+
+Modes in the 3D view.
+
+**See each mode move.** Results › Modes has a Show button on every mode: the 3D view draws that mode's shape swinging about the still position, with the still centreline dashed, and the legend names the mode and its frequency with a Stop button that goes back to the load case. Colours by stress ratio are off while a mode is shown (a mode's size has no meaning, so it is drawn at a fixed share of the model).
+
+**Help.** Natural modes has the steps.
+
 ## 0.4.1 — 2026-11-01
 
 Natural frequencies and mode shapes: the first step of dynamics.

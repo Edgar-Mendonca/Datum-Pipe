@@ -407,7 +407,10 @@ const shots = process.env.SHOTS;
   await p.click('.side button[title="Results"]'); await p.waitForTimeout(200);
   await p.click('.rtabs button:text-is("Modes")'); await p.waitForTimeout(200);
   check("Results › Modes lists the steam rack's modes", (await p.$$(".rtable tbody tr")).length >= 5 && ((await p.textContent(".rtable thead")) ?? "").includes("Frequency"));
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+  await p.click('.rtable tbody tr:nth-child(1) button:text-is("Show")'); await p.waitForTimeout(400);
+  check("Show draws mode 1 moving in the 3D view, with Stop", ((await p.textContent(".legend3d")) ?? "").includes("Mode 1") && !!(await p.$('.legend3d button:text-is("Stop")')));
+  await p.click('.legend3d button:text-is("Stop")'); await p.waitForTimeout(200);
+  check("Stop goes back to the load case", !((await p.textContent(".legend3d")) ?? "").includes("Mode 1"));
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

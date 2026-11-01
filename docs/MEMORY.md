@@ -97,6 +97,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.4.2 | `rstate.modeNo` (cleared on load); the 3D view takes the mode's shape in place of the case's displacements, 8 % of the model's size, animated sin(t) about still; stress colours and legend off while a mode shows | A mode's amplitude is arbitrary |
 | 0.4.1 | `Settings.modes` (0 = off); `System::modes` subspace iteration (q = min(2p, p + 8) vectors, K factorised once, M-orthonormal Gram–Schmidt applied to X̄ and K X̄ together, Jacobi on the projected Kr), `jacobi()`; lumped translational masses from `Part.mass_len` (weight arithmetic with g = 1, so g = 0 models still have mass); one-way/gap supports as touching (k or RIGID), friction out; `Results.modes` (freq, period, mass-normalised shapes, Γ, Γ²/M) and `Results.mass` (moving mass, unheld points only) | No new dependency; the static solve untouched; modes off by default |
 | 0.3.8 | `Vessel.pe`, `ext_fs` (3), `ring_spacing`, `ring_i`; `cylinder_collapse` (von Mises short tube in closed form, floored by Bryan's long tube), L = tangent length + a third of each head's depth or the ring spacing; heads as spheres R = 0.9 D (2:1), crown (torispherical), D/2 (hemi), 0.1875 E (t/R)²; each min with hoop yield 2 Sy t/D, ÷ factor; ring I ≥ F pe R³ Ls / (3E) | Classical theory only, per the owner's rule: no material charts |
 | 0.3.7 | `VNozzle.link` = a piping `Nozzle` id; `vessel::link_checks(m, cases)` in `analyze` → `Results.vessel_links`: neck (pipe at 87.5 % less corrosion) P d/(4tn) (no pressure in EXP/OCC) + |Fa|/A + √(Mb² + Mc²)/Z, with torsion by max shear, ≤ 1.5 S; the window shows them on the Vessels page from the piping results | The piping engine gives the loads; the vessel side checks what it can without copyrighted local-stress methods |
@@ -252,8 +253,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.3.8 | Vessels: external pressure and stiffening rings, from classical shell-buckling theory in free public sources (no code charts) | ✅ |
 | 0.4.0 | Milestone: vessels reviewed | ✅ |
 | 0.4.1 | Dynamics: natural frequencies and mode shapes (subspace iteration), mass fractions | ✅ |
-| 0.4.2 | Dynamics: modes drawn and animated in the 3D view | 🔜 |
-| 0.4.3 | Dynamics: response spectrum (user spectrum, mode combination, occasional check) | ⬜ |
+| 0.4.2 | Dynamics: modes drawn and animated in the 3D view | ✅ |
+| 0.4.3 | Dynamics: response spectrum (user spectrum, mode combination, occasional check) | 🔜 |
 | 0.4.4 | Dynamics: harmonic response (force or displacement at a frequency, damping) | ⬜ |
 | 0.5.0 | Milestone: dynamics reviewed; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ⬜ |
 | 0.6 | Power piping and European piping code equations (EN 13445 for vessels too), buried pipe, cold spring | ⬜ |
@@ -443,6 +444,9 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Owner: "start 0.5 dynamics". Stage split into 0.4.1–0.4.4 and 0.5.0.
 - Engine: `weight_g`, `Part.mass_len`, `System::modes`, `jacobi`, `Mode`; benchmark 33 (94 checks: the 6 m fixed-fixed span was 1.1 % low from shear flexibility, a real Timoshenko effect, so the benchmark uses a slender 10 m span); worked test; speed gate (20 modes of big(160) in 1.6 s). The rack's lowest modes are loops rocking about the line's axis (rests and guides hold no pipe rotation): real for the model, noted in help.
 - UI: Dynamics in Analysis settings, Results › Modes; the moving mass counts unheld points only. Steam rack example finds 10 modes.
+
+### 2026-11-01: Session 2, continued (0.4.2: modes in the 3D view)
+- UI: Show per mode, Stop in the legend; three UI checks. Checked in the real app (mode 1 of the steam rack swinging).
 
 ## 5. Known limits (0.2.0)
 

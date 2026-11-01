@@ -350,3 +350,19 @@ fn random_vessels_check_or_explain_and_round_trip() {
     }
     assert!(ok >= 100, "only {ok} of 200 random vessels could be checked");
 }
+
+#[test]
+fn speed_gate_for_natural_modes() {
+    // The 160-bay rack (about 3 200 points): 20 modes in a few seconds. Its lowest modes are the
+    // loops rocking about the line's axis, held only by the pipe's torsion between the end anchors
+    // (rests and guides do not hold a pipe's rotation): about 2.4 Hz·bay / bays.
+    let mut m = crate::examples::big(160);
+    m.settings.modes = 20;
+    let t = std::time::Instant::now();
+    let r = crate::solve::analyze(&m).unwrap();
+    let s = t.elapsed().as_secs_f64();
+    assert_eq!(r.modes.len(), 20);
+    assert!(r.modes[0].freq > 0.0 && r.modes.iter().all(|x| x.freq.is_finite()));
+    eprintln!("modes: {s:.2} s, f1 {:.3} Hz", r.modes[0].freq);
+    assert!(s < 30.0, "{s} s");
+}

@@ -30,7 +30,7 @@ export type CaseKind = "sus" | "ope" | "exp" | "hyd" | "occ";
 export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean; relief?: boolean; neg?: boolean } | { kind: "range"; a: number; b: number };
 export interface LoadCase { id: number; name: string; kind: CaseKind; recipe: Recipe }
 export interface Project { project: string; line: string; calc: string; by: string; checked: string; rev: string; client: string }
-export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3; wind_profile?: [number, number][]; occ_both?: boolean; springs: SpringSize[]; variability: number }
+export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3; wind_profile?: [number, number][]; occ_both?: boolean; modes?: number; springs: SpringSize[]; variability: number }
 export interface Model {
   format: number; name: string; notes: string; units: "SI" | "US"; project: Project; settings: Settings;
   nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number; equipment?: Equipment[]; flanges?: FlangeSpec[]; reliefs?: Relief[]; vessels?: Vessel[];
@@ -53,7 +53,8 @@ export interface Contact { support: number; node: number; dir: V3; state: "touch
 export interface Wall { element: number; case: number; p: number; t: number; s: number; t_design: number; t_min: number; t_nominal_needed: number; t_nominal: number; hoop: number; ratio: number; pass: boolean; at: string; i: number; od: number; thick: boolean }
 export interface Sif { ii: number; io: number; k: number; h: number }
 export interface SolveStats { equations: number; nonzeros: number; residual: number; ms: number }
-export interface Results { geom: Geom; cases: CaseResult[]; walls: Wall[]; sifs: [Sif, Sif][]; stats: SolveStats; warnings: string[]; version: string; hangers: HangerDesign[]; reliefs?: ReliefResult[]; vessel_links?: LinkCheck[] }
+export interface Results { geom: Geom; cases: CaseResult[]; walls: Wall[]; sifs: [Sif, Sif][]; stats: SolveStats; warnings: string[]; version: string; hangers: HangerDesign[]; reliefs?: ReliefResult[]; vessel_links?: LinkCheck[]; modes?: Mode[]; mass?: V3 }
+export interface Mode { n: number; freq: number; period: number; shape: Six[]; participation: V3; mass_frac: V3 }
 export interface LinkCheck { vessel: string; nozzle: string; case: string; local: Six; stress: number; allow: number; ratio: number; pass: boolean }
 export interface Check { bench: number; name: string; quantity: string; q: string; reference: number; result: number; error: number; tolerance: number; source: string; pass: boolean }
 export interface Example { id: string; name: string; what: string }

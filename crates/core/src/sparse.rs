@@ -172,6 +172,173 @@ impl System {
     }
 }
 
+impl System {
+    /// The lowest `count` natural modes of K φ = ω² M φ with M the diagonal `mass` (0 where an
+    /// unknown has no mass, as rotations with lumped masses), the `held` unknowns fixed: subspace
+    /// iteration (K factorised once; trial vectors K⁻¹ M X made M-orthonormal; the small projected
+    /// problem solved by Jacobi rotations) until the eigenvalues settle. Returns (ω², φ) with
+    /// φᵀ M φ = 1, lowest first.
+    pub fn modes(&self, held: &[bool], mass: &[f64], count: usize) -> Result<Vec<(f64, Vec<f64>)>, String> {
+        let mut map = vec![usize::MAX; self.n];
+        let mut m = 0;
+        for i in 0..self.n {
+            if !held[i] {
+                map[i] = m;
+                m += 1;
+            }
+        }
+        let inv: Vec<usize> = (0..self.n).filter(|&i| map[i] != usize::MAX).collect();
+        let mf: Vec<f64> = inv.iter().map(|&i| mass[i]).collect();
+        let massive: Vec<usize> = (0..m).filter(|&i| mf[i] > 0.0).collect();
+        let p = count.min(massive.len());
+        if p == 0 || m == 0 {
+            return Ok(vec![]);
+        }
+        let mut tri = vec![];
+        let mut diag = vec![0.0f64; m];
+        for &(i, j, v) in &self.k {
+            let (a, b) = (map[i], map[j]);
+            if a != usize::MAX && b != usize::MAX {
+                if a >= b {
+                    tri.push(Triplet::new(a, b, v));
+                }
+                if a == b {
+                    diag[a] += v;
+                }
+            }
+        }
+        if let Some(a) = diag.iter().position(|d| !(*d > 0.0 && d.is_finite())) {
+            return Err(mechanism(Some(inv[a])));
+        }
+        let a = SparseColMat::<usize, f64>::try_new_from_triplets(m, m, &tri).map_err(|e| format!("Could not build the stiffness matrix: {e:?}"))?;
+        let llt = a.sp_cholesky(Side::Lower).map_err(|_| mechanism(locate(m, &tri, &diag).map(|a| inv[a])))?;
+        let q = (2 * p).min(p + 8).min(massive.len());
+        // Starting vectors: the masses, then unit vectors where mass over stiffness is largest.
+        let mut order = massive.clone();
+        order.sort_by(|&i, &j| (mf[j] / diag[j]).total_cmp(&(mf[i] / diag[i])));
+        let mut x: Vec<Vec<f64>> = vec![mf.clone()];
+        for &i in order.iter().take(q - 1) {
+            let mut v = vec![0.0; m];
+            v[i] = 1.0;
+            x.push(v);
+        }
+        let solve = |cols: &[Vec<f64>]| -> Vec<Vec<f64>> {
+            let mut b = Mat::<f64>::zeros(m, cols.len());
+            for (c, v) in cols.iter().enumerate() {
+                for i in 0..m {
+                    b[(i, c)] = v[i];
+                }
+            }
+            let s = llt.solve(&b);
+            (0..cols.len()).map(|c| (0..m).map(|i| s[(i, c)]).collect()).collect()
+        };
+        let mdot = |a: &[f64], b: &[f64]| -> f64 { (0..m).map(|i| a[i] * mf[i] * b[i]).sum() };
+        let dot = |a: &[f64], b: &[f64]| -> f64 { a.iter().zip(b).map(|(x, y)| x * y).sum() };
+        let mut lam_old = vec![f64::INFINITY; q];
+        let mut result = vec![];
+        for _iter in 0..80 {
+            // Y = M X; X̄ = K⁻¹ Y, so K X̄ = Y.
+            let y: Vec<Vec<f64>> = x.iter().map(|v| (0..m).map(|i| mf[i] * v[i]).collect()).collect();
+            let mut xb = solve(&y);
+            let mut kx = y;
+            // M-orthonormalise X̄ (Gram–Schmidt), doing the same to K X̄.
+            let mut keep: Vec<usize> = vec![];
+            for c in 0..xb.len() {
+                for &k in &keep {
+                    let r = mdot(&xb[c], &xb[k]);
+                    for i in 0..m {
+                        xb[c][i] -= r * xb[k][i];
+                        kx[c][i] -= r * kx[k][i];
+                    }
+                }
+                let nrm = mdot(&xb[c], &xb[c]).sqrt();
+                if nrm > 1e-300 && nrm.is_finite() {
+                    for i in 0..m {
+                        xb[c][i] /= nrm;
+                        kx[c][i] /= nrm;
+                    }
+                    keep.push(c);
+                }
+            }
+            let xb: Vec<Vec<f64>> = keep.iter().map(|&c| xb[c].clone()).collect();
+            let kx: Vec<Vec<f64>> = keep.iter().map(|&c| kx[c].clone()).collect();
+            let qq = xb.len();
+            // The projected stiffness Kr = X̄ᵀ K X̄ (M-orthonormal basis: Mr = I).
+            let mut kr = vec![vec![0.0; qq]; qq];
+            for a in 0..qq {
+                for b in a..qq {
+                    let v = (dot(&xb[a], &kx[b]) + dot(&xb[b], &kx[a])) / 2.0;
+                    kr[a][b] = v;
+                    kr[b][a] = v;
+                }
+            }
+            let (lam, vecs) = jacobi(kr);
+            let mut idx: Vec<usize> = (0..qq).collect();
+            idx.sort_by(|&a, &b| lam[a].total_cmp(&lam[b]));
+            x = idx.iter().map(|&k| (0..m).map(|i| (0..qq).map(|c| xb[c][i] * vecs[c][k]).sum()).collect()).collect();
+            let lam_s: Vec<f64> = idx.iter().map(|&k| lam[k]).collect();
+            let settled = (0..p.min(qq)).all(|k| ((lam_s[k] - lam_old[k]) / lam_s[k]).abs() < 1e-11);
+            lam_old = lam_s.clone();
+            lam_old.resize(q, f64::INFINITY);
+            result = (0..p.min(qq)).map(|k| (lam_s[k], x[k].clone())).collect();
+            if settled {
+                break;
+            }
+        }
+        Ok(result.into_iter().map(|(l, v)| {
+            let mut full = vec![0.0; self.n];
+            for (k, &i) in inv.iter().enumerate() {
+                full[i] = v[k];
+            }
+            (l, full)
+        }).collect())
+    }
+}
+
+/// Eigenvalues and eigenvectors (columns) of a small symmetric matrix by cyclic Jacobi rotations.
+pub fn jacobi(mut a: Vec<Vec<f64>>) -> (Vec<f64>, Vec<Vec<f64>>) {
+    let n = a.len();
+    let mut v = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        v[i][i] = 1.0;
+    }
+    for _sweep in 0..100 {
+        let off: f64 = (0..n).flat_map(|i| (0..n).filter(move |&j| j != i).map(move |j| (i, j))).map(|(i, j)| a[i][j] * a[i][j]).sum();
+        let tot: f64 = (0..n).map(|i| a[i][i] * a[i][i]).sum::<f64>() + off;
+        if off <= 1e-30 * tot.max(1e-300) {
+            break;
+        }
+        for p in 0..n {
+            for q in p + 1..n {
+                if a[p][q].abs() < 1e-300 {
+                    continue;
+                }
+                let theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
+                let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
+                let t = if theta == 0.0 { 1.0 } else { t };
+                let c = 1.0 / (t * t + 1.0).sqrt();
+                let s = t * c;
+                for k in 0..n {
+                    let (akp, akq) = (a[k][p], a[k][q]);
+                    a[k][p] = c * akp - s * akq;
+                    a[k][q] = s * akp + c * akq;
+                }
+                for k in 0..n {
+                    let (apk, aqk) = (a[p][k], a[q][k]);
+                    a[p][k] = c * apk - s * aqk;
+                    a[q][k] = s * apk + c * aqk;
+                }
+                for k in 0..n {
+                    let (vkp, vkq) = (v[k][p], v[k][q]);
+                    v[k][p] = c * vkp - s * vkq;
+                    v[k][q] = s * vkp + c * vkq;
+                }
+            }
+        }
+    }
+    ((0..n).map(|i| a[i][i]).collect(), v)
+}
+
 /// The message for a model that can move freely; with the unknown it is free at, marked
 /// "[dof n]" for the caller to turn into a node and a direction.
 fn mechanism(dof: Option<usize>) -> String {

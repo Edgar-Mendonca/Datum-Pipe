@@ -971,3 +971,27 @@ fn seismic_both_ways_matters_with_one_way_rests() {
     assert!(close(st.wind_at(5.0), 500.0, 1e-12) && close(st.wind_at(15.0), 650.0, 1e-12));
     assert!(close(st.wind_at(-3.0), 400.0, 1e-12) && close(st.wind_at(99.0), 700.0, 1e-12));
 }
+
+#[test]
+fn modes_are_orthogonal_and_their_masses_add_up() {
+    // A 3 m cantilever in 15 elements: 30 modes take nearly all the mass that moves sideways, the
+    // shapes are M-orthonormal, and Γ² is the effective mass.
+    let rows: Vec<(u32, u32, f64, f64, f64)> = (0..15u32).map(|i| (10 * (i + 1), 10 * (i + 2), 0.2, 0.0, 0.0)).collect();
+    let mut d = table("modes", &rows);
+    let mut s = d.m.settings.clone();
+    s.modes = 30;
+    d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+    sup(&mut d, 10, SupKind::Anchor);
+    let r = analyze(&d.m).unwrap();
+    assert_eq!(r.modes.len(), 30);
+    assert!(r.modes.windows(2).all(|w| w[1].freq >= w[0].freq * (1.0 - 1e-9)), "lowest first");
+    let fy: f64 = r.modes.iter().map(|m| m.mass_frac[1]).sum();
+    let fz: f64 = r.modes.iter().map(|m| m.mass_frac[2]).sum();
+    assert!(fy > 0.9 && fy <= 1.0 + 1e-9 && fz > 0.9, "{fy} {fz}");
+    // Bending modes come in equal pairs (Y and Z) for a round pipe.
+    assert!(close(r.modes[0].freq, r.modes[1].freq, 1e-6));
+    // M-orthogonality of the first two shapes from the masses at the free points.
+    let mass_at = |p: usize| -> f64 { r.geom.segs.iter().filter(|s| s.a == p || s.b == p).map(|s| s.length / 2.0).sum::<f64>() };
+    let dotm = |a: usize, b: usize| -> f64 { (0..r.geom.points.len()).map(|p| mass_at(p) * (0..3).map(|k| r.modes[a].shape[p][k] * r.modes[b].shape[p][k]).sum::<f64>()).sum() };
+    assert!(dotm(0, 1).abs() < 1e-6 * dotm(0, 0).abs(), "{} {}", dotm(0, 1), dotm(0, 0));
+}

@@ -145,6 +145,23 @@ pub struct Results {
     pub reliefs: Vec<crate::relief::ReliefResult>,
     /// Vessel nozzles linked to the piping's nozzle points: their necks under the piping loads.
     pub vessel_links: Vec<crate::vessel::LinkCheck>,
+    /// Natural modes, lowest first (0.4.1).
+    pub modes: Vec<Mode>,
+    /// The mass that moves in each direction (kg), for the participation fractions.
+    pub mass: [f64; 3],
+}
+
+/// A natural mode: its frequency (Hz) and period (s), its shape at every point (mass-normalised:
+/// φᵀ M φ = 1), the participation factor Γ = φᵀ M r in X, Y and Z, and the effective mass as a
+/// fraction of the total in each direction (Γ² / Σ m).
+#[derive(Clone, Debug, Serialize)]
+pub struct Mode {
+    pub n: usize,
+    pub freq: f64,
+    pub period: f64,
+    pub shape: Vec<[f64; 6]>,
+    pub participation: [f64; 3],
+    pub mass_frac: [f64; 3],
 }
 
 /// One spring hanger's sizing: its hot load (the weight it carries with the pipe held level there),
@@ -268,6 +285,8 @@ struct Part {
     ze: [Option<(f64, f64)>; 2],
     /// An expansion joint's equivalent stiffness (EA, κGA, GJ, EI).
     over: Option<[f64; 4]>,
+    /// Mass per length (kg/m), for the natural frequencies.
+    mass_len: f64,
 }
 
 /// The equivalent beam of an expansion joint of length `l` with the maker's spring rates: EA = ka l,
@@ -301,6 +320,11 @@ fn sec_at(m: &Model, pa: u32, pb: u32, s: f64) -> Section {
 
 /// Weight per length of a pipe with its contents (or full of water), insulation and cladding.
 pub fn weight(m: &Model, pipe: u32, rho_steel: f64, water: bool) -> f64 {
+    weight_g(m, pipe, rho_steel, water, m.settings.g)
+}
+
+/// The same with gravity g: with g = 1 it is the mass per length (kg/m).
+pub fn weight_g(m: &Model, pipe: u32, rho_steel: f64, water: bool, g: f64) -> f64 {
     let Some(p) = m.pipe(pipe) else { return 0.0 };
     let pi4 = std::f64::consts::PI / 4.0;
     let id = p.od - 2.0 * p.wall;
@@ -309,7 +333,7 @@ pub fn weight(m: &Model, pipe: u32, rho_steel: f64, water: bool) -> f64 {
     let d1 = p.od + 2.0 * p.ins_t;
     let d2 = d1 + 2.0 * p.clad_t;
     let ins = pi4 * (d1 * d1 - p.od * p.od) * p.ins_rho + pi4 * (d2 * d2 - d1 * d1) * p.clad_rho;
-    (metal + fluid + ins) * m.settings.g
+    (metal + fluid + ins) * g
 }
 
 /// The thermal strain of a material from the installed temperature to t: mean coefficients from
@@ -835,31 +859,34 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         });
         let el = Elem::new(line, &Props { sec: &secf, e: e_cold, g: gmod, k: kflex, rigid, over })?;
         // Weight: the pipe's own, or a rigid part's weight spread along it, plus the contents.
-        let (mut w, mut ww) = (weight(m, s.pipe, mat.rho, false), weight(m, s.pipe, mat.rho, true));
-        if let Some((kind, mass)) = s.rigid {
-            let len = el.line.length().max(1e-9);
-            let metal = weight(m, s.pipe, mat.rho, false) - weight(m, s.pipe, 0.0, false);
-            let add = mass * m.settings.g / len - metal;
-            w += add;
-            ww += add;
-            // Flanged joints carry their own SIF (weld neck 1.0, slip-on 1.2).
-            if kind == RigidKind::Slipon {
-                sif = [Sif { ii: 1.2, io: 1.2, k: 1.0, h: 0.0 }; 2];
+        // The weight per length (with contents, or with water) at gravity g: a rigid part's or an
+        // expansion joint's weight spread along it in place of the pipe's metal; a reducer's the
+        // average of its ends. With g = 1 it is the mass per length, for the natural frequencies.
+        let reducer_to = match m.elements.iter().find(|e| e.id == s.element).map(|e| e.comp.clone()) { Some(Comp::Reducer { to }) => Some(to), _ => None };
+        let len = el.line.length().max(1e-9);
+        let wt = |g: f64| -> (f64, f64) {
+            let wg = |pipe: u32, rho: f64, water: bool| weight_g(m, pipe, rho, water, g);
+            let (mut w, mut ww) = (wg(s.pipe, mat.rho, false), wg(s.pipe, mat.rho, true));
+            let lumped = s.rigid.map(|r| r.1).or(s.bellows.map(|b| b.mass));
+            if let Some(mass) = lumped {
+                let add = mass * g / len - (wg(s.pipe, mat.rho, false) - wg(s.pipe, 0.0, false));
+                w += add;
+                ww += add;
             }
+            if let Some(to) = reducer_to {
+                w = (w + wg(to, mat.rho, false)) / 2.0;
+                ww = (ww + wg(to, mat.rho, true)) / 2.0;
+            }
+            (w, ww)
+        };
+        let (mut w, mut ww) = wt(m.settings.g);
+        let mass_len = wt(1.0).0 + s.extra / 9.806_65;
+        // Flanged joints carry their own SIF (weld neck 1.0, slip-on 1.2).
+        if let Some((RigidKind::Slipon, _)) = s.rigid {
+            sif = [Sif { ii: 1.2, io: 1.2, k: 1.0, h: 0.0 }; 2];
         }
-        if let Some(b) = s.bellows {
-            // The joint's weight spread along it, in place of the pipe's metal.
-            let len = el.line.length().max(1e-9);
-            let metal = weight(m, s.pipe, mat.rho, false) - weight(m, s.pipe, 0.0, false);
-            let add = b.mass * m.settings.g / len - metal;
-            w += add;
-            ww += add;
-        }
-        if let Some(Comp::Reducer { to }) = m.elements.iter().find(|e| e.id == s.element).map(|e| e.comp.clone()) {
-            // The average weight of the two ends; the SIF from the cone angle and the small end.
-            let (w2, ww2) = (weight(m, to, mat.rho, false), weight(m, to, mat.rho, true));
-            w = (w + w2) / 2.0;
-            ww = (ww + ww2) / 2.0;
+        if reducer_to.is_some() {
+            // The SIF from the cone angle and the small end.
             let (big, small) = (secf(0.0), secf(1.0));
             let (d_big, d_small) = (big.od.max(small.od), big.od.min(small.od));
             let len = el.line.length().max(1e-9);
@@ -878,7 +905,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             }
         }
         let _ = si;
-        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, e_cold, mat: mat.id, corrosion: [pipe.corrosion, m.pipe(s.pipe_b).map_or(pipe.corrosion, |q| q.corrosion)], p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane, ze: [None; 2], over });
+        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, e_cold, mat: mat.id, corrosion: [pipe.corrosion, m.pipe(s.pipe_b).map_or(pipe.corrosion, |q| q.corrosion)], p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane, ze: [None; 2], over, mass_len });
     }
     // Tees: their SIF at every segment end on the tee's point.
     for t in &g.tees {
@@ -1207,6 +1234,49 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         }
         (sols, kus, fs, sts, sks, shs, its, frs, stats)
     };
+    // ---------------------------------------------------------------- natural modes
+    // Lumped masses: each segment's mass split between its ends (translations only); one-way rests
+    // and gaps taken as touching, friction left out; hangers and springs as they are.
+    let (mut modes, mut mass_tot) = (vec![], [0.0; 3]);
+    if m.settings.modes > 0 {
+        let mut mass = vec![0.0; n];
+        for (i, s) in g.segs.iter().enumerate() {
+            let half = parts[i].mass_len * parts[i].el.line.length() / 2.0;
+            for pt in [s.a, s.b] {
+                for d in 0..3 {
+                    mass[6 * pt + d] += half;
+                }
+            }
+        }
+        let mut dyn_sys = System::new(n);
+        dyn_sys.k = sys.k.clone();
+        for cd in &conds {
+            let kk = if cd.k == 0.0 { RIGID } else { cd.k };
+            for i in 0..3 {
+                for j in 0..3 {
+                    dyn_sys.add(6 * cd.pt + i, 6 * cd.pt + j, kk * cd.dir[i] * cd.dir[j]);
+                }
+            }
+        }
+        for d in 0..3 {
+            // Only the mass that can move in that direction (not at the points supports hold).
+            mass_tot[d] = (0..np).filter(|p| !held[6 * p + d]).map(|p| mass[6 * p + d]).sum();
+        }
+        let found = dyn_sys.modes(&held, &mass, m.settings.modes as usize).map_err(|e| locate_free(e, &g))?;
+        if found.len() < m.settings.modes as usize {
+            warnings.push(format!("Only {} natural modes could be found: the model has that many masses that can move.", found.len()));
+        }
+        for (k, (w2, phi)) in found.into_iter().enumerate() {
+            let w = w2.max(0.0).sqrt();
+            let freq = w / (2.0 * std::f64::consts::PI);
+            let mut part = [0.0; 3];
+            for d in 0..3 {
+                part[d] = (0..np).map(|p| phi[6 * p + d] * mass[6 * p + d]).sum();
+            }
+            let frac = std::array::from_fn(|d| if mass_tot[d] > 0.0 { part[d] * part[d] / mass_tot[d] } else { 0.0 });
+            modes.push(Mode { n: k + 1, freq, period: if freq > 0.0 { 1.0 / freq } else { f64::INFINITY }, shape: (0..np).map(|p| std::array::from_fn(|d| phi[6 * p + d])).collect(), participation: part, mass_frac: frac });
+        }
+    }
     // ---------------------------------------------------------------- results per case
     let mut by_id: HashMap<u32, CaseResult> = HashMap::new();
     let mut raw: HashMap<u32, Vec<[[f64; 6]; 2]>> = HashMap::new();
@@ -1572,7 +1642,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let mut stats = stats;
     stats.ms = t0.elapsed().as_secs_f64() * 1e3;
     let sifs = parts.iter().map(|p| p.sif).collect();
-    Ok(Results { geom: g, cases: results, walls, sifs, stats, warnings, version: env!("CARGO_PKG_VERSION"), hangers: vec![], reliefs, vessel_links: vec![] })
+    Ok(Results { geom: g, cases: results, walls, sifs, stats, warnings, version: env!("CARGO_PKG_VERSION"), hangers: vec![], reliefs, vessel_links: vec![], modes, mass: mass_tot })
 }
 
 /// The reactions' total force and moment about the origin.

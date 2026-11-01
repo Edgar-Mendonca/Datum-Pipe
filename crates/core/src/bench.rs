@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, a vessel nozzle under its piping's loads, and a vessel under full vacuum. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, a vessel nozzle under its piping's loads, a vessel under full vacuum, and a pipe span's natural frequencies. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -784,6 +784,35 @@ pub fn run() -> Vec<Check> {
         out.push(row(32, name, "Allowable external pressure, shell", "press", pc / 3.0, r.external[1].allow, TOL, src));
         out.push(row(32, name, "Ring's moment of inertia needed", "ratio", 3.0 * 1e5 * (d / 2.0).powi(3) * 3.0 / (3.0 * e), r.rings.as_ref().unwrap().value, TOL, src));
     }
+    // 33. Natural frequencies: 6" Sch 40 steel pipe, empty: a 3 m cantilever in 20
+    //     elements and a 10 m fixed-fixed span in 40 (slender, so shear flexibility stays small). Beam theory: f1 = (λ² / 2π) √(E I / (m L⁴)),
+    //     λ = 1.87510 (cantilever), 4.73004 (fixed-fixed), m the steel's mass per metre. The lumped
+    //     masses and the pipe's shear flexibility keep the model within a few tenths of a per cent.
+    {
+        let build = |rows: usize, len: f64, fixed_far: bool| {
+            let dl = len / rows as f64;
+            let r: Vec<(u32, u32, f64, f64, f64)> = (0..rows as u32).map(|i| (10 * (i + 1), 10 * (i + 2), dl, 0.0, 0.0)).collect();
+            let mut d = table("Modes", &r);
+            let mut s = d.m.settings.clone();
+            s.modes = 3;
+            d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+            anchor(&mut d, 10);
+            if fixed_far {
+                anchor(&mut d, 10 * (rows as u32 + 1));
+            }
+            let h = hand(&d.m);
+            let p = &d.m.pipes[0];
+            let mass = d.m.materials[0].rho * std::f64::consts::PI / 4.0 * (p.od.powi(2) - (p.od - 2.0 * p.wall).powi(2));
+            (analyze(&d.m).unwrap(), h, mass)
+        };
+        let f1 = |lam: f64, h: &Hand, m: f64, l: f64| lam * lam / (2.0 * std::f64::consts::PI) * (h.e * h.i / (m * l.powi(4))).sqrt();
+        let name = "Natural frequencies of a pipe span";
+        let src = "Beam theory: f1 = (λ²/2π) √(EI / m L⁴)";
+        let (r, h, mass) = build(20, 3.0, false);
+        out.push(row(33, name, "Cantilever, first frequency (Hz)", "ratio", f1(1.875_104, &h, mass, 3.0), r.modes[0].freq, 1e-2, src));
+        let (r, h, mass) = build(40, 10.0, true);
+        out.push(row(33, name, "Fixed-fixed span, first frequency (Hz)", "ratio", f1(4.730_041, &h, mass, 10.0), r.modes[0].freq, 1e-2, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -808,7 +837,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=32 {
+        for b in 1..=33 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

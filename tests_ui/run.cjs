@@ -400,6 +400,15 @@ const shots = process.env.SHOTS;
   for (let k = 0; k < 30; k++) { await p.click('.side button[title="Isometric"]'); await p.waitForTimeout(40); await p.click('.side button[title="Model"]'); await p.waitForTimeout(60); }
   check("the 3D view survives 30 view switches", !!(await p.$(".v3d canvas, canvas")));
 
+  // Natural modes: the setting, and the Modes tab (the steam rack's fixture is analysed with modes).
+  await open("steam");
+  check("Analysis settings offer the natural modes", ((await p.textContent(".insp")) ?? "").includes("Natural modes to find"));
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.side button[title="Results"]'); await p.waitForTimeout(200);
+  await p.click('.rtabs button:text-is("Modes")'); await p.waitForTimeout(200);
+  check("Results › Modes lists the steam rack's modes", (await p.$$(".rtable tbody tr")).length >= 5 && ((await p.textContent(".rtable thead")) ?? "").includes("Frequency"));
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

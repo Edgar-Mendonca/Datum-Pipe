@@ -368,6 +368,8 @@ fn steam() -> Model {
     st.seis = [0.15, 0.0, 0.15];
     // Both directions: with one-way rests, gapped guides and friction, the reversed loads differ.
     st.occ_both = true;
+    // And its ten lowest natural modes.
+    st.modes = 10;
     d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("occasional loads");
     nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, -1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
     machine(&mut d, "T-301", crate::equip::EquipKind::Turbine, 1.0, [1.0, 0.0, 0.0]);

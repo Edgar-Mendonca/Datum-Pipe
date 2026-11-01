@@ -189,6 +189,9 @@ const ModelPanel = () => {
       <V3In l="Wind blows towards (X, Y, Z; horizontal)" q="ratio" v={m().settings.wind_dir} set={wind_dir => C.settings({ wind_dir })} />
       <V3In l="Static seismic (g along X, Y, Z)" q="ratio" v={m().settings.seis} set={seis => C.settings({ seis })} />
       <label class="chk"><input type="checkbox" checked={!!m().settings.occ_both} onChange={e => C.settings({ occ_both: e.currentTarget.checked })} />Wind and seismic in both directions</label>
+    </Sec>
+    <Sec t="Dynamics" h="modes">
+      <div class="iprow"><label>Natural modes to find (0 = none)</label><input class="mono" value={m().settings.modes ?? 0} onChange={numIn(v => v >= 0 && v <= 200 && v % 1 === 0 && C.settings({ modes: v }), () => m().settings.modes ?? 0)} /></div>
       <p class="muted small">Your inputs: take the wind pressure and seismic factors from the standard for the site. With either, OPE1 is solved with it added and an occasional case checks the sustained stress plus its own stress against 1.33 Sh.</p>
     </Sec>
   </>;

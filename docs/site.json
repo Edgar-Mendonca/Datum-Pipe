@@ -275,14 +275,44 @@
       ]
     },
     {
-      "v": "0.5",
-      "title": "Dynamics",
+      "v": "0.4.1",
+      "title": "Natural frequencies",
+      "when": "Done",
+      "items": [
+        "Natural frequencies and mode shapes, with the mass each mode moves"
+      ]
+    },
+    {
+      "v": "0.4.2",
+      "title": "Modes in the 3D view",
       "when": "Next",
       "items": [
-        "Natural frequencies and mode shapes",
-        "Harmonic response",
-        "Response spectrum",
-        "Broken into small 0.x.y steps before it starts"
+        "Each mode's shape drawn and animated in the 3D view"
+      ]
+    },
+    {
+      "v": "0.4.3",
+      "title": "Response spectrum",
+      "when": "Planned",
+      "items": [
+        "Your spectrum (acceleration against frequency), the modes combined, the stresses checked as occasional"
+      ]
+    },
+    {
+      "v": "0.4.4",
+      "title": "Harmonic response",
+      "when": "Planned",
+      "items": [
+        "A force or displacement at a frequency, with damping"
+      ]
+    },
+    {
+      "v": "0.5.0",
+      "title": "Dynamics, complete",
+      "when": "Milestone",
+      "items": [
+        "Everything in 0.4.1–0.4.4 reviewed",
+        "No new features: 0.5.0 marks the stage as finished"
       ]
     },
     {

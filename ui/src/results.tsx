@@ -13,7 +13,7 @@ import { supName } from "./panels";
 import { Icon } from "./ui";
 
 export const [tableKind, setTableKind] = createSignal("summary");
-const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["flanges", "Flanges"], ["relief", "Relief"], ["equilibrium", "Equilibrium"]];
+const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["flanges", "Flanges"], ["relief", "Relief"], ["modes", "Modes"], ["equilibrium", "Equilibrium"]];
 const KIND: Record<string, string> = { sus: "Sustained", ope: "Operating", exp: "Expansion range", hyd: "Hydrotest", occ: "Occasional" };
 const CHECK: Record<string, string> = { sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" };
 const openTable = (k: string) => { setTableKind(k); setView("results"); };
@@ -62,7 +62,7 @@ export const ResultsPage = () => {
         <Show when={stale()}><p class="warnline">The model changed since this analysis. Press F5 to analyze again.</p></Show>
         <Show when={r()!.warnings.length}><p class="warnline">{r()!.warnings.join(" ")}</p></Show>
         <div class="rtabs"><For each={TABLES}>{([k, l]) => <button classList={{ on: tableKind() === k }} onClick={() => setTableKind(k)}>{l}</button>}</For></div>
-        <Show when={!["summary", "wall", "equilibrium", "relief"].includes(tableKind())}>
+        <Show when={!["summary", "wall", "equilibrium", "relief", "modes"].includes(tableKind())}>
           <div class="ctabs"><For each={r()!.cases}>{x => <button classList={{ on: x.id === c()?.id }} onClick={() => setCaseId(x.id)}><b>{x.name}</b><small>{KIND[x.kind]}</small><Badge pass={casePass(x)} /></button>}</For></div>
         </Show>
         <div class="rtable">
@@ -77,6 +77,7 @@ export const ResultsPage = () => {
           <Show when={tableKind() === "equip" && c()}><EquipTable c={c()!} /></Show>
           <Show when={tableKind() === "flanges" && c()}><FlangeTable c={c()!} /></Show>
           <Show when={tableKind() === "relief"}><ReliefTable r={r()!} /></Show>
+          <Show when={tableKind() === "modes"}><ModesTable r={r()!} /></Show>
           <Show when={tableKind() === "equilibrium"}><Equilibrium r={r()!} /></Show>
         </div>
       </Show>
@@ -170,6 +171,16 @@ export const FlangeTable = (p: { c: CaseResult }) => {
     <p class="muted small">Equivalent pressure method: P_eq = 16M/(πG³) + 4F/(πG²) from the bending moment and axial force at the joint (largest along it), added to the case's pressure and compared with the rating you entered.</p>
     <table class="tbl rtable"><thead><tr><Th>Element</Th><Th>At</Th><Th r>F {u("force")}</Th><Th r>M {u("moment")}</Th><Th r>P {u("press")}</Th><Th r>P_eq</Th><Th r>Rating</Th><Th r>Ratio</Th><Th>Result</Th></tr></thead><tbody>
       <For each={p.c.flanges}>{f => <tr><td>{el(f.element)}</td><td>{f.at}</td><td class="r">{v("force", f.force)}</td><td class="r">{v("moment", f.moment)}</td><td class="r">{v("press", f.pressure)}</td><td class="r">{v("press", f.equivalent)}</td><td class="r">{v("press", f.rating)}</td><td class="r">{num(f.ratio, 3)}</td><td><Badge pass={f.rating > 0 ? f.pass : null} /></td></tr>}</For></tbody></table>
+  </Show>;
+};
+
+export const ModesTable = (p: { r: Results }) => {
+  const list = () => p.r.modes ?? [];
+  const cum = (k: number, d: number) => list().slice(0, k + 1).reduce((s, m) => s + m.mass_frac[d], 0);
+  return <Show when={list().length} fallback={<p class="muted">No natural modes. Set the number to find under Dynamics in Analysis settings (select nothing on the Model view), then analyze.</p>}>
+    <p class="muted small">Natural frequencies of the piping as it stands in operation, with its contents, insulation and rigid parts as masses at the points; one-way rests and gaps taken as touching, friction left out. The effective mass of each mode is a share of the mass that moves in each direction (X {num(p.r.mass?.[0] ?? 0, 4)}, Y {num(p.r.mass?.[1] ?? 0, 4)}, Z {num(p.r.mass?.[2] ?? 0, 4)} kg).</p>
+    <table class="tbl rtable"><thead><tr><Th>Mode</Th><Th r>Frequency Hz</Th><Th r>Period s</Th><Th r>Mass X %</Th><Th r>Mass Y %</Th><Th r>Mass Z %</Th><Th r>Total X %</Th><Th r>Total Y %</Th><Th r>Total Z %</Th></tr></thead><tbody>
+      <For each={list()}>{(m, k) => <tr><td>{m.n}</td><td class="r">{num(m.freq, 4)}</td><td class="r">{num(m.period, 4)}</td><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * m.mass_frac[d], 3)}</td>}</For><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * cum(k(), d), 3)}</td>}</For></tr>}</For></tbody></table>
   </Show>;
 };
 

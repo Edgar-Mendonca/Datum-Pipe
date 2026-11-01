@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.1 — 2026-11-01
+
+Natural frequencies and mode shapes: the first step of dynamics.
+
+**Natural modes.** Set how many modes to find under Dynamics in Analysis settings and analyze: Results › Modes lists each mode's frequency and period, the share of the moving mass it carries in X, Y and Z, and the running totals. The modes use the analysis's own stiffness with the mass of the pipe, its contents, insulation, rigid parts and expansion joints lumped at the points; one-way rests and gaps are taken as touching and friction is left out. They are found by subspace iteration (one factorisation, the trial vectors kept mass-orthonormal, the small projected problem by Jacobi rotations): 20 modes of a 3 200-point rack take under two seconds.
+
+**Example.** The steam rack example finds its ten lowest modes: the first at 1.38 Hz, the turbine leg swinging sideways.
+
+**Verification.** A new benchmark: the first frequency of a cantilever and of a fixed-fixed span against beam theory, (λ²/2π) √(EI / m L⁴), within 0.6 % (94 checks); a worked test of the modes' order, mass fractions and orthogonality, and a speed gate.
+
+**Roadmap.** Dynamics in small steps: 0.4.2 modes in the 3D view, 0.4.3 response spectrum, 0.4.4 harmonic response, 0.5.0 the milestone.
+
 ## 0.4.0 — 2026-11-01
 
 The vessels stage, complete.

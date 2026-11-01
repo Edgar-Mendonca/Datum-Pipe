@@ -17,6 +17,8 @@ export const setResultBlocks = (f: (m: Model) => Block[]) => { resultBlocks = f;
 let isoPages: (m: Model, w: number, h: number) => JSX.Element[] = () => [];
 export const setIsoPages = (f: (m: Model, w: number, h: number) => JSX.Element[]) => { isoPages = f; };
 export const reportExtras = (m: Model, w: number, h: number) => isoPages(m, w, h);
+let vesselBlocks: () => Block[] = () => [];
+export const setVesselBlocks = (f: () => Block[]) => { vesselBlocks = f; };
 
 const v = (q: Parameters<typeof fmt>[0], x: number) => num(toU(q, x), 4);
 
@@ -54,7 +56,8 @@ export const ReportBody = (p: { m: Model }): Block[] => {
       <table class="tbl"><thead><tr><th>Case</th><th>Kind</th><th>Made of</th><th>Check</th></tr></thead><tbody>
         <For each={m.cases}>{c => <tr><td>{c.name}</td><td>{c.kind.toUpperCase()}</td><td>{recipeText(c, m.cases)}</td><td>{({ sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" } as Record<string, string>)[c.kind]}</td></tr>}</For></tbody></table>
       <p class="muted small">W weight (pipe, contents, insulation, cladding, components, extra loads); T thermal; D imposed displacements; P pressure; HP hydrotest pressure.</p></div>,
-    ...resultBlocks(m),
+    ...(m.elements.length ? resultBlocks(m) : []),
+    ...vesselBlocks(),
     () => <p class="muted small">Datum Pipe {version()} · free and open source (MIT) · https://github.com/Edgar-Mendonca/Datum-Pipe</p>,
   ];
 };

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.1 — 2026-11-01
+
+Pressure vessels: shells and heads.
+
+**A Vessels view.** Datum Pipe now designs pressure vessels in the same model as the piping. The new Vessels view (left bar) holds any number of vertical or horizontal vessels: each is its design data (pressure, temperature, allowable stresses hot and cold, yield strength, corrosion allowance, plate under-tolerance, liquid and its level, extra weight) and a row of parts from the bottom (or the left) to the top: 2:1 ellipsoidal, torispherical and hemispherical heads, cylindrical shell courses and cones.
+
+**What it works out.** For every part: the pressure it carries (the design pressure plus the liquid's static head at its lowest point), the thickness that pressure needs and with the corrosion allowance, its MAWP hot and corroded, and its MAP new and cold. For the vessel: the MAWP at the top and the part that sets it, the MAP, the hydrotest pressure (1.3 × MAWP × S cold / S hot) with each part's membrane stress in the test against 0.9 of the yield, the volume, and the weights empty, operating and full of water. Thin-shell membrane equations: cylinder t = P R / (S E − 0.6 P), sphere t = P R / (2 S E − 0.2 P), 2:1 head t = P D / (2 S E − 0.2 P), torispherical head t = P L M / (2 S E − 0.2 P), cone t = P D / (2 cos α (S E − 0.6 P)). The allowable stresses, joint efficiencies and yield are your inputs.
+
+**Drawing and report.** The vessel is drawn to scale with its tangent lines and liquid level; the report prints each vessel.
+
+**Example.** A new worked example, Vertical separator V-101: 1800 mm inside diameter, 6000 mm between tangent lines, 2:1 heads, 16 bar at 200 °C: the shell needs 12.54 mm (15.54 mm with corrosion, 16 mm nominal) and sets the MAWP of 16.59 bar; test pressure 21.57 bar; 6.6 t empty, 11.2 t operating.
+
+**Fixed.** After an edit, the results were not marked out of date when Analyze automatically was off (one of two internal edit hooks replaced the other).
+
+**Verification.** A new benchmark: V-101's shell and head thicknesses, MAWP, test pressure and volume by hand (73 checks).
+
 ## 0.3.0 — 2026-11-01
 
 The equipment and flanges stage, complete.

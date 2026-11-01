@@ -11,6 +11,7 @@ fn main() {
     let mut results = serde_json::Map::new();
     let mut isos = serde_json::Map::new();
     let mut models = serde_json::Map::new();
+    let mut vessels = serde_json::Map::new();
     for e in examples::list() {
         let m = examples::get(e.id).expect("example");
         if let Ok(r) = solve::analyze(&m) {
@@ -18,6 +19,7 @@ fn main() {
         }
         isos.insert(e.id.to_string(), serde_json::to_value(iso::draw(&m, 40).unwrap()).unwrap());
         models.insert(e.id.to_string(), out(&m));
+        vessels.insert(e.id.to_string(), serde_json::to_value(datum_core::vessel::check_all(&m)).unwrap());
     }
     // A large model for the window's speed checks (tests_ui/perf.cjs), not in the examples list.
     let big = examples::big(160);
@@ -28,6 +30,7 @@ fn main() {
         "models": models,
         "results": results,
         "iso": isos,
+        "vessels": vessels,
         "verification": bench::run(),
         "unit_table": (units::shown(false), units::shown(true), units::typed()),
         "library": { "sizes": library::sizes(), "materials": library::materials(), "source": library::SIZE_SOURCE, "springs": datum_core::model::typical_springs() },

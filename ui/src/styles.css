@@ -836,3 +836,18 @@ tr.behind td { background: var(--err-bg); }
 .egrid tr.spacer td { padding: 0; border: 0; background: transparent; }
 .eqcard { border: 1px solid var(--line2); padding: 8px 10px; margin: 8px 0; background: var(--bg2); }
 .eqcard .inline input { margin: 0 2px; }
+
+/* Vessels */
+.vgrid { display: grid; grid-template-columns: minmax(520px, 760px) auto; gap: 18px; align-items: start; justify-content: start; }
+.vres { border-top: 1px solid var(--line); padding-top: 6px; }
+.vleft .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.vparts td { padding: 2px 4px; }
+.vparts .x { padding: 0 4px; }
+.vtop { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.vtables { flex: 1; min-width: 360px; overflow-x: auto; }
+.vdraw { flex: none; background: var(--panel); border: 1px solid var(--line); }
+.vsum { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.vsum > div { border: 1px solid var(--line); padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+.vsum b { font-size: 15px; }
+.nowrap { white-space: nowrap; }
+@media (max-width: 1100px) { .vgrid { grid-template-columns: 1fr; } }

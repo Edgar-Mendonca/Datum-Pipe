@@ -40,12 +40,14 @@ const shots = process.env.SHOTS;
             if (a.op.SetSettings) { nx.m.units = a.op.SetSettings.units; nx.m.settings = a.op.SetSettings.s; }
             if (a.op.Add?.item?.Support) nx.m.supports.push({ ...a.op.Add.item.Support, id: 999 });
             if (a.op.SetReliefs) nx.m.reliefs = a.op.SetReliefs.list;
+            if (a.op.SetVessels) nx.m.vessels = a.op.SetVessels.list;
             window.__cur = nx; return nx;
           }
           if (c === "history") return window.__cur;
           const curKey = () => Object.keys(f.models).find(k => f.models[k].m.name === window.__cur.m.name) ?? "";
           if (c === "analyze") { const r = f.results?.[curKey()]; if (r) return r; throw "The piping can move without resistance: add supports."; }
           if (c === "isometric") return f.iso?.[curKey()] ?? { sheets: [] };
+          if (c === "vessel_check") return f.vessels?.[curKey()] ?? [];
           if (c in m) return m[c];
           return null;
         },
@@ -253,7 +255,7 @@ const shots = process.env.SHOTS;
   await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
 
   // 12. Every example opens, analyzes, draws its isometric and prints its report.
-  for (const ex of fix.examples_list.filter(e => e.id !== "blank")) {
+  for (const ex of fix.examples_list.filter(e => e.id !== "blank" && fix.models[e.id].m.elements.length)) {
     await open(ex.id);
     await p.keyboard.press("F5"); await p.waitForTimeout(400);
     const ok = (await p.textContent("#toast")).includes("Reactions balance the loads in every case");
@@ -348,6 +350,27 @@ const shots = process.env.SHOTS;
   await p.click('.bs aside button:has-text("Export")'); await p.waitForTimeout(200);
   await p.click('button.tile:has-text("Export a piping component file")'); await p.waitForTimeout(300);
   check("Export a piping component file asks the engine for the file", await p.evaluate(() => window.__calls.some(c => c[0] === "export_pcf")));
+
+  // 20. Vessels: the separator example's vessel, its drawing and results; a new vessel; the report.
+  await open("separator");
+  await p.click('.side button[title="Vessels"]'); await p.waitForTimeout(300);
+  const vt = (await p.textContent(".vpage")) ?? "";
+  check("the Vessels view shows V-101 with its MAWP and test pressure", vt.includes("V-101") && vt.includes("MAWP at the top") && vt.includes("Hydrotest pressure"));
+  check("the vessel is drawn", (await p.$$(".vdraw path")).length >= 2);
+  check("every part has a result row", (await p.$$(".vtables tbody tr")).length === 3);
+  check("the shell governs", ((await p.textContent(".vsum")) ?? "").includes("set by Shell"));
+  await p.click('.vpage h1 button:has-text("Add a horizontal vessel")'); await p.waitForTimeout(300);
+  const nv = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetVessels).map(c => c[1].op.SetVessels.list).pop());
+  check("Add a horizontal vessel adds one with two heads and a shell", Array.isArray(nv) && nv.length === 2 && nv[1].vertical === false && nv[1].parts.length === 3, JSON.stringify(nv?.[1]?.parts?.map(x => x.kind)));
+  await p.click('.side button[title="Report"]'); await p.waitForTimeout(400);
+  check("the report has the vessel", ((await p.textContent(".page")) ?? "").includes("Vessel V-101"));
+  // Results go out of date after an edit even with Analyze automatically off (a hook was lost before 0.3.1).
+  await open("lbend");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.side button[title="Vessels"]'); await p.waitForTimeout(200);
+  await p.click('.vpage h1 button:has-text("Add a vertical vessel")');
+  await p.click('.side button[title="Results"]'); await p.waitForTimeout(60);
+  check("an edit marks the results out of date (every edit hook runs)", ((await p.textContent(".page")) ?? "").includes("The model changed since this analysis"));
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

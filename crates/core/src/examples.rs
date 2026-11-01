@@ -20,6 +20,7 @@ pub fn list() -> Vec<Example> {
         Example { id: "tank", name: "Tank outlet with settlement", what: "10\" tank outlet with a valve; the tank settles 12 mm (case 2) and the nozzle grows when hot." },
         Example { id: "relief", name: "Safety valve vent stack", what: "4\" steam safety valve on a header, discharging up a vent stack to the open air: the valve's thrust as an occasional load." },
         Example { id: "bellows", name: "Expansion joint between anchors", what: "8\" steam in a straight run with an untied bellows: guides each side, and main anchors that take the pressure thrust." },
+        Example { id: "separator", name: "Vertical separator V-101", what: "A pressure vessel: 1.8 m two-phase separator with 2:1 heads at 16 bar and 200 °C; shell and head thickness, MAWP, test pressure and weights." },
         Example { id: "lbend", name: "A simple L-bend", what: "6\" carbon steel at 200 °C between two anchors, with a long-radius bend. Check it by hand." },
         Example { id: "zbend", name: "A Z-bend", what: "6\" carbon steel at 250 °C: two bends between two anchors, the classic hand-check case." },
     ]
@@ -34,6 +35,7 @@ pub fn get(id: &str) -> Option<Model> {
         "tank" => Some(tank()),
         "relief" => Some(relief()),
         "bellows" => Some(bellows()),
+        "separator" => Some(separator()),
         "lbend" => Some(lbend()),
         "zbend" => Some(zbend()),
         _ => None,
@@ -116,6 +118,34 @@ fn bellows() -> Model {
         support(&mut d, n, SupKind::Guide, &format!("G-{n}"));
     }
     meta(&mut d, "Expansion joint between anchors", "8\"-ST-201", "8\" Sch 40 insulated steam at 200 °C and 10 bar, 24 m straight between main anchors, with an untied bellows expansion joint in the middle (example rates and an effective area of 0.045 m²) and guides each side of it. The joint takes the thermal growth with a small spring force, but the pressure on its effective area (45 kN at 10 bar) pushes the pipe apart: the main anchors carry that thrust in every case with pressure.");
+    d.m
+}
+
+/// A vertical two-phase separator: the vessel worked example (example values throughout: the
+/// allowable stresses, joint efficiencies and yield strength are to be checked against the code
+/// edition and the material certificate).
+fn separator() -> Model {
+    use crate::vessel::{Part, PartKind, Vessel};
+    let mut d = Doc::new(Model::new());
+    let head = |name: &str| Part { name: name.into(), kind: PartKind::Ellipsoidal, d: 1.8, len: 0.0, t: 0.016, e: 1.0 };
+    let v = Vessel {
+        name: "V-101".into(),
+        vertical: true,
+        p: 16e5,
+        temp: K0 + 200.0,
+        s: 138e6,
+        s_cold: 138e6,
+        sy: 260e6,
+        corrosion: 0.003,
+        under: 0.0,
+        rho: 7850.0,
+        liquid: 850.0,
+        level: 1.8,
+        extra: 1500.0,
+        parts: vec![head("Bottom head"), Part { name: "Shell".into(), kind: PartKind::Cylinder, d: 1.8, len: 6.0, t: 0.016, e: 0.85 }, head("Top head")],
+    };
+    d.apply(Op::SetVessels { list: vec![v] }).expect("vessel");
+    meta(&mut d, "Vertical separator V-101", "V-101", "A vertical two-phase separator: 1800 mm inside diameter, 6000 mm between tangent lines, 2:1 semi-ellipsoidal heads; 16 bar and 200 °C, 3 mm corrosion allowance; carbon steel plate with an allowable stress of 138 MPa hot and cold and a yield of 260 MPa (example values); shell joint efficiency 0.85 (spot radiography), seamless heads 1.0. The liquid (850 kg/m³) stands 1.8 m above the bottom tangent line in operation; internals and platforms add 1500 kg. Open the Vessels view for the thicknesses, the MAWP, the test pressure and the weights.");
     d.m
 }
 

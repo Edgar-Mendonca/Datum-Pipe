@@ -19,13 +19,15 @@ import { Inspector } from "./panels";
 import { View3D } from "./view3d";
 import { ResultsPage } from "./results";
 import { IsoPage } from "./iso";
-import { ReportPage } from "./report";
+import { ReportPage, setVesselBlocks } from "./report";
+import { VesselPage, vesselReport } from "./vessel";
+setVesselBlocks(vesselReport);
 import { Menu, Toast, Icon } from "./ui";
 import { setUnitTable } from "./units";
 import * as D from "./dialogs";
 import { solving } from "./rstate";
 
-const SIDE: ([View, string, string] | "-")[] = [["model", "model", "Model"], "-", ["results", "table", "Results"], ["iso", "iso", "Isometric"], ["report", "report", "Report"]];
+const SIDE: ([View, string, string] | "-")[] = [["model", "model", "Model"], "-", ["results", "table", "Results"], ["iso", "iso", "Isometric"], ["vessel", "vessel", "Vessels"], ["report", "report", "Report"]];
 
 const Status = () => (
   <footer class="status">
@@ -84,6 +86,7 @@ const App = () => {
               <Match when={view() === "results"}><ResultsPage /></Match>
               <Match when={view() === "iso"}><IsoPage /></Match>
               <Match when={view() === "report"}><ReportPage /></Match>
+              <Match when={view() === "vessel"}><VesselPage /></Match>
             </Switch>
           </Show>
         </div>

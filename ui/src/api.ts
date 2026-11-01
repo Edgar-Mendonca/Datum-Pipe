@@ -33,7 +33,7 @@ export interface Project { project: string; line: string; calc: string; by: stri
 export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3; wind_profile?: [number, number][]; occ_both?: boolean; springs: SpringSize[]; variability: number }
 export interface Model {
   format: number; name: string; notes: string; units: "SI" | "US"; project: Project; settings: Settings;
-  nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number; equipment?: Equipment[]; flanges?: FlangeSpec[]; reliefs?: Relief[];
+  nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number; equipment?: Equipment[]; flanges?: FlangeSpec[]; reliefs?: Relief[]; vessels?: Vessel[];
 }
 export interface Out { m: Model; path: string | null; dirty: boolean; undo: boolean; redo: boolean; created: number[]; warnings: string[]; geom: Geom | null; geom_error: string | null }
 
@@ -96,6 +96,12 @@ export interface PumpAllow { nozzle: number; f: V3; m: V3; fr: number; mr: numbe
 export interface Equipment { name: string; kind: EquipKind; nozzles: number[]; reference: number; shaft: V3; factor: number; coef: Coef; pump: PumpAllow[] }
 export interface EquipRow { what: string; unit: string; value: number; allow: number; ratio: number }
 export interface EquipCheck { name: string; kind: EquipKind; rows: EquipRow[]; pass: boolean }
+export type PartKind = { kind: "cylinder" } | { kind: "ellipsoidal" } | { kind: "torispherical"; crown: number; knuckle: number } | { kind: "hemispherical" } | { kind: "cone"; d_end: number };
+export type VPart = { name: string; d: number; len: number; t: number; e: number } & PartKind;
+export interface Vessel { name: string; vertical: boolean; p: number; temp: number; s: number; s_cold: number; sy: number; corrosion: number; under: number; rho: number; liquid: number; level: number; extra: number; parts: VPart[] }
+export interface VPartResult { name: string; z: [number, number]; p: number; static_head: number; t_req: number; t_min: number; t_nom: number; mawp: number; mawp_top: number; map: number; test_stress: number; test_allow: number; pass: boolean; formula: string; volume: number; metal: number }
+export interface VesselResult { name: string; parts: VPartResult[]; mawp: number; map: number; test: number; governs: number | null; volume: number; empty: number; operating: number; test_weight: number; pass: boolean; outline: [number, number, number][]; warnings: string[] }
+export interface VesselCheck { result: VesselResult | null; error: string | null }
 export interface Relief { name: string; node: number; flow: number; k: number; temp: number; mw: number; area: number; dir: V3; dlf: number; ambient: number }
 export interface ReliefResult { name: string; node: number; area: number; velocity: number; pressure: number; choked: boolean; stat: number; thrust: number; dlf: number; force: V3 }
 export interface FlangeSpec { element: number; gasket: number; rating: number }

@@ -303,6 +303,7 @@ pub const QUANTITIES: &[(&str, &str, &str, &str)] = &[
     ("mflow", "mass flows", "kg/s", "lb/h"),
     ("area", "flow areas", "mm^2", "in^2"),
     ("speed", "velocities", "m/s", "ft/s"),
+    ("vol", "volumes", "m^3", "ft^3"),
 ];
 
 /// The display table for SI (`us` false) or US units, built from the unit table above.

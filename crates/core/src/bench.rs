@@ -8,8 +8,8 @@
 //! occasional stress on a cantilever (beam theory), and a spring hanger sized by statics and free
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
-//! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, and wind that changes with height in both
-//! directions. `run()` gives the rows of Help › Verification; the test fails on any row
+//! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
+//! directions, and a vertical vessel's shell and heads. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -623,6 +623,30 @@ pub fn run() -> Vec<Check> {
         out.push(row(24, name, "Base moment (OCC WIN)", "moment", moment, reaction(&r, "OCC WIN", 10)[5], TOL, src));
         out.push(row(24, name, "Base shear the other way (OCC −WIN)", "force", -shear, -reaction(&r, "OCC −WIN", 10)[0], TOL, src));
     }
+    // 25. The vessel example V-101 by hand: 1.8 m inside diameter, 16 bar, S 138 MPa, 3 mm corrosion.
+    //     The shell (E 0.85) at the bottom tangent line carries 16 bar plus 850 kg/m³ × g × 1.8 m:
+    //     t = P R / (S E − 0.6 P) with R = 903 mm; the bottom head (E 1) at its pole, 0.45 m lower:
+    //     t = P D / (2 S E − 0.2 P) with D = 1806 mm. The MAWP at the top is the shell's
+    //     S E t / (R + 0.6 t) with t = 13 mm, less its static head; the test pressure 1.3 × MAWP.
+    {
+        let m = crate::examples::get("separator").unwrap();
+        let r = crate::vessel::check(&m.vessels[0]).unwrap();
+        let g = 9.806_65;
+        let (s, se) = (138e6, 138e6 * 0.85);
+        let p_sh = 16e5 + 850.0 * g * 1.8;
+        let t_sh = p_sh * 0.903 / (se - 0.6 * p_sh);
+        let p_hd = 16e5 + 850.0 * g * 2.25;
+        let t_hd = p_hd * 1.806 / (2.0 * s - 0.2 * p_hd);
+        let mawp = se * 0.013 / (0.903 + 0.6 * 0.013) - 850.0 * g * 1.8;
+        let name = "A vertical vessel's shell and heads (V-101)";
+        let src = "Thin-shell membrane equations with the liquid's static head";
+        out.push(row(25, name, "Shell thickness for pressure", "len", t_sh, r.parts[1].t_req, TOL, src));
+        out.push(row(25, name, "Bottom head thickness for pressure", "len", t_hd, r.parts[0].t_req, TOL, src));
+        out.push(row(25, name, "MAWP at the top (shell governs)", "press", mawp, r.mawp, TOL, src));
+        out.push(row(25, name, "Hydrotest pressure", "press", 1.3 * mawp, r.test, TOL, src));
+        let vol = std::f64::consts::PI * 0.9f64.powi(2) * 6.0 + 2.0 * std::f64::consts::PI * 1.8f64.powi(3) / 24.0;
+        out.push(row(25, name, "Volume", "ratio", vol, r.volume, 2e-3, "π R² L + 2 × π D³ / 24"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -647,7 +671,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=24 {
+        for b in 1..=25 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

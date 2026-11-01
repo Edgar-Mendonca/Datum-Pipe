@@ -216,6 +216,12 @@ async fn import_pcf(app: AppHandle, st: State<'_, St>, path: Option<String>) -> 
     Ok(Some(o))
 }
 
+/// The open model's pressure vessels, checked.
+#[tauri::command]
+fn vessel_check(st: State<St>) -> Vec<datum_core::vessel::VesselCheck> {
+    datum_core::vessel::check_all(&st.lock().doc.m)
+}
+
 /// The open model as a piping component file (.pcf), for the window to save.
 #[tauri::command]
 fn export_pcf(st: State<St>) -> R<String> {
@@ -451,7 +457,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            state, apply, history, examples_list, new_model, library, unit_table, analyze, verification, isometric, open, import_pcf, export_pcf, save, save_file,
+            state, apply, history, examples_list, new_model, library, unit_table, analyze, verification, isometric, open, import_pcf, export_pcf, vessel_check, save, save_file,
             options, set_options, autosave, recovery, recover, recent, startup_file, open_url, version, quit, check_update, install_update
         ])
         .run(tauri::generate_context!())

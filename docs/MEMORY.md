@@ -39,6 +39,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | `crates/core/src/solve.rs` | The analysis: parts (sections, weights, strains, SIFs), assembly, supports (rigid axis-aligned ones held exactly with imposed displacements as prescribed values; skewed or flexible ones as springs), basic loads, every case solved together, ranges as differences, forces in local axes, reactions, code stresses per segment end, nozzle loads in nozzle axes, minimum wall, the equilibrium check |
 | `crates/core/src/relief.rs` | Relief valve thrust at an open discharge (ideal gas, sonic exit, dynamic load factor); `ReliefResult` in `Results.reliefs` |
 | `crates/core/src/flange.rs` | Flange leakage by the equivalent pressure |
+| `crates/core/src/vessel.rs` | Pressure vessels: parts, thin-shell pressure equations, MAWP, MAP, test, weights, outline |
+| `ui/src/vessel.tsx` | The Vessels view: design data, parts table, drawing, results, report pages |
 | `crates/core/src/export.rs` | Export of the model as a piping component file (.pcf), round-trip tested against the importer |
 | `crates/core/src/import.rs` | Import of plain-text piping component files (.pcf) into a new model (`pcf`), with its warnings |
 | `crates/core/src/iso.rs` | The isometric: the 30° projection (x = (X − Z) cos 30°, y = (X + Z) sin 30° − Y), lines per segment (arcs sampled), node labels, a dimension per element offset away from the middle, symbols for supports, nozzles and tees, sheets of at most n elements in table order with their joins |
@@ -95,6 +97,9 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.3.1 | `vessel.rs`: `Vessel` (design data, parts bottom→top), `Part` (kind, D, len, t, E), `check` → `VesselResult` (per part: static head at its lowest point, t_req, t_min, MAWP, MAWP at top, MAP, test stress vs 0.9 Sy; vessel MAWP = min at top, MAP, test 1.3 MAWP S_cold/S, volume and weights from profiles turned about the axis, outline for the drawing). `Model.vessels` via `Op::SetVessels`; shell `vessel_check`; the window refreshes on every edit and load | Vessels are independent of the piping solve: instant, and they live in the same file |
+| 0.3.1 | Heads only first or last; cones up to 30° half angle; torispherical crown ≤ D, knuckle ≥ 6 % D; head depth from the geometry (0.16934 D for L = D, r = 0.06 D) | Where these equations apply |
+| 0.3.1 | The window's edit and load hooks are lists (every hook runs) | A single slot let the second results hook replace the first: results were not marked stale with Analyze automatically off |
 | 0.3.0 | **Owner, later on 2026-11-01:** the vessel formulas may be taken from what is known of ASME VIII-1, **without naming it anywhere public**: vessel text describes the equations themselves (thin-shell membrane theory, the area replacement rule, Zick's saddle method, the bolted flange method). Allowables and code values stay inputs. Owner gave the go-ahead for 0.3.0 → 0.4.0 in one run and wants a worked vessel example (like a vessel design program's) first | The owner's words |
 | 0.3.0 | Source audit: piping equations from published papers (von Kármán 1911, Clark–Reissner 1951, Markl 1952, Rodabaugh–George 1957), physics (Barlow/Lamé, beam theory, Hooke, drag, momentum), dimensions (facts), the flange leakage equation now with its statics derivation; turbine criteria as published equations with every number an input; no government publication in the app (the regulator's dynamic benchmarks were only planned and are dropped) | Nothing found that has to be removed |
 | 0.3.0 | **Owner's rules, 2026-11-01.** (1) One app: everything (piping, vessels, and what follows) lives in Datum Pipe; no separate Datum Vessel. (2) Only what is open source or free to the public is used: no proprietary sources and no government publications. A code's equations are taken from free public sources or derived from first principles and checked to agree, never copied from a paid standard; code tables stay user inputs. (3) Vessels come before dynamics; vessels follow ASME VIII-1 first (EN 13445 later). (4) External pressure only by a method that is legal and free (classical shell-buckling theory). | The owner's words; clean and neat, nothing violated |
@@ -226,8 +231,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.2.8 | Wind pressure by height (user table); static seismic in both directions | ✅ |
 | 0.2.9 | .pcf export | ✅ |
 | 0.3.0 | Milestone: 0.2.1–0.2.9 reviewed; no new features; **source audit**: every equation, value and benchmark checked against the open-sources rule (2026-11-01), anything that fails replaced by a first-principles derivation or a free public source, or removed | ✅ |
-| 0.3.1 | Vessels: a Vessel workspace in Datum Pipe; shells and heads under internal pressure (cylinder, sphere, 2:1 ellipsoidal, torispherical, hemispherical, cone), required thickness, MAWP, test pressure, report; equations of ASME VIII-1 taken from free public sources | 🔜 |
-| 0.3.2 | Vessels: nozzle reinforcement (area replacement) and nozzle neck thickness | ⬜ |
+| 0.3.1 | Vessels: a Vessel workspace in Datum Pipe; shells and heads under internal pressure (cylinder, sphere, 2:1 ellipsoidal, torispherical, hemispherical, cone), required thickness, MAWP, test pressure, report; equations of ASME VIII-1 taken from free public sources | ✅ |
+| 0.3.2 | Vessels: nozzle reinforcement (area replacement) and nozzle neck thickness | 🔜 |
 | 0.3.3 | Vessels: horizontal vessels on two saddles (Zick's published method) | ⬜ |
 | 0.3.4 | Vessels: vertical vessels: weight, wind, seismic, skirt, base ring, anchor bolts | ⬜ |
 | 0.3.5 | Vessels: body flanges (the published Taylor-Forge method) | ⬜ |
@@ -378,6 +383,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 ### 2026-11-01: Session 2, continued (0.3.0: review and source audit)
 - Full checks green; sources audited (decision above); Help › Sources gains the flange leakage derivation. Owner: go from 0.3.0 to the vessel milestone 0.4.0 without stopping; vessel formulas as known, not named in public text.
 
+### 2026-11-01: Session 2, continued (0.3.1: vessels, shells and heads)
+- Engine: `vessel.rs` with unit tests by hand (shell 9.665 mm, 2:1 head 9.603, hemisphere 4.801, torispherical, cone, MAWP 1.699 MPa; head volumes; static heads), `Model.vessels`, `Op::SetVessels`, check/repair; benchmark 25 (73 checks). Example: Vertical separator V-101.
+- UI: the Vessels view (left bar), drawing, results, report pages, help and Sources; the edit hook fix; six UI checks. Checked in the real app (layout reworked: form and drawing side by side, results full width).
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
@@ -394,5 +403,6 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Relief valve thrust is for an ideal gas at an open discharge only (no liquids, two-phase flow or closed discharge systems), acts with operating case 1 only, and is static (times the load factor; no time history).
 - The .pcf export writes geometry, bores, weights and supports only; expansion joints come back as rigid parts and springs or restraints as rests on import.
 - Expansion joints: one bellows per element, no hinged or gimbal joints, no movement or cycle check against the maker's limits.
+- Vessels (0.3.1): internal pressure only so far (no nozzles, supports, wind, external pressure yet); heads formed from one plate (no crown/knuckle thickness split); weights from the inside surface times the thickness.
 - Nozzle flexibility is the user's stiffness values only; vessel local stresses are not calculated.
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

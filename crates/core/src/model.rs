@@ -564,6 +564,8 @@ pub struct Model {
     pub flanges: Vec<crate::flange::Flange>,
     /// Relief valves discharging to the open air (thrust as an occasional load).
     pub reliefs: Vec<crate::relief::Relief>,
+    /// Pressure vessels (0.3.1), checked on their own.
+    pub vessels: Vec<crate::vessel::Vessel>,
     pub loads: Vec<Load>,
     pub cases: Vec<LoadCase>,
     /// The next id for any item.
@@ -589,6 +591,7 @@ impl Default for Model {
             equipment: vec![],
             flanges: vec![],
             reliefs: vec![],
+            vessels: vec![],
             loads: vec![],
             cases: vec![],
             next: 4,
@@ -819,6 +822,9 @@ impl Model {
                 return Err("A flange check needs an element of the model, and a gasket diameter and rating of 0 or more.".into());
             }
         }
+        for v in &self.vessels {
+            v.check_data()?;
+        }
         for r in &self.reliefs {
             if !self.nodes.iter().any(|n| n.num == r.node) || !r.valid() {
                 return Err(format!("The relief valve {} needs a node of the model, a flow above 0, k between 1 and 2, a temperature and molar mass above 0, and a dynamic load factor between 0 and 10.", r.name));
@@ -901,7 +907,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
     }
     let mut v = migrate(v)?;
     let mut warn = vec![];
-    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases", "equipment", "flanges", "reliefs"];
+    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases", "equipment", "flanges", "reliefs", "vessels"];
     let mut keep: Vec<(String, Vec<Value>)> = vec![];
     if let Some(o) = v.as_object_mut() {
         for k in lists {
@@ -955,6 +961,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
             "equipment" => m.equipment = read(a, "equipment", &mut warn),
             "flanges" => m.flanges = read(a, "flange checks", &mut warn),
             "reliefs" => m.reliefs = read(a, "relief valves", &mut warn),
+            "vessels" => m.vessels = read(a, "vessels", &mut warn),
             _ => {}
         }
     }
@@ -1152,6 +1159,11 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     m.flanges.retain(|f| els.contains(&f.element) && f.gasket >= 0.0 && fin(f.gasket) && f.rating >= 0.0 && fin(f.rating));
     if m.flanges.len() < nf {
         warn.push("Flange checks on missing elements, or with damaged values, were left out.".into());
+    }
+    let nv = m.vessels.len();
+    m.vessels.retain(|v| v.check_data().is_ok());
+    if m.vessels.len() < nv {
+        warn.push("Vessels with damaged values were left out.".into());
     }
     let nr = m.reliefs.len();
     m.reliefs.retain(|r| nodes.contains(&r.node) && r.valid());

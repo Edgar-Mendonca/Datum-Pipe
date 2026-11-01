@@ -24,5 +24,6 @@ pub mod relief;
 pub mod model;
 pub mod solve;
 pub mod sparse;
+pub mod vessel;
 pub mod units;
 mod worked;

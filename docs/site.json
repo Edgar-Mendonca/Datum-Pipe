@@ -32,7 +32,8 @@
     "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall (straight pipe, bends at their intrados, both ends of reducers), sustained stress, the displacement stress range and occasional stress, with PASS or FAIL at every point",
     "Support loads for the civil team, nozzle loads in the nozzle's own axes, and steam turbine, compressor and pump nozzle checks against their standards' published criteria; flange leakage by the equivalent pressure method; relief valve thrust at an open discharge as an occasional load; vessel and tank nozzle flexibility from your stiffness values; bellows expansion joints with their pressure thrust; wind by height and occasional loads in both directions",
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
-    "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published"
+    "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published",
+    "Pressure vessels in the same app: shells and heads, MAWP, test pressure and weights"
   ],
   "screenshots": [
     "docs/images/model-stress.png",
@@ -202,7 +203,7 @@
     {
       "v": "0.3.1",
       "title": "Vessels: shells and heads",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "A Vessel workspace in Datum Pipe",
         "Shells and heads under internal pressure: required thickness, maximum allowable working pressure, test pressure, report"
@@ -211,7 +212,7 @@
     {
       "v": "0.3.2",
       "title": "Vessels: nozzles",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Nozzle reinforcement by area replacement, nozzle neck thickness"
       ]

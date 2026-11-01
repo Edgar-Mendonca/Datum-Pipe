@@ -25,7 +25,7 @@ darkMq?.addEventListener("change", () => theme() === "auto" && applyTheme());
 export const setTheme = (t: string) => { setThemeRaw(t); applyTheme(); const o = { ...opts(), theme: t }; setOpts(o); invoke("set_options", { opts: o }).catch(() => {}); };
 export const [opts, setOpts] = createSignal<Options>({ autosave: 5, beta: false, theme: "auto", openLast: false, units: "SI", contours: "rainbow", labels: true, deform: 0, paper: "A4", landscape: false, company: "", autoAnalyze: true });
 
-export type View = "model" | "results" | "iso" | "report";
+export type View = "model" | "results" | "iso" | "report" | "vessel";
 export const [view, setView] = createSignal<View>("model");
 export const [backstage, setBackstage] = createSignal<string | null>("home");
 export const [tab, setTab] = createSignal("home");
@@ -40,15 +40,17 @@ export const act = async (op: object | string, quiet = false): Promise<Out | nul
   try { const o = await invoke<Out>("apply", { op }); setOut(o); onEdit(); return o; }
   catch (e) { if (!quiet) toast(String(e)); return null; }
 };
-/** Results go out of date after an edit (set by the results module). */
-let edited = () => {};
-export const onEditHook = (f: () => void) => { edited = f; };
-export const onEdit = () => edited();
+/** What runs after every edit (results go out of date, vessels are checked again). Every hook runs:
+ *  a single slot let the results module's second hook replace its first (found in 0.3.1). */
+const edited: (() => void)[] = [];
+export const onEditHook = (f: () => void) => { edited.push(f); };
+export const onEdit = () => edited.forEach(f => f());
 export const call = async <T = any>(cmd: string, args?: object): Promise<T | undefined> => {
   try { return await invoke<T>(cmd, args); } catch (e) { toast(String(e)); return undefined; }
 };
-let loaded = () => {};
-export const onLoadHook = (f: () => void) => { loaded = f; };
+const loadHooks: (() => void)[] = [];
+export const onLoadHook = (f: () => void) => { loadHooks.push(f); };
+const loaded = () => loadHooks.forEach(f => f());
 export const loadOut = async (cmd: string, args?: object) => {
   const o = await call<Out | null>(cmd, args);
   if (o) batch(() => { setSel(null); setOut(o); loaded(); setBackstage(null); setView("model"); });

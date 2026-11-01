@@ -51,6 +51,8 @@ pub enum Op {
     SetFlanges { list: Vec<crate::flange::Flange> },
     /// Replace the relief valves.
     SetReliefs { list: Vec<crate::relief::Relief> },
+    /// Replace the pressure vessels.
+    SetVessels { list: Vec<crate::vessel::Vessel> },
     /// Build the recommended load cases again (turns automatic cases on).
     RecommendCases,
     Batch(Vec<Op>),
@@ -456,6 +458,9 @@ fn exec(m: &mut Model, op: Op, created: &mut Vec<u32>) -> Result<(), String> {
         }
         Op::SetReliefs { list } => {
             m.reliefs = list;
+        }
+        Op::SetVessels { list } => {
+            m.vessels = list;
         }
         Op::SetCases { cases } => {
             m.cases = cases;

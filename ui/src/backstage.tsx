@@ -95,6 +95,7 @@ const Export = () => (
       <button class="tile" onClick={() => setBackstage("print")}><div class="pic"><svg class="ic"><use href="#i-print" /></svg></div><b>Print or save as PDF</b><span>The stress report with its title block, input echo, results and the isometric.</span></button>
       <button class="tile" onClick={() => C.view("iso")}><div class="pic"><svg class="ic"><use href="#i-iso" /></svg></div><b>Isometric as SVG</b><span>The isometric drawing as a vector file: open the Isometric view and use Save as SVG.</span></button>
       <button class="tile" onClick={C.importPcf}><div class="pic"><svg class="ic"><use href="#i-import" /></svg></div><b>Import a piping component file</b><span>A plain-text .pcf file from a design tool, as a new model: pipes, bends, tees, reducers, valves, flanges and supports.</span></button>
+      <button class="tile" onClick={C.exportPcf}><div class="pic"><svg class="ic"><use href="#i-export" /></svg></div><b>Export a piping component file</b><span>The model's geometry as a plain-text .pcf file for design tools: pipes, bends, tees, reducers, valves, flanges and supports.</span></button>
     </div>
   </div>
 );

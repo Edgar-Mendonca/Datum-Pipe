@@ -13,6 +13,7 @@ pub mod elements;
 pub mod equip;
 pub mod flange;
 pub mod examples;
+pub mod export;
 pub mod geom;
 pub mod import;
 pub mod iso;

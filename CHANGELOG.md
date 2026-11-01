@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.9 — 2026-11-01
+
+Export a piping component file.
+
+**File › Export › Export a piping component file** writes the model's geometry as a plain-text .pcf file for design tools: pipes, bends as elbows (their ends and corner), tees (run and branch ends at half the run's diameter from the centre), concentric reducers, valves and flanges with their weight, other rigid parts and expansion joints as miscellaneous components, and supports named by their kind. Coordinates are in millimetres with Z up. Materials, schedules, temperatures and pressures are not part of the file. It is also in the command search (Ctrl+K).
+
+**Checked by reading it back.** Every worked example is exported and imported again with the same length of piping, bends, tees, valves, supports by kind and support positions; random models are exported and read back too.
+
+**Help.** The Import topic is now Import and export.
+
 ## 0.2.8 — 2026-11-01
 
 Wind by height, and occasional loads in both directions.

@@ -81,6 +81,16 @@ fn failed_edits_change_nothing() {
 
 #[test]
 fn random_models_keep_their_rules_and_round_trip() {
+    // Pipe lying on pipe (two elements leaving a node the same way) is not real piping: the file
+    // reader may refuse it. Every other random model must read back.
+    let overlaps = |m: &Model| {
+        let out = |e: &Element, n: u32| { let l = e.length(); let s = if e.from == n { 1.0 } else { -1.0 }; e.d.map(|v| s * v / l) };
+        m.nodes.iter().any(|n| {
+            let at: Vec<&Element> = m.elements.iter().filter(|e| e.from == n.num || e.to == n.num).collect();
+            at.iter().enumerate().any(|(i, a)| at[i + 1..].iter().any(|b| { let (u, v) = (out(a, n.num), out(b, n.num)); u[0] * v[0] + u[1] * v[1] + u[2] * v[2] > 0.999 }))
+        })
+    };
+    let (mut read_back, mut real) = (0, 0);
     for seed in 0..60 {
         let mut r = Rng::new(seed);
         let m = random_model(&mut r, 3 + seed as usize % 25);
@@ -88,7 +98,20 @@ fn random_models_keep_their_rules_and_round_trip() {
         let (back, warn) = model::from_json(&model::to_json(&m)).unwrap();
         assert!(warn.is_empty(), "seed {seed}: {warn:?}");
         assert_eq!(back, m, "seed {seed}: the file does not round-trip");
+        // A piping component file goes out and reads back (or explains), the same length of piping.
+        let text = crate::export::pcf(&m).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+        let back = crate::import::pcf(&text);
+        if !overlaps(&m) {
+            real += 1;
+            assert!(back.is_ok(), "seed {seed}: {:?}", back.err());
+        }
+        if let Ok(r) = back {
+            read_back += 1;
+            let total = |m: &Model| m.elements.iter().map(|e| e.length()).sum::<f64>();
+            assert!((total(&m) - total(&r.model)).abs() < 1e-3 * m.elements.len() as f64, "seed {seed}: {} vs {}", total(&m), total(&r.model));
+        }
     }
+    assert!(real >= 3 && read_back >= real, "{real} random models without overlaps, {read_back} read back");
 }
 
 #[test]

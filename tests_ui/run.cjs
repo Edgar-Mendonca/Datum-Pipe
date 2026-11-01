@@ -342,6 +342,13 @@ const shots = process.env.SHOTS;
   const both = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetSettings).map(c => c[1].op.SetSettings.s.occ_both).pop());
   check("the both-directions box sets the option", both === true);
 
+  // 19. Export a piping component file from File › Export.
+  await open("lbend");
+  await p.click('button.file'); await p.waitForTimeout(250);
+  await p.click('.bs aside button:has-text("Export")'); await p.waitForTimeout(200);
+  await p.click('button.tile:has-text("Export a piping component file")'); await p.waitForTimeout(300);
+  check("Export a piping component file asks the engine for the file", await p.evaluate(() => window.__calls.some(c => c[0] === "export_pcf")));
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

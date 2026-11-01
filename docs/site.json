@@ -184,7 +184,7 @@
     {
       "v": "0.2.9",
       "title": "Export",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Export the model as a plain-text piping component file (.pcf)"
       ]
@@ -192,7 +192,7 @@
     {
       "v": "0.3.0",
       "title": "Equipment and flanges, complete",
-      "when": "Milestone",
+      "when": "Next",
       "items": [
         "Everything in 0.2.1–0.2.9 reviewed, with the verification record and examples updated",
         "No new features: 0.3.0 marks the stage as finished"

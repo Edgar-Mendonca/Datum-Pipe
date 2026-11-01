@@ -127,6 +127,8 @@ pub struct CaseResult {
     pub equipment: Vec<crate::equip::EquipCheck>,
     /// Flanged joints checked for leakage by the equivalent pressure (sum cases only).
     pub flanges: Vec<crate::flange::FlangeCheck>,
+    /// The response spectrum's combined case (equilibrium does not apply to it).
+    pub spectrum: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1238,6 +1240,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     // Lumped masses: each segment's mass split between its ends (translations only); one-way rests
     // and gaps taken as touching, friction left out; hangers and springs as they are.
     let (mut modes, mut mass_tot) = (vec![], [0.0; 3]);
+    let mut dyn_sys = System::new(n);
     if m.settings.modes > 0 {
         let mut mass = vec![0.0; n];
         for (i, s) in g.segs.iter().enumerate() {
@@ -1248,7 +1251,6 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                 }
             }
         }
-        let mut dyn_sys = System::new(n);
         dyn_sys.k = sys.k.clone();
         for cd in &conds {
             let kk = if cd.k == 0.0 { RIGID } else { cd.k };
@@ -1411,7 +1413,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                     }
                 }
                 let reacted = sum_reactions(&g, &reactions);
-                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction, equipment: vec![], flanges: vec![] });
+                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction, equipment: vec![], flanges: vec![], spectrum: false });
                 raw.insert(c.id, std::mem::take(&mut raw_glob));
                 cr
             }
@@ -1427,11 +1429,139 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                 let applied: [f64; 6] = std::array::from_fn(|d| ra.applied[d] - rb.applied[d]);
                 let reacted = sum_reactions(&g, &reactions);
                 raw.insert(c.id, glob);
-                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![] }
+                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: false }
             }
         };
         by_id.insert(c.id, r.clone());
         results.push(r);
+    }
+    // ---------------------------------------------------------------- response spectrum
+    // Each mode's response in each direction: displacements φ Γ Sa(f) / ω² (Sa from the spectrum,
+    // times the direction's factor), its section forces and support loads; the modes combined by
+    // CQC, the directions by SRSS, into the occasional case OCC SPEC.
+    let mut cases: Vec<LoadCase> = m.cases.clone();
+    let spec = &m.settings.spectrum;
+    let ope1 = m.cases.iter().find(|c| c.kind == CaseKind::Ope).map(|c| c.id);
+    if let (false, false, Some(o1)) = (modes.is_empty(), spec.is_empty() || m.settings.rs_dir.iter().all(|v| *v == 0.0), ope1) {
+        let g0 = 9.806_65;
+        let sa = |f: f64| -> f64 {
+            let a = if f <= spec[0][0] {
+                spec[0][1]
+            } else if f >= spec[spec.len() - 1][0] {
+                spec[spec.len() - 1][1]
+            } else {
+                let i = spec.windows(2).position(|w| f <= w[1][0]).unwrap_or(0);
+                let (p, q) = (spec[i], spec[i + 1]);
+                p[1] + (q[1] - p[1]) * (f - p[0]) / (q[0] - p[0])
+            };
+            a * g0
+        };
+        let nm = modes.len();
+        let om: Vec<f64> = modes.iter().map(|x| 2.0 * std::f64::consts::PI * x.freq).collect();
+        let zeta = m.settings.damping;
+        // CQC correlation of modes i and j (equal damping).
+        let rho = |i: usize, j: usize| -> f64 {
+            if i == j {
+                return 1.0;
+            }
+            let r = om[j] / om[i].max(1e-12);
+            8.0 * zeta * zeta * (1.0 + r) * r.powf(1.5) / ((1.0 - r * r).powi(2) + 4.0 * zeta * zeta * r * (1.0 + r).powi(2))
+        };
+        let sup_ids: Vec<u32> = m.supports.iter().map(|s| s.id).collect();
+        // One mode's response to a unit of displacement shape u: section forces and support loads.
+        let respond = |u: &[f64]| -> (Vec<[[f64; 6]; 2]>, HashMap<u32, [f64; 6]>) {
+            let disp: Vec<[f64; 6]> = (0..np).map(|p| std::array::from_fn(|d| u[6 * p + d])).collect();
+            let mut glob = vec![[[0.0; 6]; 2]; parts.len()];
+            for (i, s) in g.segs.iter().enumerate() {
+                let pe = parts[i].el.end_force(&disp[s.a], &disp[s.b], 0.0, &[0.0; 6]);
+                let l = parts[i].el.line.length();
+                for (end, at) in [(0usize, 0.0), (1, l)] {
+                    let (ff, mm, _) = parts[i].el.section(at, &pe, [0.0; 3]);
+                    glob[i][end] = [ff[0], ff[1], ff[2], mm[0], mm[1], mm[2]];
+                }
+            }
+            let ku = dyn_sys.mul(u);
+            let mut reac: HashMap<u32, [f64; 6]> = HashMap::new();
+            for (&dof, owners) in &hold_owner {
+                let r = ku[dof] / owners.len() as f64;
+                for &sid in owners {
+                    reac.entry(sid).or_insert([0.0; 6])[dof % 6] += r;
+                }
+            }
+            for sp in &springs {
+                let off = if sp.rot { 3 } else { 0 };
+                let ud = dot(sp.dir, [u[6 * sp.pt + off], u[6 * sp.pt + off + 1], u[6 * sp.pt + off + 2]]);
+                let e = reac.entry(sp.support).or_insert([0.0; 6]);
+                for i in 0..3 {
+                    e[off + i] += -sp.k * ud * sp.dir[i];
+                }
+            }
+            for cd in &conds {
+                let kk = if cd.k == 0.0 { RIGID } else { cd.k };
+                let ud = dot(cd.dir, [u[6 * cd.pt], u[6 * cd.pt + 1], u[6 * cd.pt + 2]]);
+                let e = reac.entry(cd.support).or_insert([0.0; 6]);
+                for i in 0..3 {
+                    e[i] += -kk * ud * cd.dir[i];
+                }
+            }
+            (glob, reac)
+        };
+        let ns = parts.len();
+        let (mut d2, mut f2, mut r2) = (vec![[0.0f64; 6]; np], vec![[[0.0f64; 6]; 2]; ns], HashMap::<u32, [f64; 6]>::new());
+        for d in 0..3 {
+            let fac = m.settings.rs_dir[d];
+            if fac == 0.0 {
+                continue;
+            }
+            // The modal responses in this direction.
+            let mut md: Vec<Vec<f64>> = vec![];
+            let mut mg: Vec<Vec<[[f64; 6]; 2]>> = vec![];
+            let mut mr: Vec<HashMap<u32, [f64; 6]>> = vec![];
+            for (k, mo) in modes.iter().enumerate() {
+                let amp = fac * mo.participation[d] * sa(mo.freq) / (om[k] * om[k]).max(1e-12);
+                let u: Vec<f64> = (0..n).map(|i| mo.shape[i / 6][i % 6] * amp).collect();
+                let (gl, re) = respond(&u);
+                md.push(u);
+                mg.push(gl);
+                mr.push(re);
+            }
+            // CQC of every component, then added as squares across directions.
+            let cqc = |vals: &dyn Fn(usize) -> f64| -> f64 {
+                let v: Vec<f64> = (0..nm).map(vals).collect();
+                let mut s = 0.0;
+                for i in 0..nm {
+                    for j in 0..nm {
+                        s += rho(i, j) * v[i] * v[j];
+                    }
+                }
+                s.max(0.0)
+            };
+            for p in 0..np {
+                for c in 0..6 {
+                    d2[p][c] += cqc(&|k| md[k][6 * p + c]);
+                }
+            }
+            for i in 0..ns {
+                for e in 0..2 {
+                    for c in 0..6 {
+                        f2[i][e][c] += cqc(&|k| mg[k][i][e][c]);
+                    }
+                }
+            }
+            for sid in &sup_ids {
+                let e = r2.entry(*sid).or_insert([0.0; 6]);
+                for c in 0..6 {
+                    e[c] += cqc(&|k| mr[k].get(sid).map_or(0.0, |x| x[c]));
+                }
+            }
+        }
+        let disp: Vec<[f64; 6]> = d2.iter().map(|x| x.map(f64::sqrt)).collect();
+        let glob: Vec<[[f64; 6]; 2]> = f2.iter().map(|x| x.map(|y| y.map(f64::sqrt))).collect();
+        let reactions: Vec<Reaction> = m.supports.iter().filter_map(|sp| r2.get(&sp.id).map(|f| Reaction { support: sp.id, node: sp.node, f: f.map(f64::sqrt) })).filter(|r| r.f.iter().any(|v| *v > 0.0)).collect();
+        let spec_id = m.max_id() + 1_000_000;
+        cases.push(LoadCase { id: spec_id, name: "OCC SPEC".into(), kind: CaseKind::Occ, recipe: Recipe::Range { a: o1, b: o1 } });
+        raw.insert(spec_id, glob);
+        results.push(CaseResult { id: spec_id, name: "OCC SPEC".into(), kind: CaseKind::Occ, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true });
     }
     // ---------------------------------------------------------------- forces, stresses, nozzles
     let f_range = code::range_factor(m.settings.cycles);
@@ -1447,7 +1577,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     // The largest sustained stress at each segment end (for the liberal allowable range).
     let mut sl_max: Vec<[f64; 2]> = vec![[0.0; 2]; parts.len()];
     for pass in 0..2 {
-        for (ci, c) in m.cases.iter().enumerate() {
+        for (ci, c) in cases.iter().enumerate() {
             let glob = &raw[&c.id];
             let res = &mut results[ci];
             if pass == 0 {
@@ -1561,7 +1691,8 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             let checked = z.allow.iter().any(|v| *v > 0.0);
             res.nozzles.push(NozzleLoad { nozzle: zid, node: z.node, local, shear, bending, ratios, pass: checked.then(|| ratios.iter().all(|r| *r <= 1.0)) });
         }
-        res.imbalance = imbalance(&g, res, wscale);
+        // A combined spectrum's values have no signs: equilibrium does not apply to it.
+        res.imbalance = if res.spectrum { 0.0 } else { imbalance(&g, res, wscale) };
         // Rotating equipment: in the cases that are loads (not ranges between two cases).
         if m.cases.iter().any(|c| c.id == res.id && matches!(c.recipe, Recipe::Sum { .. })) {
             res.equipment = m.equipment.iter().map(|e| crate::equip::check(e, &at)).collect();

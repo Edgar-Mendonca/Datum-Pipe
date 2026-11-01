@@ -293,7 +293,7 @@
     {
       "v": "0.4.3",
       "title": "Response spectrum",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Your spectrum (acceleration against frequency), the modes combined, the stresses checked as occasional"
       ]
@@ -301,7 +301,7 @@
     {
       "v": "0.4.4",
       "title": "Harmonic response",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "A force or displacement at a frequency, with damping"
       ]

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.3 — 2026-11-01
+
+Response spectrum.
+
+**A spectrum on the modes.** Under Dynamics in Analysis settings, Response spectrum takes the acceleration (g) against frequency from the site's seismic study, a factor for X, Y and Z, and the damping ratio. With the natural modes found, each mode's response in each direction is φ Γ Sa(f) / ω², giving its displacements, section forces and support loads; the modes are combined by the complete quadratic combination (CQC) with the damping, the directions by the square root of the sum of squares. The result is the case OCC SPEC, checked as occasional: the sustained stress plus its stress, against 1.33 Sh; its support loads, nozzle loads and displacements are in the results like any case. A combined spectrum has no signs, so the equilibrium check says it does not apply to it.
+
+**Example.** The steam rack example has a horizontal spectrum (example values) on its ten modes: OCC SPEC at 0.46 of its allowable.
+
+**Verification.** A new benchmark: a cantilever's base shear in a flat spectrum with one mode, against the classical 0.6131 of its mass (95 checks).
+
 ## 0.4.2 — 2026-11-01
 
 Modes in the 3D view.

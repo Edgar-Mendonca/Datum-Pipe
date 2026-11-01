@@ -510,6 +510,12 @@ pub struct Settings {
     pub occ_both: bool,
     /// The number of natural modes to find (0.4.1); 0 = none.
     pub modes: u32,
+    /// Response spectrum (0.4.3): rows of (frequency in Hz, acceleration in g) in rising
+    /// frequency, the factor on it in X, Y and Z (0 = not in that direction), and the damping ratio
+    /// for combining the modes.
+    pub spectrum: Vec<[f64; 2]>,
+    pub rs_dir: [f64; 3],
+    pub damping: f64,
     /// Spring hangers: the spring table (in order of preference) and the largest load variation
     /// allowed, |k Δ| / hot load.
     pub springs: Vec<SpringSize>,
@@ -539,7 +545,7 @@ impl Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3], wind_profile: vec![], occ_both: false, modes: 0, springs: typical_springs(), variability: 0.25 }
+        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3], wind_profile: vec![], occ_both: false, modes: 0, spectrum: vec![], rs_dir: [0.0; 3], damping: 0.05, springs: typical_springs(), variability: 0.25 }
     }
 }
 
@@ -726,6 +732,9 @@ impl Model {
         }
         if s.modes > 200 {
             return Err("Up to 200 natural modes.".into());
+        }
+        if !s.spectrum.iter().all(|r| fin(r[0]) && fin(r[1]) && r[0] > 0.0 && r[1] >= 0.0) || s.spectrum.windows(2).any(|w| w[1][0] <= w[0][0]) || !s.rs_dir.iter().all(|v| fin(*v) && *v >= 0.0) || !(s.damping > 0.0 && s.damping < 1.0) {
+            return Err("The response spectrum needs frequencies above 0 in rising order with accelerations of 0 or more, direction factors of 0 or more, and a damping ratio between 0 and 1.".into());
         }
         if !s.seis.iter().all(|v| fin(*v) && v.abs() <= 10.0) {
             return Err("The seismic factors must be numbers of g between −10 and 10.".into());

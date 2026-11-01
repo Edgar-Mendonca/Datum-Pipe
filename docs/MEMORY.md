@@ -97,6 +97,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.4.3 | `Settings.spectrum` [(Hz, g)], `rs_dir`, `damping` (0.05); in `solve_model` after the cases: per mode and direction u = φ Γ Sa / ω² (Sa linear in f, held beyond the ends), section forces from `end_force` with no loads, reactions from `dyn_sys` (K with touching conds) at held dofs, springs and conds; CQC (Der Kiureghian) across modes, SRSS across directions, per component; a synthetic `LoadCase` OCC SPEC (Occ, Range{OPE1, OPE1} so it takes OPE1's temperature) in a local `cases` list for the stress loop; `CaseResult.spectrum` = true, imbalance not computed | Reuses the occasional check unchanged; no missing-mass correction yet |
 | 0.4.2 | `rstate.modeNo` (cleared on load); the 3D view takes the mode's shape in place of the case's displacements, 8 % of the model's size, animated sin(t) about still; stress colours and legend off while a mode shows | A mode's amplitude is arbitrary |
 | 0.4.1 | `Settings.modes` (0 = off); `System::modes` subspace iteration (q = min(2p, p + 8) vectors, K factorised once, M-orthonormal Gram–Schmidt applied to X̄ and K X̄ together, Jacobi on the projected Kr), `jacobi()`; lumped translational masses from `Part.mass_len` (weight arithmetic with g = 1, so g = 0 models still have mass); one-way/gap supports as touching (k or RIGID), friction out; `Results.modes` (freq, period, mass-normalised shapes, Γ, Γ²/M) and `Results.mass` (moving mass, unheld points only) | No new dependency; the static solve untouched; modes off by default |
 | 0.3.8 | `Vessel.pe`, `ext_fs` (3), `ring_spacing`, `ring_i`; `cylinder_collapse` (von Mises short tube in closed form, floored by Bryan's long tube), L = tangent length + a third of each head's depth or the ring spacing; heads as spheres R = 0.9 D (2:1), crown (torispherical), D/2 (hemi), 0.1875 E (t/R)²; each min with hoop yield 2 Sy t/D, ÷ factor; ring I ≥ F pe R³ Ls / (3E) | Classical theory only, per the owner's rule: no material charts |
@@ -254,8 +255,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.4.0 | Milestone: vessels reviewed | ✅ |
 | 0.4.1 | Dynamics: natural frequencies and mode shapes (subspace iteration), mass fractions | ✅ |
 | 0.4.2 | Dynamics: modes drawn and animated in the 3D view | ✅ |
-| 0.4.3 | Dynamics: response spectrum (user spectrum, mode combination, occasional check) | 🔜 |
-| 0.4.4 | Dynamics: harmonic response (force or displacement at a frequency, damping) | ⬜ |
+| 0.4.3 | Dynamics: response spectrum (user spectrum, mode combination, occasional check) | ✅ |
+| 0.4.4 | Dynamics: harmonic response (force or displacement at a frequency, damping) | 🔜 |
 | 0.5.0 | Milestone: dynamics reviewed; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ⬜ |
 | 0.6 | Power piping and European piping code equations (EN 13445 for vessels too), buried pipe, cold spring | ⬜ |
 | 0.7 | Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
@@ -448,6 +449,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 ### 2026-11-01: Session 2, continued (0.4.2: modes in the 3D view)
 - UI: Show per mode, Stop in the legend; three UI checks. Checked in the real app (mode 1 of the steam rack swinging).
 
+### 2026-11-01: Session 2, continued (0.4.3: response spectrum)
+- Engine: settings, the spectrum case, benchmark 34 (95 checks: base shear within 0.21 % of 0.6131 m L Sa). Steam rack gets a spectrum (OCC SPEC 0.463).
+- UI: spectrum editor under Dynamics, "not applicable" in the equilibrium table; two UI checks. Checked in the real app.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
@@ -466,5 +471,6 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Expansion joints: one bellows per element, no hinged or gimbal joints, no movement or cycle check against the maker's limits.
 - Vessels: external pressure by classical buckling with a single design factor (no plasticity interaction beyond the yield cap); cones under external pressure treated as cylinders of their large diameter; wind and seismic are static, not combined, and the larger is used; no wind-induced vibration; skirt-to-head weld and openings in the skirt not checked; saddles: two equal saddles, no wear plates, stiffening rings not themselves checked, compression checked against S (no buckling allowable); nozzle reinforcement without inward projection, same material for neck, pad and shell, nozzles not counted in the weights; heads formed from one plate (no crown/knuckle thickness split); weights from the inside surface times the thickness.
 - Nozzle flexibility is the user's stiffness values only; vessel local stresses are not calculated.
+- Response spectrum: no missing-mass (rigid) correction, components combined separately (signs lost), one spectrum for all directions with factors.
 - Natural modes: lumped translational masses (no rotary inertia), supports linear and touching, no friction; rests and guides do not hold the pipe's rotation about its axis, so long lines can show slow rocking modes.
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

@@ -368,8 +368,11 @@ fn steam() -> Model {
     st.seis = [0.15, 0.0, 0.15];
     // Both directions: with one-way rests, gapped guides and friction, the reversed loads differ.
     st.occ_both = true;
-    // And its ten lowest natural modes.
+    // And its ten lowest natural modes, in a response spectrum (example values: take yours from the
+    // site's seismic study) acting horizontally, 5 % damping.
     st.modes = 10;
+    st.spectrum = vec![[0.5, 0.08], [2.0, 0.35], [10.0, 0.35], [33.0, 0.12], [50.0, 0.12]];
+    st.rs_dir = [1.0, 0.0, 1.0];
     d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("occasional loads");
     nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, -1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
     machine(&mut d, "T-301", crate::equip::EquipKind::Turbine, 1.0, [1.0, 0.0, 0.0]);

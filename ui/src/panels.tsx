@@ -107,6 +107,24 @@ const SupportPanel = (p: { s: Support }) => {
   </>;
 };
 
+/** The response spectrum: acceleration (g) against frequency, the factor in each direction and the damping. */
+const Spectrum = () => {
+  const rows = () => model()?.settings.spectrum ?? [];
+  const set = (spectrum: [number, number][]) => C.settings({ spectrum });
+  const put = (i: number, k: 0 | 1, x: number) => { const r = rows().map(a => [...a] as [number, number]); r[i][k] = x; if (x < 0 || (k === 0 && x <= 0)) return toast("Frequencies above 0, accelerations 0 or more."); r.sort((a, b) => a[0] - b[0]); if (r.some((a, j) => j > 0 && a[0] === r[j - 1][0])) return toast("Each frequency once."); set(r); };
+  const nIn = (v: number, f: (x: number) => void) => <input class="mono" style={{ width: "70px" }} value={num(v, 6)} onChange={e => { const x = +e.currentTarget.value; if (Number.isFinite(x)) f(x); }} />;
+  return <>
+    <Show when={rows().length}>
+      <table class="tbl"><thead><tr><th>Frequency Hz</th><th>Acceleration g</th><th /></tr></thead><tbody>
+        <For each={rows()}>{(r, i) => <tr><td>{nIn(r[0], x => put(i(), 0, x))}</td><td>{nIn(r[1], x => put(i(), 1, x))}</td><td><button class="x" title="Remove this row" onClick={() => set(rows().filter((_, k) => k !== i()))}>×</button></td></tr>}</For>
+      </tbody></table>
+      <V3In l="Spectrum factor in X, Y, Z (0 = not in that direction)" q="ratio" v={model()!.settings.rs_dir ?? [0, 0, 0]} set={rs_dir => C.settings({ rs_dir })} />
+      <div class="iprow"><label>Damping ratio (for combining modes)</label><input class="mono" value={model()!.settings.damping ?? 0.05} onChange={e => { const x = +e.currentTarget.value; if (x > 0 && x < 1) C.settings({ damping: x }); else toast("The damping ratio is between 0 and 1."); }} /></div>
+    </Show>
+    <p class="ibtns"><button class="btn sm" onClick={() => { const r = rows(); set(r.length ? [...r, [r[r.length - 1][0] * 2, r[r.length - 1][1]]] : [[1, 0.2], [10, 0.4], [33, 0.15]]); if (!r.length) C.settings({ spectrum: [[1, 0.2], [10, 0.4], [33, 0.15]], rs_dir: [1, 0, 1] }); }}>{rows().length ? "Add a frequency" : "Response spectrum"}</button></p>
+  </>;
+};
+
 /** Wind pressure against elevation: rows of (elevation, pressure), from the wind standard for the site. */
 const WindProfile = () => {
   const rows = () => model()?.settings.wind_profile ?? [];
@@ -192,6 +210,7 @@ const ModelPanel = () => {
     </Sec>
     <Sec t="Dynamics" h="modes">
       <div class="iprow"><label>Natural modes to find (0 = none)</label><input class="mono" value={m().settings.modes ?? 0} onChange={numIn(v => v >= 0 && v <= 200 && v % 1 === 0 && C.settings({ modes: v }), () => m().settings.modes ?? 0)} /></div>
+      <Spectrum />
       <p class="muted small">Your inputs: take the wind pressure and seismic factors from the standard for the site. With either, OPE1 is solved with it added and an occasional case checks the sustained stress plus its own stress against 1.33 Sh.</p>
     </Sec>
   </>;

@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, a vessel nozzle under its piping's loads, a vessel under full vacuum, and a pipe span's natural frequencies. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, a vessel nozzle under its piping's loads, a vessel under full vacuum, a pipe span's natural frequencies, and a cantilever in a response spectrum. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -813,6 +813,27 @@ pub fn run() -> Vec<Check> {
         let (r, h, mass) = build(40, 10.0, true);
         out.push(row(33, name, "Fixed-fixed span, first frequency (Hz)", "ratio", f1(4.730_041, &h, mass, 10.0), r.modes[0].freq, 1e-2, src));
     }
+    // 34. Response spectrum on a cantilever: the 3 m 6" Sch 40 cantilever in 20 elements, held across
+    //     at its tip in Z so its first mode bends in Y, one mode, a flat spectrum of 0.5 g in Y. The
+    //     first mode of a uniform cantilever carries 0.6131 of its mass, so the base shear is
+    //     0.6131 m L Sa.
+    {
+        let rows: Vec<(u32, u32, f64, f64, f64)> = (0..20u32).map(|i| (10 * (i + 1), 10 * (i + 2), 0.15, 0.0, 0.0)).collect();
+        let mut d = table("Spectrum", &rows);
+        let mut s = d.m.settings.clone();
+        s.modes = 1;
+        s.spectrum = vec![[0.1, 0.5], [100.0, 0.5]];
+        s.rs_dir = [0.0, 1.0, 0.0];
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        anchor(&mut d, 10);
+        add(&mut d, Item::Support(Support { node: 210, kind: SupKind::Restraint { dir: [0.0, 0.0, 1.0] }, ..Default::default() }));
+        let r = analyze(&d.m).unwrap();
+        let p = &d.m.pipes[0];
+        let m_len = d.m.materials[0].rho * std::f64::consts::PI / 4.0 * (p.od.powi(2) - (p.od - 2.0 * p.wall).powi(2));
+        let spec = r.cases.iter().find(|c| c.name == "OCC SPEC").unwrap();
+        let fy = spec.reactions.iter().find(|x| x.node == 10).map_or(f64::NAN, |x| x.f[1]);
+        out.push(row(34, "A cantilever in a response spectrum", "Base shear, one mode (flat 0.5 g)", "force", 0.6131 * m_len * 3.0 * 0.5 * 9.806_65, fy, 1e-2, "The first mode of a uniform cantilever carries 0.6131 of its mass: V = 0.6131 m L Sa"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -837,7 +858,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=33 {
+        for b in 1..=34 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

@@ -995,3 +995,31 @@ fn modes_are_orthogonal_and_their_masses_add_up() {
     let dotm = |a: usize, b: usize| -> f64 { (0..r.geom.points.len()).map(|p| mass_at(p) * (0..3).map(|k| r.modes[a].shape[p][k] * r.modes[b].shape[p][k]).sum::<f64>()).sum() };
     assert!(dotm(0, 1).abs() < 1e-6 * dotm(0, 0).abs(), "{} {}", dotm(0, 1), dotm(0, 0));
 }
+
+#[test]
+fn harmonic_response_is_static_at_zero_frequency_linear_and_finite_at_resonance() {
+    // A 3 m cantilever in 15 elements, 1 kN sideways at its tip. At 0 Hz the response is the static
+    // deflection whatever the modes; it scales with the force; at the first natural frequency it is
+    // finite (the damping holds it) and about 1/(2ζ) of the static, as for one degree of freedom.
+    let rows: Vec<(u32, u32, f64, f64, f64)> = (0..15u32).map(|i| (10 * (i + 1), 10 * (i + 2), 0.2, 0.0, 0.0)).collect();
+    let tip_at = |freq: f64, f: f64, modes: u32| -> (f64, f64) {
+        let mut d = table("harmonic", &rows);
+        sup(&mut d, 10, SupKind::Anchor);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        s.modes = modes;
+        s.damping = 0.05;
+        s.harmonic = Some(crate::model::Harmonic { node: 160, f: [0.0, f, 0.0], m: [0.0; 3], freq });
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        let r = analyze(&d.m).unwrap();
+        let h = r.cases.iter().find(|c| c.name == "HARM").expect("HARM");
+        (h.disp[r.geom.node_point[&160]][1], r.modes[0].freq)
+    };
+    let (s2, f1) = tip_at(0.0, 1000.0, 2);
+    let (s10, _) = tip_at(0.0, 1000.0, 10);
+    assert!(close(s2, s10, 1e-9), "static part exact with any number of modes: {s2} {s10}");
+    let (d2, _) = tip_at(0.0, 2000.0, 2);
+    assert!(close(d2, 2.0 * s2, 1e-9));
+    let (res, _) = tip_at(f1, 1000.0, 6);
+    assert!(res.is_finite() && res > 5.0 * s2 && res < 12.0 * s2, "at resonance {res} vs static {s2}");
+}

@@ -419,8 +419,12 @@ const shots = process.env.SHOTS;
   check("the summary's equilibrium says it does not apply to OCC SPEC and HARM", ((await p.textContent('.rtable tr:has(b:text-is("HARM"))')) ?? "").includes("not applicable") && ((await p.textContent('.rtable tr:has(b:text-is("OCC SPEC"))')) ?? "").includes("not applicable"));
   await p.click('.rtabs button:text-is("Equilibrium")'); await p.waitForTimeout(200);
   check("equilibrium says it does not apply to the combined spectrum", ((await p.textContent(".rtable")) ?? "").includes("not applicable (combined)"));
+  check("equilibrium says HARM's values are amplitudes", ((await p.textContent('.rtable tr:has(td:text-is("HARM"))')) ?? "").includes("not applicable (amplitudes)"));
   await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
   check("Stop goes back to the load case", !((await p.textContent(".legend3d")) ?? "").includes("Mode 1"));
+  await p.click('.side button[title="Report"]'); await p.waitForTimeout(300);
+  { const rep = (await p.textContent(".preport")) ?? "";
+    check("the report has the dynamics input, the modes and HARM's support loads", rep.includes("Dynamics: 10 natural modes") && rep.includes("harmonic load at node 60") && rep.includes("Natural modes") && rep.includes("Support loads (HARM, amplitudes)") && !(await p.$('.preport button:text-is("Show")'))); }
   // The harmonic load's editor: shown for the steam rack, a node that does not exist is refused, removable.
   await open("steam");
   check("Dynamics shows the steam rack's harmonic load", !!(await p.$("#harm-node")) && (await p.inputValue("#harm-node")) === "60");

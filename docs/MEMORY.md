@@ -258,8 +258,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.4.2 | Dynamics: modes drawn and animated in the 3D view | ✅ |
 | 0.4.3 | Dynamics: response spectrum (user spectrum, mode combination, occasional check) | ✅ |
 | 0.4.4 | Dynamics: harmonic response (force and moment at a node at a frequency, damping) | ✅ |
-| 0.5.0 | 🔜 Milestone: dynamics reviewed; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ⬜ |
-| 0.6 | Power piping and European piping code equations (EN 13445 for vessels too), buried pipe, cold spring | ⬜ |
+| 0.5.0 | Milestone: dynamics reviewed; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ✅ |
+| 0.6 | 🔜 Power piping and European piping code equations (EN 13445 for vessels too), buried pipe, cold spring | ⬜ |
 | 0.7 | Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
 
@@ -270,6 +270,7 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Heat exchanger tubesheets; fitness for service of corroded vessels (only if free public methods exist).
 - Vessel nozzle local stresses by our own shell finite element model (Datum Mesh's solver), instead of the copyrighted bulletins.
 - Water hammer and surge (after dynamics); thermowells; orifice plates.
+- Dynamics, later: missing-mass correction for the spectrum, a frequency sweep and imposed motion for harmonic loads, time history (relief valve opening, water hammer forces), separate spectra per direction, rotary inertia.
 - Not planned: thermal design of heat exchangers (proprietary correlations); plant 3D layout (we exchange .pcf files instead).
 
 ## 4. Session log
@@ -459,6 +460,11 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - UI: Harmonic load editor under Dynamics (node checked, force, moment, frequency; remove/add); the damping ratio moved out of the spectrum so it shows for both; seven UI checks.
 - Bug found in the real app: Summary showed "< 1e-12" equilibrium for OCC SPEC (and HARM); now "not applicable", with a UI check. HARM's nozzle loads are not judged pass/fail (amplitudes); its Summary check reads "Amplitudes, not checked".
 
+### 2026-11-01: Session 2, continued (0.5.0: dynamics milestone)
+- Review of modes, spectrum and harmonic code: CQC coefficient, spectrum interpolation, input checks and repairs read correct.
+- New tests: harmonic at 0 Hz equals static with 2 or 10 modes, linear in the load, finite at resonance (5–12 × static); random models run dynamics on seeds ≡ 1 mod 4 and must give ≥ 10 OCC SPEC/HARM cases.
+- Found by the review: the printed report had no dynamics input, no modes table and no HARM support loads (HARM is Ope, filtered out). Fixed, with a UI check. The Equilibrium table now says HARM's values are amplitudes (it said "combined").
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
@@ -478,5 +484,6 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Vessels: external pressure by classical buckling with a single design factor (no plasticity interaction beyond the yield cap); cones under external pressure treated as cylinders of their large diameter; wind and seismic are static, not combined, and the larger is used; no wind-induced vibration; skirt-to-head weld and openings in the skirt not checked; saddles: two equal saddles, no wear plates, stiffening rings not themselves checked, compression checked against S (no buckling allowable); nozzle reinforcement without inward projection, same material for neck, pad and shell, nozzles not counted in the weights; heads formed from one plate (no crown/knuckle thickness split); weights from the inside surface times the thickness.
 - Nozzle flexibility is the user's stiffness values only; vessel local stresses are not calculated.
 - Response spectrum: no missing-mass (rigid) correction, components combined separately (signs lost), one spectrum for all directions with factors.
+- Harmonic response: one force and moment at one node at one frequency (no sweep, no imposed displacement), equal damping in every mode; its amplitudes are not stress-checked and nozzle allowables are not applied to them.
 - Natural modes: lumped translational masses (no rotary inertia), supports linear and touching, no friction; rests and guides do not hold the pipe's rotation about its axis, so long lines can show slow rocking modes.
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 — 2026-11-01
+
+The dynamics stage, complete.
+
+**Dynamics in Datum Pipe.** Since 0.4.1 the analysis can find the piping's natural frequencies and mode shapes, with the mass each mode moves, and draw each mode moving in the 3D view; put a response spectrum on the modes, combined by CQC and checked as an occasional load (OCC SPEC); and give the steady response to a force at a frequency with damping (HARM). The steam rack example shows all three.
+
+**Reviewed.** Every dynamics step with the full checks: 96 benchmark checks (three for dynamics, each against classical theory), the unit tests, the UI checks and the real app. A new test checks that a harmonic load at 0 Hz gives the static deflection whatever the number of modes, that its response grows in step with the load, and that at resonance it stays finite and near 1/(2ζ) of the static; the random-model test now also runs modes, a spectrum and a harmonic load on a quarter of its 80 models.
+
+**Fixed.** The printed report now has the dynamics inputs (modes, damping, spectrum, harmonic load), the natural modes table and HARM's support loads, which were missing.
+
 ## 0.4.4 — 2026-11-01
 
 Harmonic response.

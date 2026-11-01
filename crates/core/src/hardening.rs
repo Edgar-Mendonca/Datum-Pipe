@@ -162,6 +162,7 @@ fn speed_gate_on_a_large_model() {
 
 #[test]
 fn random_models_solve_or_explain_and_always_balance() {
+    let mut dynamic = 0;
     for seed in 0..80 {
         let mut r = Rng::new(1000 + seed);
         let mut m = random_model(&mut r, 2 + seed as usize % 30);
@@ -180,9 +181,19 @@ fn random_models_solve_or_explain_and_always_balance() {
                 e.comp = Comp::Bend { bend: model::BendKind::Short, r: 0.0 };
             }
         }
+        // And dynamics on some: modes, a spectrum and a harmonic load at a random node.
+        if seed % 4 == 1 {
+            m.settings.modes = 1 + seed as u32 % 8;
+            m.settings.spectrum = vec![[1.0, 0.2], [10.0, 0.4], [33.0, 0.15]];
+            m.settings.rs_dir = [1.0, 0.5, 1.0];
+            let node = m.nodes[seed as usize % m.nodes.len()].num;
+            m.settings.harmonic = Some(model::Harmonic { node, f: [100.0, 200.0, 0.0], m: [0.0, 0.0, 50.0], freq: 0.5 + seed as f64 / 4.0 });
+        }
         crate::cases::rebuild(&mut m);
         match crate::solve::analyze(&m) {
             Ok(res) => {
+                assert!(res.modes.iter().all(|x| x.freq.is_finite() && x.freq >= 0.0), "seed {seed}");
+                dynamic += res.cases.iter().filter(|c| c.name == "HARM" || c.name == "OCC SPEC").count();
                 for c in &res.cases {
                     assert!(c.imbalance < 1e-6, "seed {seed}, case {}: imbalance {:e} {:?}", c.name, c.imbalance, res.warnings);
                     assert!(c.disp.iter().flatten().all(|v| v.is_finite()), "seed {seed}");
@@ -192,6 +203,7 @@ fn random_models_solve_or_explain_and_always_balance() {
             Err(e) => assert!(!e.is_empty()),
         }
     }
+    assert!(dynamic >= 10, "only {dynamic} dynamic cases came out of the random models");
 }
 
 #[test]

@@ -174,13 +174,13 @@ export const FlangeTable = (p: { c: CaseResult }) => {
   </Show>;
 };
 
-export const ModesTable = (p: { r: Results }) => {
+export const ModesTable = (p: { r: Results; print?: boolean }) => {
   const list = () => p.r.modes ?? [];
   const cum = (k: number, d: number) => list().slice(0, k + 1).reduce((s, m) => s + m.mass_frac[d], 0);
   return <Show when={list().length} fallback={<p class="muted">No natural modes. Set the number to find under Dynamics in Analysis settings (select nothing on the Model view), then analyze.</p>}>
     <p class="muted small">Natural frequencies of the piping as it stands in operation, with its contents, insulation and rigid parts as masses at the points; one-way rests and gaps taken as touching, friction left out. The effective mass of each mode is a share of the mass that moves in each direction (X {num(p.r.mass?.[0] ?? 0, 4)}, Y {num(p.r.mass?.[1] ?? 0, 4)}, Z {num(p.r.mass?.[2] ?? 0, 4)} kg).</p>
-    <table class="tbl rtable"><thead><tr><Th>Mode</Th><Th r>Frequency Hz</Th><Th r>Period s</Th><Th r>Mass X %</Th><Th r>Mass Y %</Th><Th r>Mass Z %</Th><Th r>Total X %</Th><Th r>Total Y %</Th><Th r>Total Z %</Th><th /></tr></thead><tbody>
-      <For each={list()}>{(m, k) => <tr><td>{m.n}</td><td class="r">{num(m.freq, 4)}</td><td class="r">{num(m.period, 4)}</td><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * m.mass_frac[d], 3)}</td>}</For><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * cum(k(), d), 3)}</td>}</For><td><button class="btn sm" title="Draw this mode moving in the 3D view" onClick={() => { setModeNo(k()); setView("model"); }}>Show</button></td></tr>}</For></tbody></table>
+    <table class="tbl rtable"><thead><tr><Th>Mode</Th><Th r>Frequency Hz</Th><Th r>Period s</Th><Th r>Mass X %</Th><Th r>Mass Y %</Th><Th r>Mass Z %</Th><Th r>Total X %</Th><Th r>Total Y %</Th><Th r>Total Z %</Th><Show when={!p.print}><th /></Show></tr></thead><tbody>
+      <For each={list()}>{(m, k) => <tr><td>{m.n}</td><td class="r">{num(m.freq, 4)}</td><td class="r">{num(m.period, 4)}</td><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * m.mass_frac[d], 3)}</td>}</For><For each={[0, 1, 2]}>{d => <td class="r">{num(100 * cum(k(), d), 3)}</td>}</For><Show when={!p.print}><td><button class="btn sm" title="Draw this mode moving in the 3D view" onClick={() => { setModeNo(k()); setView("model"); }}>Show</button></td></Show></tr>}</For></tbody></table>
   </Show>;
 };
 
@@ -208,7 +208,7 @@ export const Equilibrium = (p: { r: Results }) => (
     <table class="tbl"><thead><tr><Th>Case</Th><Th r>Σ FX loads {u("force")}</Th><Th r>Σ FX reactions</Th><Th r>Σ FY loads</Th><Th r>Σ FY reactions</Th><Th r>Σ FZ loads</Th><Th r>Σ FZ reactions</Th><Th r>Σ M loads {u("moment")}</Th><Th r>Σ M reactions</Th><Th r>Imbalance</Th></tr></thead><tbody>
       <For each={p.r.cases}>{c => <tr><td>{c.name}</td><For each={[0, 1, 2]}>{k => <><td class="r">{v("force", c.applied[k])}</td><td class="r">{v("force", c.reacted[k])}</td></>}</For>
         <td class="r">{v("moment", Math.hypot(c.applied[3], c.applied[4], c.applied[5]))}</td><td class="r">{v("moment", Math.hypot(c.reacted[3], c.reacted[4], c.reacted[5]))}</td>
-        <td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.spectrum ? "not applicable (combined)" : <>{c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)} {c.imbalance <= 1e-6 ? "✓" : "✗"}</>}</td></tr>}</For></tbody></table>
+        <td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.spectrum ? (c.kind === "ope" ? "not applicable (amplitudes)" : "not applicable (combined)") : <>{c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)} {c.imbalance <= 1e-6 ? "✓" : "✗"}</>}</td></tr>}</For></tbody></table>
     <p class="muted small">Solver: {p.r.stats.equations} equations, {p.r.stats.nonzeros} stored entries, residual {p.r.stats.residual.toExponential(1)}, {num(p.r.stats.ms, 3)} ms. Datum Pipe {p.r.version}.</p>
   </>
 );
@@ -231,7 +231,8 @@ setResultBlocks(m => {
     ...(ope.equipment?.length ? [() => <div><h4>Rotating equipment ({ope.name})</h4><EquipTable c={ope} /></div>] : []),
     ...(ope.flanges?.length ? [() => <div><h4>Flange leakage ({ope.name})</h4><FlangeTable c={ope} /></div>] : []),
     ...(r.reliefs?.length ? [() => <div><h4>Relief valve thrust</h4><ReliefTable r={r} /></div>] : []),
-    ...r.cases.filter(c => c.kind !== "ope" && c.id !== ope.id && c.kind !== "exp").map(c => () => <div><h4>Support loads ({c.name})</h4><Supports r={r} c={c} /></div>),
+    ...r.cases.filter(c => (c.kind !== "ope" || c.spectrum) && c.id !== ope.id && c.kind !== "exp").map(c => () => <div><h4>Support loads ({c.name}{c.spectrum && c.kind === "ope" ? ", amplitudes" : ""})</h4><Supports r={r} c={c} /></div>),
+    ...(r.modes?.length ? [() => <div><h4>Natural modes</h4><ModesTable r={r} print /></div>] : []),
     ...(m.nozzles.length ? r.cases.filter(c => c.kind !== "exp").map(c => () => <div><h3>{c === r.cases.find(x => x.kind !== "exp") ? "5. Nozzle loads" : ""}</h3><h4>{c.name}</h4><Nozzles r={r} c={c} /></div>) : []),
     ...(r.walls.length ? [() => <div><h3>6. Minimum wall</h3><Walls r={r} /></div>] : []),
     () => <div><h3>7. Equilibrium checks</h3><Equilibrium r={r} /></div>,

@@ -33,7 +33,8 @@
     "Support loads for the civil team, nozzle loads in the nozzle's own axes, and steam turbine, compressor and pump nozzle checks against their standards' published criteria; flange leakage by the equivalent pressure method; relief valve thrust at an open discharge as an occasional load; vessel and tank nozzle flexibility from your stiffness values; bellows expansion joints with their pressure thrust; wind by height and occasional loads in both directions",
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
     "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published",
-    "Pressure vessels in the same app: shells and heads, MAWP, test pressure and weights"
+    "Pressure vessels in the same app: shells and heads, MAWP, test pressure and weights",
+    "Dynamics: natural frequencies and mode shapes animated in 3D, a response spectrum checked as an occasional load, and the response to a load at a frequency"
   ],
   "screenshots": [
     "docs/images/model-stress.png",
@@ -309,7 +310,7 @@
     {
       "v": "0.5.0",
       "title": "Dynamics, complete",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Everything in 0.4.1–0.4.4 reviewed",
         "No new features: 0.5.0 marks the stage as finished"
@@ -318,7 +319,7 @@
     {
       "v": "0.6",
       "title": "More codes",
-      "when": "Later",
+      "when": "Next",
       "items": [
         "Power piping and European piping and vessel code equations",
         "Buried pipe",

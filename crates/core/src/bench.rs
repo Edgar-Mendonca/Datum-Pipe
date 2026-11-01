@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, and a vertical vessel on a skirt. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, and a bolted cover. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -714,6 +714,30 @@ pub fn run() -> Vec<Check> {
         out.push(row(28, name, "Anchor bolt stress", "stress", bolt, su.bolt_stress, TOL, "Statics: 4M/(N BC) − W/N over the root area"));
         out.push(row(28, name, "Base ring thickness", "len", ring, su.ring_t_req, TOL, "A cantilever strip: l √(3 σ / S)"));
     }
+    // 29. V-101's manway cover, a bolted blind flange at 16 bar: gasket 584/540 mm, m 2, y 11 MPa,
+    //     24 bolts of 599 mm² root area, bolt circle 686 mm, S 138 MPa (flange), 172 MPa (bolts).
+    //     b = 2.52 √11 mm, G = 584 − 2b; Wm1 = π/4 G² P + 2b π G m P, Wm2 = π b G y; the cover's
+    //     thickness in operation G √(0.3 P/S + 1.9 Wm1 hG/(S G³)) and at seating with
+    //     W = (Am + Ab) Sa / 2 and no pressure.
+    {
+        let m = crate::examples::get("separator").unwrap();
+        let r = crate::vessel::check_in(&m.vessels[0], &m.settings).unwrap();
+        let f = &r.flanges[0];
+        let pi = std::f64::consts::PI;
+        let b = 2.52e-3 * 11f64.sqrt();
+        let g = 0.584 - 2.0 * b;
+        let p = 16e5;
+        let wm1 = pi / 4.0 * g * g * p + 2.0 * b * pi * g * 2.0 * p;
+        let wm2 = pi * b * g * 11e6;
+        let am = (wm1 / 172e6).max(wm2 / 172e6);
+        let w = (am + 24.0 * 599e-6) * 172e6 / 2.0;
+        let hg = (0.686 - g) / 2.0;
+        let name = "A bolted cover (V-101, M1)";
+        let src = "The bolted flange method: gasket loads, bolt loads, a flat cover in bending";
+        out.push(row(29, name, "Bolt load in operation Wm1", "force", wm1, f.wm1, TOL, src));
+        out.push(row(29, name, "Cover thickness, operating", "len", g * (0.3 * p / 138e6 + 1.9 * wm1 * hg / (138e6 * g.powi(3))).sqrt(), f.op, TOL, src));
+        out.push(row(29, name, "Cover thickness, gasket seating", "len", g * (1.9 * w * hg / (138e6 * g.powi(3))).sqrt(), f.seat, TOL, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -738,7 +762,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=28 {
+        for b in 1..=29 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

@@ -125,6 +125,116 @@ pub struct Vessel {
     pub emod: f64,
     #[serde(default)]
     pub base_el: f64,
+    /// Bolted flanges and covers (0.3.5).
+    #[serde(default)]
+    pub flanges: Vec<BodyFlange>,
+}
+
+/// A bolted flange or cover at the vessel's design pressure: a ring (loose) flange or a blind
+/// cover; outside, inside and bolt circle diameters and thickness; the gasket's outside and inside
+/// diameters and its factors m and y; the bolts (number, root area each); the allowable stresses of
+/// the bolts at ambient and design, and of the flange at ambient and design (all m, m², Pa).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BodyFlange {
+    pub name: String,
+    pub blind: bool,
+    pub a: f64,
+    pub b: f64,
+    pub c: f64,
+    pub t: f64,
+    pub g_od: f64,
+    pub g_id: f64,
+    pub m: f64,
+    pub y: f64,
+    pub bolts: u32,
+    pub bolt_area: f64,
+    pub sa: f64,
+    pub sb: f64,
+    pub sfa: f64,
+    pub sfo: f64,
+}
+
+impl Default for BodyFlange {
+    fn default() -> Self {
+        BodyFlange { name: "Cover".into(), blind: true, a: 0.775, b: 0.0, c: 0.686, t: 0.05, g_od: 0.584, g_id: 0.540, m: 2.0, y: 11e6, bolts: 24, bolt_area: 599e-6, sa: 172e6, sb: 172e6, sfa: 138e6, sfo: 138e6 }
+    }
+}
+
+/// A flange's result: the gasket's effective width and diameter, the bolt loads and areas, and the
+/// flange stresses (ring) or required thickness (blind), operating and gasket seating.
+#[derive(Clone, Debug, Serialize)]
+pub struct FlangeResult {
+    pub name: String,
+    pub b_eff: f64,
+    pub g: f64,
+    pub h: f64,
+    pub wm1: f64,
+    pub wm2: f64,
+    pub am: f64,
+    pub ab: f64,
+    pub w_seat: f64,
+    /// Ring: the moments and tangential stresses (operating, seating) and Y. Blind: the required
+    /// thickness (operating, seating).
+    pub m_op: f64,
+    pub m_seat: f64,
+    pub y_factor: f64,
+    pub op: f64,
+    pub seat: f64,
+    pub op_allow: f64,
+    pub seat_allow: f64,
+    pub bolts_pass: bool,
+    pub pass: bool,
+}
+
+/// The factor Y of a flat ring flange of diameter ratio K = A / B (from the plate theory of bolted
+/// flanges): Y = (0.66845 + 5.71690 K² log₁₀K / (K² − 1)) / (K − 1).
+pub fn ring_y(k: f64) -> f64 {
+    (0.66845 + 5.71690 * k * k * k.log10() / (k * k - 1.0)) / (k - 1.0)
+}
+
+/// Check a bolted flange or cover at pressure p.
+pub fn flange_check(f: &BodyFlange, p: f64) -> FlangeResult {
+    let pi = std::f64::consts::PI;
+    // The gasket: its seating width N/2, and the effective width b (b0 up to 6.35 mm, else 2.52 √b0 in mm).
+    let n = (f.g_od - f.g_id) / 2.0;
+    let b0 = n / 2.0;
+    let b = if b0 <= 0.00635 { b0 } else { 0.00252 * (b0 * 1000.0).sqrt() };
+    let g = if b0 <= 0.00635 { (f.g_od + f.g_id) / 2.0 } else { f.g_od - 2.0 * b };
+    let h = pi / 4.0 * g * g * p;
+    let hp = 2.0 * b * pi * g * f.m * p;
+    let wm1 = h + hp;
+    let wm2 = pi * b * g * f.y;
+    let am = (wm1 / f.sb).max(wm2 / f.sa);
+    let ab = f.bolts as f64 * f.bolt_area;
+    let w_seat = (am + ab) * f.sa / 2.0;
+    let hg_arm = (f.c - g) / 2.0;
+    let (m_op, m_seat, y_factor, op, seat, op_allow, seat_allow);
+    if f.blind {
+        // A flat bolted cover: t = d √(C P / S + 1.9 W hG / (S d³)), C = 0.3, d = G.
+        let d = g;
+        op = d * (0.3 * p / f.sfo + 1.9 * wm1 * hg_arm / (f.sfo * d.powi(3))).sqrt();
+        seat = d * (1.9 * w_seat * hg_arm / (f.sfa * d.powi(3))).sqrt();
+        (m_op, m_seat, y_factor) = (wm1 * hg_arm, w_seat * hg_arm, 0.0);
+        (op_allow, seat_allow) = (f.t, f.t);
+    } else {
+        // A ring flange: the end force inside B, the force on the face between B and G and the gasket
+        // load, each with its arm to the bolt circle; the tangential stress Y Mo / (t² B).
+        let hd = pi / 4.0 * f.b * f.b * p;
+        let hd_arm = (f.c - f.b) / 2.0;
+        let ht = h - hd;
+        let ht_arm = (hd_arm + hg_arm) / 2.0;
+        let hg = wm1 - h;
+        m_op = hd * hd_arm + ht * ht_arm + hg * hg_arm;
+        m_seat = w_seat * hg_arm;
+        y_factor = ring_y(f.a / f.b);
+        op = y_factor * m_op / (f.t * f.t * f.b);
+        seat = y_factor * m_seat / (f.t * f.t * f.b);
+        (op_allow, seat_allow) = (f.sfo, f.sfa);
+    }
+    let bolts_pass = ab + 1e-15 >= am;
+    let pass = bolts_pass && if f.blind { f.t + 1e-12 >= op.max(seat) } else { op <= op_allow * (1.0 + 1e-12) && seat <= seat_allow * (1.0 + 1e-12) };
+    FlangeResult { name: f.name.clone(), b_eff: b, g, h, wm1, wm2, am, ab, w_seat, m_op, m_seat, y_factor, op, seat, op_allow, seat_allow, bolts_pass, pass }
 }
 
 fn cd0() -> f64 {
@@ -354,6 +464,7 @@ impl Default for Vessel {
             seis: 0.0,
             emod: emod0(),
             base_el: 0.0,
+            flanges: vec![],
         }
     }
 }
@@ -407,6 +518,7 @@ pub struct VesselResult {
     pub nozzles: Vec<NozzleResult>,
     pub saddles: Option<SaddleResult>,
     pub support: Option<SupportResult>,
+    pub flanges: Vec<FlangeResult>,
     pub warnings: Vec<String>,
 }
 
@@ -559,6 +671,14 @@ impl Vessel {
         }
         if !(self.wind_cd >= 0.0 && fin(self.wind_cd) && self.wind_dfac >= 1.0 && fin(self.wind_dfac) && self.seis >= 0.0 && self.seis <= 5.0 && self.emod > 0.0 && fin(self.emod) && fin(self.base_el)) {
             return Err(format!("The vessel {}: the shape factor 0 or more, the diameter factor 1 or more, the seismic coefficient from 0 to 5 g and the modulus above 0.", self.name));
+        }
+        for f in &self.flanges {
+            let ok = [f.a, f.b, f.c, f.t, f.g_od, f.g_id, f.m, f.y, f.bolt_area, f.sa, f.sb, f.sfa, f.sfo].iter().all(|v| fin(*v) && *v >= 0.0)
+                && f.a > f.c && f.c > f.g_od && f.g_od > f.g_id && f.g_id >= 0.0 && f.t > 0.0 && f.bolts > 0 && f.bolt_area > 0.0 && f.sa > 0.0 && f.sb > 0.0 && f.sfa > 0.0 && f.sfo > 0.0
+                && (f.blind || (f.b > 0.0 && f.b < f.g_id + 1e-9));
+            if !ok {
+                return Err(format!("The flange {} of {}: outside diameter > bolt circle > gasket outside > gasket inside (> bore for a ring flange), a thickness, bolts and allowable stresses above 0.", f.name, self.name));
+            }
         }
         if let Some(s) = &self.saddles {
             if self.vertical {
@@ -961,8 +1081,9 @@ pub fn check_in(v: &Vessel, site: &crate::model::Settings) -> Result<VesselResul
     } else {
         None
     };
-    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass) && sad.as_ref().is_none_or(|s| s.pass) && sup.as_ref().is_none_or(|s| s.pass);
-    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, saddles: sad, support: sup, warnings })
+    let fl: Vec<FlangeResult> = v.flanges.iter().map(|f| flange_check(f, v.p)).collect();
+    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass) && sad.as_ref().is_none_or(|s| s.pass) && sup.as_ref().is_none_or(|s| s.pass) && fl.iter().all(|f| f.pass);
+    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, saddles: sad, support: sup, flanges: fl, warnings })
 }
 
 /// The liquid's volume: up to the level (vertical, from the bottom tangent line) or the part of the
@@ -1106,6 +1227,32 @@ mod tests {
         // At 150° the effective section is larger and the horn constant smaller.
         let k150 = zick_k(150f64.to_radians(), 1.0);
         assert!(k150[0] > 0.107 && k150[5] < 0.0528, "{k150:?}");
+    }
+
+    #[test]
+    fn bolted_flanges_by_hand() {
+        // Y at K = 1.5: (0.66845 + 5.71690 × 2.25 × log₁₀1.5 / 1.25) / 0.5 = 4.961.
+        assert!(close(ring_y(1.5), 4.96098, 1e-4), "{}", ring_y(1.5));
+        // The cover: N = 22 mm, b0 = 11 mm > 6.35, b = 2.52 √11 mm, G = Go − 2b; H = π/4 G² P,
+        // Hp = 2 b π G m P, Wm2 = π b G y; t = G √(0.3 P/S + 1.9 Wm1 hG/(S G³)).
+        let f = BodyFlange::default();
+        let r = flange_check(&f, 1.6e6);
+        let b = 2.52e-3 * 11f64.sqrt();
+        assert!(close(r.b_eff, b, 1e-9) && close(r.g, 0.584 - 2.0 * b, 1e-12));
+        let g = 0.584 - 2.0 * b;
+        let pi = std::f64::consts::PI;
+        let wm1 = pi / 4.0 * g * g * 1.6e6 + 2.0 * b * pi * g * 2.0 * 1.6e6;
+        assert!(close(r.wm1, wm1, 1e-12) && close(r.wm2, pi * b * g * 11e6, 1e-12));
+        let hg = (0.686 - g) / 2.0;
+        assert!(close(r.op, g * (0.3 * 1.6e6 / 138e6 + 1.9 * wm1 * hg / (138e6 * g.powi(3))).sqrt(), 1e-12));
+        // A ring flange: the moments' arms from the bolt circle, stress Y Mo / (t² B).
+        let ring = BodyFlange { blind: false, b: 0.5, t: 0.06, ..f };
+        let r = flange_check(&ring, 1.6e6);
+        let h = pi / 4.0 * g * g * 1.6e6;
+        let hd = pi / 4.0 * 0.25 * 1.6e6;
+        let (ad, ag) = ((0.686 - 0.5) / 2.0, hg);
+        let mo = hd * ad + (h - hd) * (ad + ag) / 2.0 + (wm1 - h) * ag;
+        assert!(close(r.m_op, mo, 1e-12) && close(r.op, ring_y(0.775 / 0.5) * mo / (0.0036 * 0.5), 1e-12));
     }
 
     #[test]

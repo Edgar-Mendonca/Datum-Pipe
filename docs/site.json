@@ -236,7 +236,7 @@
     {
       "v": "0.3.5",
       "title": "Vessels: body flanges",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Bolted body flanges: bolt loads and flange stresses"
       ]
@@ -244,7 +244,7 @@
     {
       "v": "0.3.6",
       "title": "Vessels: lifting and legs",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Lifting lugs, trunnions and leg supports"
       ]

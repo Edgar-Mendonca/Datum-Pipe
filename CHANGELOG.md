@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.5 — 2026-11-01
+
+Bolted flanges and covers on vessels.
+
+**The bolted flange method.** A vessel takes bolted flanges and covers at its design pressure: the gasket's effective width b and diameter G from its seating width, the operating bolt load Wm1 = H + Hp (the pressure's end force and the gasket compression m P) and the seating load Wm2 = π b G y, and the bolt area the larger needs against the bolts given. A ring flange (slip-on, lap joint) is checked by its tangential stress Y Mo / (t² B), from the moments of the end force, the face force and the gasket load about the bolt circle, in operation and at gasket seating; a blind cover by its thickness G √(0.3 P/S + 1.9 W hG/(S G³)), in operation and at seating. The gasket factors m and y, the dimensions and the allowables are your inputs. Hubbed weld-neck flanges are not calculated yet.
+
+**Example.** V-101's manway has a bolted cover: 50 mm against 42.9 mm needed in operation and 46.3 mm at gasket seating.
+
+**Fixed.** Picking a nozzle's pipe size in the Vessels view gave dimensions 40 times too small (the library's sizes are already in metres), and the nozzles' schedule boxes did not show their schedule. Both have UI checks now.
+
+**Verification.** A new benchmark: V-101's cover by hand, its bolt load and its thickness in operation and at seating (86 checks); a unit test of the factor Y and a ring flange's moments.
+
 ## 0.3.4 — 2026-11-01
 
 Vertical vessels: wind, seismic and the skirt.

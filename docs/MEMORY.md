@@ -97,6 +97,8 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.3.5 | `Vessel.flanges` (`BodyFlange`): ring (loose, Y Mo/(t² B), Y = (0.66845 + 5.71690 K² log K/(K² − 1))/(K − 1)) and blind (G √(0.3 P/S + 1.9 W hG/(S G³))); b = b0 up to 6.35 mm else 2.52 √b0 (mm), G = gasket OD − 2b (or the mean); Wm1, Wm2, Am, W = (Am + Ab) Sa/2. Weld-neck (hub factors F, V, f) not done: their closed forms could not be verified from here | Only what could be checked against known values (Y at K = 1.5 = 4.96) |
+| 0.3.5 | Fixed: the nozzle editor multiplied the library's sizes (already in metres) by 0.0254; the schedule boxes now show their value (drawn after the library loads) | Found by a new UI check written for the display bug |
 | 0.3.4 | `Vessel.skirt` (`Skirt`), `wind_cd` (0.7), `wind_dfac` (1.2), `seis`, `emod` (195 GPa), `base_el`; `check_in(v, settings)` uses the model's wind (`check` = no wind); `supports()` integrates wind and seismic over 400 slices from the base (outline radius + t; bottom head inside the skirt), masses spread over each part's span, extra over the tangent length; larger moment of wind or seismic; compressive allowable min(S, 0.0625 E t / R) (no material charts) | Statics and classical buckling only; the site's wind is shared with the piping |
 | 0.3.3 | `Vessel.saddles` (`Saddles`: a, θ, b, welded, rings); `zick_k` from the closed forms (Δ = π/6 + 5θ/12; α = 0.95(π − θ/2); β = π − θ/2; K6 quarter value at A/R ≤ 0.5, linear to the full at 1), unit-tested against the published 120° table; M1, M2 by the beam formulas; stiffened when A ≤ R/2 or rings (K3 shear in shell and head) else K2 shear and K1/K1* sections; horn by L ≥ 8R or not; bottom K5 with 0.1 when welded; weight = max(operating, full of water) with the design pressure | The free articles were blocked by the network; the closed forms reproduced every published 120° constant, which is the check |
 | 0.3.3 | Small openings exempt from the area calculation (finished d ≤ 60.3 mm, or ≤ 88.9 mm in walls ≤ 10 mm); the neck is still checked | The long-standing small-opening rule |
@@ -239,8 +241,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.3.2 | Vessels: nozzle reinforcement (area replacement) and nozzle neck thickness | ✅ |
 | 0.3.3 | Vessels: horizontal vessels on two saddles (Zick's published method) | ✅ |
 | 0.3.4 | Vessels: vertical vessels: weight, wind, seismic, skirt, base ring, anchor bolts | ✅ |
-| 0.3.5 | Vessels: body flanges (the published Taylor-Forge method) | 🔜 |
-| 0.3.6 | Vessels: lifting lugs, trunnions, leg supports | ⬜ |
+| 0.3.5 | Vessels: body flanges (the published Taylor-Forge method) | ✅ ring and blind; weld-neck later |
+| 0.3.6 | Vessels: lifting lugs, trunnions, leg supports | 🔜 |
 | 0.3.7 | Vessels and piping linked: the piping model's nozzle loads checked on the vessel's nozzle | ⬜ |
 | 0.3.8 | Vessels: external pressure and stiffening rings, from classical shell-buckling theory in free public sources (no code charts) | ⬜ |
 | 0.4.0 | Milestone: vessels reviewed | ⬜ |
@@ -402,6 +404,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 ### 2026-11-01: Session 2, continued (0.3.4: vertical vessels)
 - Engine: `Skirt`, `supports()`, `compressive_allow`, `check_in`; benchmark 28 (83 checks: wind base shear from the projected outline matched to the newton, seismic within 1e-3). V-101 gains its skirt, bolts, 1 kPa wind and 0.15 g.
 - UI: the Wind, seismic and skirt editor, skirt and base ring drawn, the section table; two UI checks. Checked in the real app.
+
+### 2026-11-01: Session 2, continued (0.3.5: bolted flanges and covers)
+- Engine: `BodyFlange`, `flange_check`, `ring_y`; unit test and benchmark 29 (86 checks). V-101's manway cover.
+- UI: flanges editor and results table; the nozzle-size unit bug and the schedule box display fixed with UI checks. Checked in the real app.
 
 ## 5. Known limits (0.2.0)
 

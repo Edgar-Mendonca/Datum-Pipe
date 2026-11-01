@@ -161,6 +161,9 @@ fn separator() -> Model {
         // in a 1 kPa wind and 0.15 g of static seismic (example values).
         skirt: Some(crate::vessel::Skirt { h: 2.5, t: 0.012, ring_od: 2.25, ring_id: 1.55, ring_t: 0.03, bolts: 12, bolt_d: 0.0262, bc: 2.05, bolt_s: 140e6, bearing: 7e6 }),
         seis: 0.15,
+        // The manway's bolted cover (example dimensions and gasket factors: take yours from the
+        // flange standard and the gasket maker).
+        flanges: vec![crate::vessel::BodyFlange { name: "M1 cover".into(), ..Default::default() }],
         ..Default::default()
     };
     let mut st = d.m.settings.clone();

@@ -364,6 +364,13 @@ const shots = process.env.SHOTS;
   check("the shell governs", ((await p.textContent(".vsum")) ?? "").includes("set by Shell"));
   check("V-101 shows wind, seismic, the skirt, bolts and base ring", vt.includes("Wind, seismic and the skirt") && vt.includes("Anchor bolts") && vt.includes("Base ring thickness") && vt.includes("Skirt (base)"));
   check("the skirt editor shows for a vertical vessel", vt.includes("On a skirt") && vt.includes("Bolt circle"));
+  const scheds = await p.$$eval(".vleft table:nth-of-type(2) tbody tr td:nth-child(5) select:nth-of-type(2)", xs => xs.map(x => x.value));
+  check("each nozzle's schedule box shows its own schedule", scheds[0] === "80" && scheds[2] === "160", scheds.join(","));
+  // Picking a size sends the library's dimensions (in metres) unchanged.
+  await p.selectOption(".vleft table:nth-of-type(2) tbody tr:nth-child(1) td:nth-child(5) select >> nth=0", "6"); await p.waitForTimeout(250);
+  const nn = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetVessels).map(c => c[1].op.SetVessels.list[0].nozzles[0]).pop());
+  check("picking a nozzle size sends its outside diameter in metres", Math.abs(nn.od - 0.168275) < 1e-6 && nn.t > 0.005 && nn.t < 0.02, JSON.stringify(nn));
+  check("V-101's manway cover is checked by the bolted flange method", vt.includes("Bolted flanges and covers") && vt.includes("M1 cover (cover, thickness)"));
   await p.click('.vpage h1 button:has-text("Add a horizontal vessel")'); await p.waitForTimeout(300);
   const nv = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetVessels).map(c => c[1].op.SetVessels.list).pop());
   check("Add a horizontal vessel adds one with two heads and a shell", Array.isArray(nv) && nv.length === 2 && nv[1].vertical === false && nv[1].parts.length === 3, JSON.stringify(nv?.[1]?.parts?.map(x => x.kind)));

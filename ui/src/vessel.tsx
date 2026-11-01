@@ -3,7 +3,7 @@
 // engine checks them after every edit, and this page shows the drawing, the thicknesses, the MAWP,
 // the test pressure and the weights.
 import { For, Show, createSignal, createResource, JSX } from "solid-js";
-import { Vessel, VPart, VNozzle, VesselCheck, VesselResult, Library, invoke, num } from "./api";
+import { Vessel, VPart, VNozzle, BodyFlange, VesselCheck, VesselResult, Library, invoke, num } from "./api";
 import { model, act, toast, onEditHook, onLoadHook } from "./store";
 import { Help } from "./help";
 import { F, T, library } from "./props";
@@ -103,6 +103,13 @@ export const VesselTables = (p: { v: Vessel; r: VesselResult }) => (
       </tbody></table>
       <p class="muted small">Area replacement: the opening's d × tr (tr the wall the part needs with E = 1) made up by the shell's excess (A1), the neck's (A2), the welds and the pad, within the reinforcement limit (pad up to 2 d). The neck must be at least the larger of its pressure thickness and the smaller of the shell's need and the standard-wall pipe's 87.5 %, with corrosion. Pipe necks count 87.5 % of their wall.</p>
     </Show>
+    <Show when={(p.r.flanges ?? []).length}>
+      <h4>Bolted flanges and covers</h4>
+      <table class="tbl rtable"><thead><tr><th>Flange</th><th class="r">G {unit("len")}</th><th class="r">Wm1 {unit("force")}</th><th class="r">Wm2</th><th class="r">Bolt area needed {unit("area")}</th><th class="r">Bolt area</th><th class="r">Operating</th><th class="r">Seating</th><th class="r">Allowable</th><th>Result</th></tr></thead><tbody>
+        <For each={p.r.flanges}>{(f, k) => { const blind = (p.v.flanges ?? [])[k()]?.blind; const q: Q = blind ? "len" : "stress"; return <tr><td>{f.name}{blind ? " (cover, thickness)" : " (ring, stress)"}</td><td class="r">{v4("len", f.g)}</td><td class="r">{v4("force", f.wm1)}</td><td class="r">{v4("force", f.wm2)}</td><td class="r">{v4("area", f.am)}</td><td class="r" classList={{ bad: !f.bolts_pass }}>{v4("area", f.ab)}</td><td class="r">{v4(q, f.op)}</td><td class="r">{v4(q, f.seat)}</td><td class="r">{blind ? `${v4("len", f.op_allow)} given` : `${v4("stress", f.op_allow)} / ${v4("stress", f.seat_allow)}`}</td><td><Badge pass={f.pass} /></td></tr>; }}</For>
+      </tbody></table>
+      <p class="muted small">The bolted flange method: the gasket's effective width b and diameter G, the operating bolt load Wm1 = H + Hp (pressure end force and gasket compression m P) and the seating load Wm2 = π b G y; the bolts must give the larger area. A ring flange's tangential stress Y Mo / (t² B) from the moments of the end force, the face force and the gasket load about the bolt circle; a blind cover's thickness G √(0.3 P/S + 1.9 W hG/(S G³)). The gasket factors m and y and the allowables are your inputs.</p>
+    </Show>
     <Show when={p.r.support}>{_ => { const su = p.r.support!; return <>
       <h4>Wind, seismic and the skirt</h4>
       <p class="muted small">Base shear: wind {v4("force", su.shear_wind)}, seismic {v4("force", su.shear_seis)} {unit("force")}; base moment: wind {v4("moment", su.moment_wind)}, seismic {v4("moment", su.moment_seis)} {unit("moment")} (the larger is used). Weight operating {v4("force", su.weight_op)}, empty {v4("force", su.weight_empty)} {unit("force")}.</p>
@@ -166,8 +173,8 @@ const NozzlesTable = (p: { i: number; v: Vessel }) => {
   const set = (l: VNozzle[]) => putV(p.i, { nozzles: l });
   const put = (j: number, x: Partial<VNozzle>) => set(list().map((q, k) => k === j ? { ...q, ...x } : q));
   const sizes = () => (lib() as Library | undefined)?.sizes ?? [];
-  const schedOf = (z: VNozzle) => sizes().find(s => s.nps === z.nps)?.schedules.find(sc => Math.abs(sc[1] * 0.0254 - z.t) < 1e-5)?.[0] ?? "";
-  const setSize = (j: number, nps: string, sched: string) => { const s = sizes().find(x => x.nps === nps); const sc = s?.schedules.find(x => x[0] === sched) ?? s?.schedules.find(x => x[0] === "80") ?? s?.schedules[0]; if (s && sc) put(j, { nps, od: s.od * 0.0254, t: sc[1] * 0.0254, pipe: true }); };
+  const schedOf = (z: VNozzle) => sizes().find(s => s.nps === z.nps)?.schedules.find(sc => Math.abs(sc[1] - z.t) < 1e-6)?.[0] ?? "";
+  const setSize = (j: number, nps: string, sched: string) => { const s = sizes().find(x => x.nps === nps); const sc = s?.schedules.find(x => x[0] === sched) ?? s?.schedules.find(x => x[0] === "80") ?? s?.schedules[0]; if (s && sc) put(j, { nps, od: s.od, t: sc[1], pipe: true }); };
   const add = () => { const shell = Math.max(0, p.v.parts.findIndex(x => x.kind === "cylinder")); set([...list(), { name: `N${list().length + 1}`, part: shell, pos: (p.v.parts[shell]?.len ?? 2) / 2, angle: 0, nps: "4", od: 0.1143, t: 0.00856, pipe: true, leg: 0.008, pad_od: 0, pad_t: 0, pad_leg: 0, proj: 0.2 }]); };
   return (
     <>
@@ -177,8 +184,8 @@ const NozzlesTable = (p: { i: number; v: Vessel }) => {
           <td><select style={{ width: "110px" }} onChange={e => put(j(), { part: +e.currentTarget.value })}><For each={p.v.parts}>{(x, k) => <option value={k()} selected={k() === z.part}>{x.name}</option>}</For></select></td>
           <td title="Along the axis from the part's start (shells, cones), or the offset from the axis (heads)">{cell("coord", z.pos, pos => put(j(), { pos }), 64)}</td>
           <td><input class="mono" style={{ width: "44px" }} value={z.angle} onChange={e => put(j(), { angle: +e.currentTarget.value || 0 })} /></td>
-          <td class="nowrap"><select style={{ width: "62px" }} onChange={e => setSize(j(), e.currentTarget.value, schedOf(z) || "80")}><option value="" selected={!z.pipe}>plate</option><For each={sizes()}>{s => <option value={s.nps} selected={z.pipe && s.nps === z.nps}>{s.nps}"</option>}</For></select>
-            <Show when={z.pipe}><select style={{ width: "62px" }} onChange={e => setSize(j(), z.nps, e.currentTarget.value)}><For each={sizes().find(s => s.nps === z.nps)?.schedules ?? []}>{sc => <option value={sc[0]} selected={sc[0] === schedOf(z)}>{sc[0]}</option>}</For></select></Show></td>
+          <td class="nowrap"><Show when={sizes().length} fallback={<span class="muted">…</span>}><select style={{ width: "62px" }} value={z.pipe ? z.nps : ""} onChange={e => setSize(j(), e.currentTarget.value, schedOf(z) || "80")}><option value="" selected={!z.pipe}>plate</option><For each={sizes()}>{s => <option value={s.nps} selected={z.pipe && s.nps === z.nps}>{s.nps}"</option>}</For></select>
+            <Show when={z.pipe}><select style={{ width: "62px" }} value={schedOf(z)} onChange={e => setSize(j(), z.nps, e.currentTarget.value)}><For each={sizes().find(s => s.nps === z.nps)?.schedules ?? []}>{sc => <option value={sc[0]} selected={sc[0] === schedOf(z)}>{sc[0]}</option>}</For></select></Show></Show></td>
           <td class="nowrap">{cell("len", z.od, od => od > 2 * z.t ? put(j(), { od, pipe: false, nps: "" }) : toast("The outside diameter must be over twice the wall."), 58)} × {cell("len", z.t, t => t > 0 && 2 * t < z.od ? put(j(), { t, pipe: false, nps: "" }) : toast("The wall must be above 0 and under half the diameter."), 46)}</td>
           <td>{cell("len", z.leg, leg => leg >= 0 && put(j(), { leg }), 40)}</td>
           <td class="nowrap">{cell("len", z.pad_od, pad_od => pad_od >= 0 && put(j(), { pad_od, pad_leg: z.pad_leg || z.leg }), 52)} × {cell("len", z.pad_t, pad_t => pad_t >= 0 && put(j(), { pad_t }), 40)}</td>
@@ -187,6 +194,35 @@ const NozzlesTable = (p: { i: number; v: Vessel }) => {
       </tbody></table>
       <p class="ibtns"><button class="btn sm" onClick={add}>Add a nozzle</button></p>
       <p class="muted small">Pick a pipe size and schedule for the neck (its wall counts at 87.5 %), or type the outside diameter and wall of a rolled-plate neck. Pad OD 0 = no pad.</p>
+    </>
+  );
+};
+
+const FlangesTable = (p: { i: number; v: Vessel }) => {
+  const list = () => p.v.flanges ?? [];
+  const set = (l: BodyFlange[]) => putV(p.i, { flanges: l });
+  const put = (j: number, x: Partial<BodyFlange>) => set(list().map((q, k) => k === j ? { ...q, ...x } : q));
+  const n = (j: number, k: keyof BodyFlange, q: Q, w = 54) => cell(q, list()[j][k] as number, x => x >= 0 ? put(j, { [k]: x } as any) : toast("Sizes and stresses are 0 or more."), w);
+  return (
+    <>
+      <Show when={list().length}>
+        <table class="tbl vparts"><thead><tr><th>Flange</th><th>Kind</th><th>A × B × C × t ({unit("len")})</th><th>Gasket OD × ID</th><th>m</th><th>y ({unit("stress")})</th><th>Bolts × root area ({unit("area")})</th><th>S bolts amb./des.</th><th>S flange amb./des.</th><th /></tr></thead><tbody>
+          <For each={list()}>{(f, j) => <tr>
+            <td><input style={{ width: "80px" }} value={f.name} onChange={e => put(j(), { name: e.currentTarget.value })} /></td>
+            <td><select style={{ width: "110px" }} value={f.blind ? "blind" : "ring"} onChange={e => put(j(), { blind: e.currentTarget.value === "blind", b: e.currentTarget.value === "blind" ? 0 : (f.b || f.g_id * 0.9) })}><option value="blind" selected={f.blind}>Blind cover</option><option value="ring" selected={!f.blind}>Ring flange</option></select></td>
+            <td class="nowrap">{n(j(), "a", "len")}×<Show when={!f.blind} fallback={<span class="muted"> — </span>}>{n(j(), "b", "len")}</Show>×{n(j(), "c", "len")}×{n(j(), "t", "len", 40)}</td>
+            <td class="nowrap">{n(j(), "g_od", "len")}×{n(j(), "g_id", "len")}</td>
+            <td><input class="mono" style={{ width: "36px" }} value={f.m} onChange={e => { const x = +e.currentTarget.value; if (x >= 0) put(j(), { m: x }); }} /></td>
+            <td>{n(j(), "y", "stress", 44)}</td>
+            <td class="nowrap"><input class="mono" style={{ width: "32px" }} value={f.bolts} onChange={e => { const x = Math.round(+e.currentTarget.value); if (x > 0) put(j(), { bolts: x }); }} />×{n(j(), "bolt_area", "area", 50)}</td>
+            <td class="nowrap">{n(j(), "sa", "stress", 40)}/{n(j(), "sb", "stress", 40)}</td>
+            <td class="nowrap">{n(j(), "sfa", "stress", 40)}/{n(j(), "sfo", "stress", 40)}</td>
+            <td><button class="x" title="Remove this flange" onClick={() => set(list().filter((_, k) => k !== j()))}>×</button></td>
+          </tr>}</For>
+        </tbody></table>
+      </Show>
+      <p class="ibtns"><button class="btn sm" onClick={() => set([...list(), { name: `F${list().length + 1}`, blind: true, a: 0.775, b: 0, c: 0.686, t: 0.05, g_od: 0.584, g_id: 0.54, m: 2, y: 11e6, bolts: 24, bolt_area: 599e-6, sa: 172e6, sb: 172e6, sfa: 138e6, sfo: 138e6 }])}>Add a flange or cover</button></p>
+      <p class="muted small">Blind covers and ring (slip-on, lap-joint) flanges at the vessel's design pressure. Example values: take the dimensions from the flange standard and the gasket factors m and y from the gasket maker.</p>
     </>
   );
 };
@@ -216,6 +252,8 @@ export const VesselPage = () => {
             <PartsTable i={i()} v={v()!} />
             <h4>Nozzles</h4>
             <NozzlesTable i={i()} v={v()!} />
+            <h4>Bolted flanges and covers</h4>
+            <FlangesTable i={i()} v={v()!} />
             <Show when={v()!.vertical}>
               <h4>Wind, seismic and skirt</h4>
               <div class="two"><div class="iprow"><label>Wind shape factor Cd</label><input class="mono" value={v()!.wind_cd ?? 0.7} onChange={e => { const x = +e.currentTarget.value; if (x >= 0) putV(i(), { wind_cd: x }); }} /></div><div class="iprow"><label>Diameter factor (ladders, platforms)</label><input class="mono" value={v()!.wind_dfac ?? 1.2} onChange={e => { const x = +e.currentTarget.value; if (x >= 1) putV(i(), { wind_dfac: x }); else toast("The factor is 1 or more."); }} /></div></div>

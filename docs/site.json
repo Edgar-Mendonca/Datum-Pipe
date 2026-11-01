@@ -192,7 +192,7 @@
     {
       "v": "0.3.0",
       "title": "Equipment and flanges, complete",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Everything in 0.2.1–0.2.9 reviewed, with the verification record and examples updated",
         "Every source checked: only what is free to the public, or derived from first principles",
@@ -202,7 +202,7 @@
     {
       "v": "0.3.1",
       "title": "Vessels: shells and heads",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "A Vessel workspace in Datum Pipe",
         "Shells and heads under internal pressure: required thickness, maximum allowable working pressure, test pressure, report"

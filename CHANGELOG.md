@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-11-01
+
+The equipment and flanges stage, complete.
+
+**Reviewed.** Everything in 0.2.1–0.2.9 (ease of use, speed, equipment nozzles, flange leakage, relief valve thrust, nozzle flexibility, expansion joints, wind by height and both directions, .pcf export) was reviewed with the full checks: every benchmark (68), every hand-worked case, every example solving and balancing, the UI checks, and the real app.
+
+**Sources checked.** Every equation and value the app uses was checked against one rule: only what is published openly, or derived from first principles, with code tables left as your inputs. Help › Sources now shows the flange leakage equation's derivation from the statics of the gasket ring.
+
+**Next.** Pressure vessels, in Datum Pipe: shells and heads, nozzles, saddles, vertical vessels, body flanges, lugs and legs, the piping link and external pressure, step by step to 0.4.0.
+
 ## 0.2.9 — 2026-11-01
 
 Export a piping component file.

@@ -309,7 +309,17 @@ const shots = process.env.SHOTS;
   check("adding a relief valve adds a row", (await p.$$(".dlg .tbl tbody tr")).length === 2);
   await p.click('.dlg .tbl tbody tr:nth-child(2) button.x'); await p.waitForTimeout(300);
   check("removing it takes the row away", (await p.$$(".dlg .tbl tbody tr")).length === 1);
-  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+  await p.click('.dlg button:text-is("Close")'); await p.waitForTimeout(150);
+  check("the relief dialog closes", (await p.$$(".dlg")).length === 0);
+
+  // 16. Nozzle flexibility: the tank outlet's wall stiffness in the nozzle's Inspector.
+  await open("tank");
+  await p.click('.egrid tbody tr:nth-child(1) td.rn'); await p.waitForTimeout(150);
+  await p.click('.insp button:text-is("Node 10")'); await p.waitForTimeout(150);
+  await p.click('.insp button.ti:has-text("TK-401 outlet")'); await p.waitForTimeout(150);
+  const insp = (await p.textContent(".insp")) ?? "";
+  const vals = await p.$$eval(".insp input", xs => xs.map(x => x.value));
+  check("the nozzle Inspector has the wall flexibility with the example's stiffness", insp.includes("Wall flexibility") && insp.includes("Bending, circ.") && vals.includes("35000"), vals.join(","));
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

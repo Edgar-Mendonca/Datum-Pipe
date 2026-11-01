@@ -23,7 +23,7 @@ export type SupKind =
   | { kind: "anchor" } | { kind: "rest" } | { kind: "guide" } | { kind: "linestop" } | { kind: "restraint"; dir: V3 }
   | { kind: "spring"; dir: V3; k: number } | { kind: "rotspring"; dir: V3; k: number } | { kind: "constant"; load: number } | { kind: "hanger"; k: number; cold: number };
 export interface Support { id: number; node: number; kind: SupKind; k: number; disp: [number[], number[], number[]]; tag: string; one_way: boolean; gap: number; mu: number }
-export interface Nozzle { id: number; node: number; name: string; axis: V3; allow: [number, number, number, number] }
+export interface Nozzle { id: number; node: number; name: string; axis: V3; allow: [number, number, number, number]; stiff?: [number, number, number, number, number]; vessel?: V3 }
 export interface Load { id: number; node: number; f: V3; m: V3 }
 export type CaseKind = "sus" | "ope" | "exp" | "hyd" | "occ";
 export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean; relief?: boolean } | { kind: "range"; a: number; b: number };

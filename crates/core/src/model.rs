@@ -325,11 +325,27 @@ pub struct Nozzle {
     pub axis: [f64; 3],
     /// Allowable axial force, shear force, torsion and bending moment (N, N·m).
     pub allow: [f64; 4],
+    /// The flexibility of the equipment wall at the nozzle (0.2.6), the user's values (from the
+    /// vessel's maker, or their own calculation): axial and shear stiffness (N/m), torsional,
+    /// longitudinal and circumferential bending stiffness (N·m/rad); 0 = rigid. Used when an
+    /// anchor sits at the nozzle's node: it then holds along the nozzle's own axes.
+    #[serde(default)]
+    pub stiff: [f64; 5],
+    /// The vessel's axis, which tells longitudinal from circumferential bending; 0 = vertical.
+    #[serde(default)]
+    pub vessel: [f64; 3],
+}
+
+impl Nozzle {
+    /// Whether the wall at the nozzle is flexible in any direction.
+    pub fn flexible(&self) -> bool {
+        self.stiff.iter().any(|v| *v > 0.0)
+    }
 }
 
 impl Default for Nozzle {
     fn default() -> Self {
-        Nozzle { id: 0, node: 10, name: "Nozzle".into(), axis: [0.0; 3], allow: [0.0; 4] }
+        Nozzle { id: 0, node: 10, name: "Nozzle".into(), axis: [0.0; 3], allow: [0.0; 4], stiff: [0.0; 5], vessel: [0.0; 3] }
     }
 }
 
@@ -751,8 +767,8 @@ impl Model {
             }
         }
         for z in &self.nozzles {
-            if !nodes.contains(&z.node) || z.axis.iter().chain(z.allow.iter()).any(|v| !fin(*v)) || z.allow.iter().any(|v| *v < 0.0) {
-                return Err(format!("The nozzle {} must be on a node of the model, with allowables of 0 or more.", z.name));
+            if !nodes.contains(&z.node) || z.axis.iter().chain(z.allow.iter()).chain(z.stiff.iter()).chain(z.vessel.iter()).any(|v| !fin(*v)) || z.allow.iter().chain(z.stiff.iter()).any(|v| *v < 0.0) {
+                return Err(format!("The nozzle {} must be on a node of the model, with allowables and stiffnesses of 0 or more.", z.name));
             }
         }
         for l in &self.loads {
@@ -1061,7 +1077,7 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     let nodes: HashSet<u32> = m.nodes.iter().map(|n| n.num).collect();
     let (a, b, c) = (m.supports.len(), m.nozzles.len(), m.loads.len());
     m.supports.retain(|s| nodes.contains(&s.node));
-    m.nozzles.retain(|z| nodes.contains(&z.node) && z.axis.iter().chain(z.allow.iter()).all(|v| fin(*v)) && z.allow.iter().all(|v| *v >= 0.0));
+    m.nozzles.retain(|z| nodes.contains(&z.node) && z.axis.iter().chain(z.allow.iter()).chain(z.stiff.iter()).chain(z.vessel.iter()).all(|v| fin(*v)) && z.allow.iter().chain(z.stiff.iter()).all(|v| *v >= 0.0));
     let els: HashSet<u32> = m.elements.iter().map(|e| e.id).collect();
     let nf = m.flanges.len();
     m.flanges.retain(|f| els.contains(&f.element) && f.gasket >= 0.0 && fin(f.gasket) && f.rating >= 0.0 && fin(f.rating));

@@ -331,6 +331,22 @@ fn restraints(kind: &SupKind, k: f64, t: V) -> Vec<(V, bool, f64)> {
     }
 }
 
+/// The six restraints of an anchor at a flexible nozzle with axis `a`: along the axis (axial
+/// stiffness), across it in the circumferential direction c and the longitudinal direction l of
+/// the vessel (shear), turning about the axis (torsion), about c (longitudinal bending: the moment
+/// in the plane of the nozzle and the vessel's axis) and about l (circumferential bending).
+/// A stiffness of 0 holds rigidly.
+pub fn nozzle_restraints(z: &crate::model::Nozzle, a: V) -> Vec<(V, bool, f64)> {
+    let a = unit(a);
+    let v = if norm(z.vessel) > 1e-9 { unit(z.vessel) } else { [0.0, 1.0, 0.0] };
+    let c0 = cross(a, v);
+    // A nozzle along the vessel's axis (on a head) has no longitudinal plane: any perpendicular will do.
+    let c = if norm(c0) > 1e-6 { unit(c0) } else { axes(a).2 };
+    let l = cross(c, a);
+    let k = z.stiff;
+    vec![(a, false, k[0]), (c, false, k[1]), (l, false, k[1]), (a, true, k[2]), (c, true, k[3]), (l, true, k[4])]
+}
+
 /// Turn the solver's "[dof n]" mark in a mechanism message into the node and the direction nothing
 /// holds, so the person can go there.
 fn locate_free(e: String, g: &Geom) -> String {
@@ -862,9 +878,27 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let mut springs: Vec<Spring> = vec![];
     let mut conds: Vec<Cond> = vec![];
     let mut frics: Vec<Fric> = vec![];
+    // Each nozzle's axis: given, or along the pipe from the nozzle into it.
+    let nozzle_axes: Vec<(u32, usize, V)> = m.nozzles.iter().filter_map(|z| {
+        let pt = *g.node_point.get(&z.node)?;
+        let a = if norm(z.axis) > 1e-9 { unit(z.axis) } else {
+            // Along the pipe, pointing from the nozzle into it.
+            let s = g.segs.iter().find(|s| s.a == pt || s.b == pt)?;
+            let (p, t) = g.at(s, if s.a == pt { 0.0 } else { 1.0 });
+            let _ = p;
+            if s.a == pt { t } else { scale(t, -1.0) }
+        };
+        Some((z.id, pt, a))
+    }).collect();
     for sp in &m.supports {
         let Some(&pt) = g.node_point.get(&sp.node) else { continue };
         let (t, clear) = pipe_dir(&g, pt);
+        // An anchor at a flexible nozzle holds along the nozzle's own axes, with the wall's stiffness.
+        let flex = if sp.kind == SupKind::Anchor { m.nozzles.iter().find(|z| z.node == sp.node && z.flexible()) } else { None };
+        let list = match flex.and_then(|z| nozzle_axes.iter().find(|x| x.0 == z.id).map(|x| (z, x.2))) {
+            Some((z, a)) => nozzle_restraints(z, a),
+            None => restraints(&sp.kind, sp.k, t),
+        };
         if !clear && matches!(sp.kind, SupKind::Guide | SupKind::Linestop) {
             warnings.push(format!("The guide or line stop at node {} is at a corner, where the pipe has no single axis: it uses the first element's direction. Put it a little along the run, or use a restraint with its direction.", sp.node));
         }
@@ -872,7 +906,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             let normals: Vec<V> = restraints(&sp.kind, sp.k, t).into_iter().filter(|r| !r.1).map(|r| r.0).collect();
             frics.push(Fric { support: sp.id, node: sp.node, pt, across: across(&normals), mu: sp.mu });
         }
-        for (dir, rot, k) in restraints(&sp.kind, sp.k, t) {
+        for (dir, rot, k) in list {
             let u0 = [0, 1, 2].map(|c| { let d = &sp.disp[c]; dot(dir, if rot { [d[3], d[4], d[5]] } else { [d[0], d[1], d[2]] }) });
             if sp.conditional() && !rot {
                 conds.push(Cond { support: sp.id, node: sp.node, pt, dir, k, gap: sp.gap, one_way: sp.one_way && sp.kind == SupKind::Rest, u0 });
@@ -1107,17 +1141,6 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     // ---------------------------------------------------------------- results per case
     let mut by_id: HashMap<u32, CaseResult> = HashMap::new();
     let mut raw: HashMap<u32, Vec<[[f64; 6]; 2]>> = HashMap::new();
-    let nozzle_axes: Vec<(u32, usize, V)> = m.nozzles.iter().filter_map(|z| {
-        let pt = *g.node_point.get(&z.node)?;
-        let a = if norm(z.axis) > 1e-9 { unit(z.axis) } else {
-            // Along the pipe, pointing from the nozzle into it.
-            let s = g.segs.iter().find(|s| s.a == pt || s.b == pt)?;
-            let (p, t) = g.at(s, if s.a == pt { 0.0 } else { 1.0 });
-            let _ = p;
-            if s.a == pt { t } else { scale(t, -1.0) }
-        };
-        Some((z.id, pt, a))
-    }).collect();
     let mut results: Vec<CaseResult> = vec![];
     for c in &m.cases {
         let r = match c.recipe {

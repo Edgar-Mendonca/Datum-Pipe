@@ -94,6 +94,9 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.2.6 | **First rule (owner, 2026-11-01): never compare Datum Pipe with commercial software, or name any, in anything public** (README, CHANGELOG, site.json, help, commits, release notes, examples). Comparisons for the owner stay in the conversation only | The owner's most important rule, on top of FAMILY §13 |
+| 0.2.6 | Vessel nozzle local stresses are not implemented: the methods in use are copyrighted bulletins (charts and curve fits) and no free closed form was found. Flexibility is the user's stiffness values; a calculated option waits on reading the public ORNL report (ORNL/Sub/2913-6, 1979), whose host is blocked by this environment's network | Never from memory, never from copyrighted charts |
+| 0.2.6 | `Nozzle.stiff` [axial, shear, torsion, longitudinal bending, circumferential bending] and `Nozzle.vessel` (serde default, 0 = rigid / vertical); an anchor at a flexible nozzle's node uses `nozzle_restraints` (axis a, circumferential c = a × v, longitudinal l = c × a) instead of its global directions | Reuses the support machinery: imposed growth, reactions and nozzle loads unchanged |
 | 0.2.4 | Flange leakage by Kellogg's equivalent pressure (`flange.rs`): `Model.flanges` (element, G, rating) via `Op::SetFlanges`; per Sum case the largest P_eq over the element's segment ends from |Fa| and the bending resultant; ratio (P + P_eq)/rating | A public method with every flange value the user's input; |Fa| is on the safe side |
 | 0.2.5 | Relief thrust from first principles (`relief.rs`): momentum and pressure thrust of an ideal gas at a sonic exit, F = DLF (ṁV + (P − Pa)A); matches the published API RP 520 Part II form (unit test in US units, < 0.5 %) | Physics anyone can derive, so nothing copyrighted; the standard is named by number only |
 | 0.2.5 | `Model.reliefs` via `Op::SetReliefs`; a point force at the open end in cases with `Recipe::Sum.relief` (serde default); cases OPE1+RV and OCC RV like wind; direction along the pipe out of the open end unless given; a non-open end without a direction is an analysis error | The same pattern as the other occasional loads; no silent guess at a direction |
@@ -209,8 +212,12 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.2.3 | Pump, compressor and steam turbine nozzle checks (published equations; allowable tables are inputs) | ✅ |
 | 0.2.4 | Flange leakage (equivalent pressure method) | ✅ |
 | 0.2.5 | Relief valve thrust (open discharge reaction, occasional) | ✅ |
-| 0.2.6 | Vessel nozzle flexibility and local stresses, only from published equations | 🔜 |
-| 0.3.0 | Milestone: 0.2.1–0.2.6 reviewed; no new features | ⬜ |
+| 0.2.6 | Vessel nozzle flexibility from the user's stiffness values (local stresses not done: copyrighted bulletins) | ✅ |
+| 0.2.7 | Expansion joints (bellows: axial, lateral, angular, torsional stiffness; pressure thrust) | 🔜 |
+| 0.2.8 | Wind pressure by height (user table); static seismic in both directions | ⬜ |
+| 0.2.9 | .pcf export | ⬜ |
+| 0.3.0 | Milestone: 0.2.1–0.2.9 reviewed; no new features | ⬜ |
+| 0.6 | Later: load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
 | 0.4 | Dynamics: modes, harmonic, response spectrum; the regulator's public piping benchmark problems (NUREG/CR-1677) | ⬜ |
 | 0.5 | Power piping and European piping code equations, buried pipe, cold spring | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
@@ -319,6 +326,11 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Engine: `relief.rs`, `Model.reliefs`, `Op::SetReliefs`, check/repair/finish pruning, `Recipe::Sum.relief`, cases OPE1+RV and OCC RV, the thrust as a point load (and in the independent load sum), `Results.reliefs`. Benchmark 21 and the new example's equilibrium (58 checks), two worked tests, the US-units unit test. Example: Safety valve vent stack (3.61 kN, OCC RV 0.139). Units mflow, area, speed.
 - UI: Loads › Relief Valves dialog, Results › Relief and its report block, the case editor's Relief thrust option, the example tile; help and Sources; five UI checks. Checked in the real app (the dialog was too wide at first: narrowed).
 
+### 2026-11-01: Session 2, continued (0.2.6: vessel nozzle flexibility; roadmap to 0.2.9)
+- Owner reviewed the state of the app; gave the first rule (no comparisons with commercial software in public), chose option 1 for 0.2.6 and allowed releases up to 0.2.9, with gaps added to the roadmap.
+- Engine: `Nozzle.stiff`/`vessel`, `nozzle_restraints`, check/repair; benchmark 22 (61 checks), worked test. Example: the tank outlet's shell flexibility.
+- UI: Wall flexibility in the nozzle Inspector, help topic; one UI check; the relief dialog test now closes with its Close button. Checked in the real app (labels shortened).
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
@@ -333,4 +345,5 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - The .pcf import reads geometry, sizes, in-line items and supports; schedules, materials, temperatures and pressures in the file are not read (set them in Datum Pipe).
 - Pump nozzle checks are component and resultant checks against the entered table values; the pump standard's combined interaction equations are not applied.
 - Relief valve thrust is for an ideal gas at an open discharge only (no liquids, two-phase flow or closed discharge systems), acts with operating case 1 only, and is static (times the load factor; no time history).
+- Nozzle flexibility is the user's stiffness values only; vessel local stresses are not calculated.
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

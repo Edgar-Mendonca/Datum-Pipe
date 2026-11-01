@@ -2,7 +2,7 @@
 // nothing selected, the model's name, title block and analysis settings.
 import { For, Show, Switch, Match, JSX } from "solid-js";
 import { Element, Support, Nozzle, Load, SupKind, V3, num } from "./api";
-import { model, sel, setSel, act } from "./store";
+import { model, sel, setSel, act, toast } from "./store";
 import { C, SUPPORTS } from "./cmds";
 import { Help } from "./help";
 import { F, T, numIn, numInQ } from "./props";
@@ -102,6 +102,8 @@ const SupportPanel = (p: { s: Support }) => {
 const NozzlePanel = (p: { z: Nozzle }) => {
   const z = () => p.z;
   const put = (x: Partial<Nozzle>) => act({ Set: { item: { Nozzle: { ...z(), ...x } } } });
+  const st = () => z().stiff ?? [0, 0, 0, 0, 0];
+  const putS = (i: number, v: number) => { if (v < 0) return toast("A stiffness must be 0 (rigid) or more."); const s = [...st()] as [number, number, number, number, number]; s[i] = v; put({ stiff: s }); };
   return <>
     <p class="iwhat"><b>{z().name}</b> at node {z().node}</p>
     <T l="Name" v={z().name} set={name => put({ name })} />
@@ -109,6 +111,13 @@ const NozzlePanel = (p: { z: Nozzle }) => {
     <Sec t="Allowable loads (0 = not checked)" h="nozzles">
       <div class="two"><F l="Axial force" q="force" v={z().allow[0]} set={v => put({ allow: [v, z().allow[1], z().allow[2], z().allow[3]] })} /><F l="Shear force" q="force" v={z().allow[1]} set={v => put({ allow: [z().allow[0], v, z().allow[2], z().allow[3]] })} /></div>
       <div class="two"><F l="Torsion" q="moment" v={z().allow[2]} set={v => put({ allow: [z().allow[0], z().allow[1], v, z().allow[3]] })} /><F l="Bending moment" q="moment" v={z().allow[3]} set={v => put({ allow: [z().allow[0], z().allow[1], z().allow[2], v] })} /></div>
+    </Sec>
+    <Sec t="Wall flexibility (0 = rigid)" h="nozzleflex">
+      <div class="two"><F l="Axial (radial)" q="tstiff" v={st()[0]} set={v => putS(0, v)} /><F l="Shear" q="tstiff" v={st()[1]} set={v => putS(1, v)} /></div>
+      <div class="two"><F l="Bending, long." q="rstiff" v={st()[3]} set={v => putS(3, v)} /><F l="Bending, circ." q="rstiff" v={st()[4]} set={v => putS(4, v)} /></div>
+      <div class="two"><F l="Torsion" q="rstiff" v={st()[2]} set={v => putS(2, v)} /><div /></div>
+      <V3In l="Vessel axis (0, 0, 0 = vertical)" q="ratio" v={z().vessel ?? [0, 0, 0]} set={vessel => put({ vessel })} />
+      <p class="muted small">Bending in the longitudinal plane (of the nozzle and the vessel's axis) and the circumferential plane. Your values, from the vessel's or tank's maker or your own calculation. With any of them above 0, the anchor at this node holds along the nozzle's axes with these stiffnesses.</p>
     </Sec>
     <Show when={!(model()?.supports ?? []).some(s => s.node === z().node && s.kind.kind === "anchor")}><p class="warnline">Put an anchor at node {z().node} as well: the anchor carries the load, the nozzle reports it.</p></Show>
     <p class="ibtns"><button class="btn sm" onClick={() => setSel({ kind: "node", id: z().node })}>Node {z().node}</button><button class="btn sm" onClick={C.del}>Delete</button></p>

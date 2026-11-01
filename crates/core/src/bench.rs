@@ -7,7 +7,8 @@
 //! (sliding and sticking, by statics and Hooke's law), and wind, static seismic and the
 //! occasional stress on a cantilever (beam theory), and a spring hanger sized by statics and free
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
-//! flange's equivalent pressure, and a relief valve's thrust at an open end. `run()` gives the rows of Help › Verification; the test fails on any row
+//! flange's equivalent pressure, a relief valve's thrust at an open end, and a cantilever from a
+//! flexible nozzle (springs in series). `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -526,6 +527,30 @@ pub fn run() -> Vec<Check> {
         out.push(row(21, name, "Anchor force (up)", "force", f, re[1], TOL, src));
         out.push(row(21, name, "Anchor moment", "moment", 2.0 * f, re[5].abs(), TOL, src));
     }
+    // 22. A cantilever from a flexible nozzle: 2 m of 6" Sch 40 along X from a nozzle on a vertical
+    //     vessel (anchored at 10), 10 kN down at 20, no weight. The moment P L turns the nozzle by
+    //     P L / kθ (longitudinal bending), the shear moves it by P / ks, so the tip goes down by
+    //     P L² / kθ + P / ks more than on a rigid anchor; the anchor's moment is P L by statics.
+    {
+        let (p, l, kt, ks) = (10e3, 2.0, 1e6, 1e7);
+        let run = |flex: bool| {
+            let mut d = table("Nozzle", &[(10, 20, l, 0.0, 0.0)]);
+            let mut s = d.m.settings.clone();
+            s.g = 0.0;
+            d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+            anchor(&mut d, 10);
+            let stiff = if flex { [0.0, ks, 0.0, kt, 0.0] } else { [0.0; 5] };
+            add(&mut d, Item::Nozzle(crate::model::Nozzle { node: 10, name: "N1".into(), axis: [1.0, 0.0, 0.0], stiff, ..Default::default() }));
+            add(&mut d, Item::Load(Load { node: 20, f: [0.0, -p, 0.0], m: [0.0; 3], ..Default::default() }));
+            analyze(&d.m).unwrap()
+        };
+        let (rf, rr) = (run(true), run(false));
+        let name = "A cantilever from a flexible nozzle";
+        let src = "Beam theory with springs in series: P L²/kθ + P/ks, and statics";
+        out.push(row(22, name, "Extra tip deflection", "disp", p * l * l / kt + p / ks, disp(&rr, "OPE1", 20)[1] - disp(&rf, "OPE1", 20)[1], TOL, src));
+        out.push(row(22, name, "Nozzle rotation", "rot", p * l / kt, -disp(&rf, "OPE1", 10)[5], TOL, src));
+        out.push(row(22, name, "Anchor moment", "moment", p * l, reaction(&rf, "OPE1", 10)[5], TOL, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -550,7 +575,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=21 {
+        for b in 1..=22 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.6 — 2026-11-01
+
+Vessel and tank nozzle flexibility.
+
+**The wall gives at the nozzle.** A nozzle point now has the stiffness of the vessel or tank wall at the nozzle: axial (radial to the shell), shear, torsion, and bending in the longitudinal plane (the plane of the nozzle and the vessel's axis) and in the circumferential plane, with the vessel's axis (vertical by default). With any of them above 0, the anchor at the nozzle's node holds along the nozzle's own axes with these stiffnesses; 0 holds that direction rigidly. The equipment's growth given on the anchor still moves the nozzle, and the nozzle loads are reported as before.
+
+**Your inputs.** The stiffnesses come from the vessel's or tank's maker, or your own calculation; Datum Pipe does not calculate them, and local stresses in the vessel wall are left to the vessel engineer, who gets the nozzle loads in the nozzle's axes.
+
+**Example.** The tank outlet example's nozzle has the tank shell's flexibility (example values).
+
+**Verification.** A new benchmark: a cantilever from a flexible nozzle, the extra tip deflection P L²/kθ + P/ks and the nozzle's rotation by hand, the anchor's moment by statics (61 checks). A worked test covers a skewed nozzle, the nozzle's growth through the flexible wall and a nozzle on a head.
+
+**Roadmap.** 0.2.7 expansion joints, 0.2.8 wind that changes with height and seismic in both directions, 0.2.9 .pcf export, then the 0.3.0 review. Later stages gain load combinations, a sustained case with the operating support states, more operating cases, other pipe size standards and jacketed pipe.
+
 ## 0.2.5 — 2026-10-31
 
 Relief valve thrust.

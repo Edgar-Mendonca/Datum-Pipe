@@ -259,11 +259,17 @@ fn tank() -> Model {
     displace(&mut d, 10, 0, [-0.001, 0.0005, 0.0, 0.0, 0.0, 0.0]);
     displace(&mut d, 10, 1, [0.0, -0.012, 0.0, 0.0, 0.0, 0.0]);
     nozzle(&mut d, 10, "TK-401 outlet", [1.0, 0.0, 0.0], [20000.0, 15000.0, 20000.0, 25000.0]);
+    // The tank shell gives at the nozzle (example values; take yours from the tank's maker or your
+    // own calculation): 35 kN/mm radially, 60 MN·m/rad in longitudinal and 120 MN·m/rad in
+    // circumferential bending; rigid in shear and torsion. The tank's axis is vertical.
+    let mut z = d.m.nozzles[0].clone();
+    z.stiff = [3.5e7, 0.0, 0.0, 6e7, 1.2e8];
+    d.apply(Op::Set { item: Item::Nozzle(z) }).expect("nozzle stiffness");
     // A spring near the tank so the settlement does not hang the line off the nozzle.
     support(&mut d, 40, SupKind::Hanger { k: 0.0, cold: 0.0 }, "SH-40");
     support(&mut d, 50, SupKind::Rest, "S-50");
     support(&mut d, 70, SupKind::Anchor, "A-70");
-    meta(&mut d, "Tank outlet with settlement", "10\"-CR-401", "10\" Std carbon steel crude oil at 65 °C from a tank shell nozzle, through a gate valve, round two bends to an anchor. Case 2 is the tank settling 12 mm: a displacement range the piping must take without overloading the nozzle, which is why the first support is a spring hanger, sized by Analyze from the spring table.");
+    meta(&mut d, "Tank outlet with settlement", "10\"-CR-401", "10\" Std carbon steel crude oil at 65 °C from a tank shell nozzle, through a gate valve, round two bends to an anchor. Case 2 is the tank settling 12 mm: a displacement range the piping must take without overloading the nozzle, which is why the first support is a spring hanger, sized by Analyze from the spring table. The tank shell's flexibility at the nozzle is included (example stiffnesses).");
     d.m
 }
 

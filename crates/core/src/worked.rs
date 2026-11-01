@@ -849,3 +849,48 @@ fn a_relief_valve_away_from_an_open_end_needs_a_direction_and_goes_with_its_node
     assert!(d.m.reliefs.is_empty());
     assert!(!d.m.cases.iter().any(|c| c.name.contains("RV")));
 }
+
+#[test]
+fn a_flexible_nozzle_holds_along_its_own_axes_and_passes_on_its_growth() {
+    // 3 m along X from a nozzle whose axis is skewed in the X–Z plane, with only an axial stiffness;
+    // 10 kN pulling along the nozzle axis at the end: the pipe stretches by P L / EA along X's
+    // share, and the nozzle by P / ka. The anchor's growth of 2 mm along Y in case 1 still arrives.
+    let mut d = table("flex", &[(10, 20, 3.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    let a = [1.0, 0.0, 0.0];
+    let ka = 2e7;
+    d.apply(Op::Add { item: Item::Nozzle(Nozzle { node: 10, name: "N".into(), axis: a, stiff: [ka, 0.0, 0.0, 0.0, 0.0], ..Default::default() }), after: None }).unwrap();
+    load(&mut d, 20, [10e3, 0.0, 0.0]);
+    let r = analyze(&d.m).unwrap();
+    let (e, _, ar, _) = props(&d);
+    assert!(close(at(&r, "OPE1", 10)[0], 10e3 / ka, 1e-6), "{:?}", at(&r, "OPE1", 10));
+    assert!(close(at(&r, "OPE1", 20)[0], 10e3 / ka + 10e3 * 3.0 / (e * ar), 1e-6));
+    assert!(close(react(&r, "OPE1", 10)[0], -10e3, 1e-9));
+    // A skewed axis: the same pull along it, with the rigid directions held exactly.
+    let mut z = d.m.nozzles[0].clone();
+    z.axis = [1.0, 0.0, 1.0];
+    d.apply(Op::Set { item: Item::Nozzle(z.clone()) }).unwrap();
+    let r = analyze(&d.m).unwrap();
+    let u = at(&r, "OPE1", 10);
+    let along = (u[0] + u[2]) / 2f64.sqrt();
+    let across = (u[0] - u[2]) / 2f64.sqrt();
+    assert!(close(along, 10e3 / 2f64.sqrt() / ka, 1e-3), "{u:?}");
+    // Rigid skewed directions are springs of 1e12 N/m: a few nanometres give.
+    assert!(across.abs() < 1e-7 && u[1].abs() < 1e-9, "{u:?}");
+    // Growth of the equipment, given on the anchor, moves the nozzle through the flexible wall.
+    let mut s = d.m.supports[0].clone();
+    s.disp[0] = [0.0, 0.002, 0.0, 0.0, 0.0, 0.0];
+    d.apply(Op::Set { item: Item::Support(s) }).unwrap();
+    let r = analyze(&d.m).unwrap();
+    assert!(close(at(&r, "OPE1", 10)[1], 0.002, 1e-9));
+    // On a head (the axis along the vessel's): still solves, with all six directions held.
+    z.axis = [0.0, 1.0, 0.0];
+    z.stiff = [ka, ka, 1e6, 1e6, 1e6];
+    d.apply(Op::Set { item: Item::Nozzle(z) }).unwrap();
+    assert!(analyze(&d.m).is_ok());
+    // Negative stiffness is refused.
+    let mut bad = d.m.clone();
+    bad.nozzles[0].stiff[1] = -1.0;
+    assert!(bad.check().is_err());
+}

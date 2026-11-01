@@ -30,7 +30,7 @@
     "Anchors, one-way rests, guides, line stops and restraints with gaps and friction, skewed restraints, springs, spring hangers sized from your spring table, constant-force supports and imposed equipment movements",
     "Load cases built for you: sustained, operating, expansion range, hydrotest, and wind and static seismic as occasional cases",
     "Code stresses calculated using the equations of the process piping code: hoop stress and minimum wall (straight pipe, bends at their intrados, both ends of reducers), sustained stress, the displacement stress range and occasional stress, with PASS or FAIL at every point",
-    "Support loads for the civil team, nozzle loads in the nozzle's own axes, and steam turbine, compressor and pump nozzle checks against their standards' published criteria; flange leakage by the equivalent pressure method; relief valve thrust at an open discharge as an occasional load",
+    "Support loads for the civil team, nozzle loads in the nozzle's own axes, and steam turbine, compressor and pump nozzle checks against their standards' published criteria; flange leakage by the equivalent pressure method; relief valve thrust at an open discharge as an occasional load; vessel and tank nozzle flexibility from your stiffness values",
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
     "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published"
   ],
@@ -156,10 +156,37 @@
     },
     {
       "v": "0.2.6",
-      "title": "Vessel nozzles",
+      "title": "Vessel nozzle flexibility",
+      "when": "Done",
+      "items": [
+        "The wall's stiffness at a nozzle (axial, shear, torsion, longitudinal and circumferential bending), your inputs from the maker or your own calculation",
+        "The anchor at the nozzle holds along the nozzle's axes with them"
+      ]
+    },
+    {
+      "v": "0.2.7",
+      "title": "Expansion joints",
       "when": "Next",
       "items": [
-        "Nozzle flexibility and local stresses at vessels, where published equations allow (not copyrighted charts)"
+        "Bellows expansion joints with axial, lateral, angular and torsional stiffness from the maker's data",
+        "The pressure thrust of an untied bellows (pressure × effective area)"
+      ]
+    },
+    {
+      "v": "0.2.8",
+      "title": "Wind by height, seismic both ways",
+      "when": "Planned",
+      "items": [
+        "Wind pressure that changes with elevation, from your table",
+        "Static seismic in both directions along each axis"
+      ]
+    },
+    {
+      "v": "0.2.9",
+      "title": "Export",
+      "when": "Planned",
+      "items": [
+        "Export the model as a plain-text piping component file (.pcf)"
       ]
     },
     {
@@ -167,7 +194,7 @@
       "title": "Equipment and flanges, complete",
       "when": "Milestone",
       "items": [
-        "Everything in 0.2.1–0.2.6 reviewed, with the verification record and examples updated",
+        "Everything in 0.2.1–0.2.9 reviewed, with the verification record and examples updated",
         "No new features: 0.3.0 marks the stage as finished"
       ]
     },
@@ -191,6 +218,19 @@
         "Power piping and European piping code equations",
         "Buried pipe",
         "Cold spring",
+        "Broken into small 0.x.y steps before it starts"
+      ]
+    },
+    {
+      "v": "0.6",
+      "title": "More options",
+      "when": "Later",
+      "items": [
+        "Load combinations (algebraic, square root of the sum of squares, absolute)",
+        "A sustained case with the operating support states",
+        "More operating cases",
+        "Pipe sizes to other national standards",
+        "Jacketed pipe",
         "Broken into small 0.x.y steps before it starts"
       ]
     },

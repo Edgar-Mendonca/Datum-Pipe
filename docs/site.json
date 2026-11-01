@@ -212,7 +212,7 @@
     {
       "v": "0.3.2",
       "title": "Vessels: nozzles",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Nozzle reinforcement by area replacement, nozzle neck thickness"
       ]
@@ -220,7 +220,7 @@
     {
       "v": "0.3.3",
       "title": "Vessels: horizontal on saddles",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "Stresses in a horizontal vessel on two saddles"
       ]

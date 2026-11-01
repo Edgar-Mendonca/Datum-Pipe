@@ -18,6 +18,14 @@
 //! hydrotest pressure 1.3 × MAWP × (S cold / S hot). The allowable stresses, the joint
 //! efficiencies and the yield strength are the user's inputs, pre-filled with typical values.
 //! Weights and volumes come from each part's profile turned about the axis.
+//!
+//! Nozzles (0.3.2) are checked by area replacement: the metal the opening removes, d × tr (d the
+//! corroded opening, tr the wall the part needs for pressure with a joint efficiency of 1), must be
+//! made up within the reinforcement limits by the shell's excess thickness A1 = max(d, 2 (t + tn))
+//! (t − tr), the neck's A2 = 5 (tn − trn) min(t, tn), the welds (leg²) and a reinforcing pad
+//! (Dp − d − 2 tn) te with Dp up to 2 d. The neck itself must be at least the larger of its own
+//! pressure thickness and the smaller of the shell's required thickness and the standard-wall
+//! pipe's minimum (87.5 % of its nominal), each with the corrosion allowance.
 
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +93,64 @@ pub struct Vessel {
     /// Extra weight of internals, platforms and insulation (kg).
     pub extra: f64,
     pub parts: Vec<Part>,
+    /// Nozzles (0.3.2).
+    #[serde(default)]
+    pub nozzles: Vec<VNozzle>,
+}
+
+/// A nozzle on a vessel: the part it is on, where (cylinders and cones: the distance from the
+/// part's start along the axis; heads: the offset from the axis), its direction round the vessel
+/// (degrees, for the drawing), the neck pipe (outside diameter and nominal wall, pipe with a 12.5 %
+/// under-tolerance when `pipe`), its nominal size for the standard-wall minimum, the outside fillet
+/// weld leg, and a reinforcing pad (outside diameter, thickness, its weld leg; 0 = none).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VNozzle {
+    pub name: String,
+    pub part: usize,
+    pub pos: f64,
+    pub angle: f64,
+    pub nps: String,
+    pub od: f64,
+    pub t: f64,
+    pub pipe: bool,
+    pub leg: f64,
+    pub pad_od: f64,
+    pub pad_t: f64,
+    pub pad_leg: f64,
+    /// Outward projection from the shell (m), for the drawing.
+    pub proj: f64,
+}
+
+impl Default for VNozzle {
+    fn default() -> Self {
+        let (od, t) = crate::library::pipe("4", "80").unwrap_or((0.1143, 0.00856));
+        VNozzle { name: "N1".into(), part: 1, pos: 1.0, angle: 0.0, nps: "4".into(), od, t, pipe: true, leg: 0.008, pad_od: 0.0, pad_t: 0.0, pad_leg: 0.0, proj: 0.2 }
+    }
+}
+
+/// A nozzle's result: the areas (m²) and the neck's thickness check.
+#[derive(Clone, Debug, Serialize)]
+pub struct NozzleResult {
+    pub name: String,
+    pub d: f64,
+    pub tr: f64,
+    pub trn: f64,
+    pub a_req: f64,
+    pub a1: f64,
+    pub a2: f64,
+    pub a41: f64,
+    pub a5: f64,
+    pub a42: f64,
+    pub a_avail: f64,
+    pub area_pass: bool,
+    pub t_neck_req: f64,
+    pub t_neck: f64,
+    pub neck_pass: bool,
+    pub pass: bool,
+    /// Where it is drawn: (radius, axial position) of the root and the direction (degrees).
+    pub at: [f64; 2],
+    pub warnings: Vec<String>,
 }
 
 impl Default for Vessel {
@@ -108,6 +174,7 @@ impl Default for Vessel {
                 Part { name: "Shell".into(), kind: PartKind::Cylinder, d: 1.5, len: 4.0, t: 0.014, e: 1.0 },
                 Part { name: "Top head".into(), kind: PartKind::Ellipsoidal, d: 1.5, len: 0.0, t: 0.014, e: 1.0 },
             ],
+            nozzles: vec![],
         }
     }
 }
@@ -158,6 +225,7 @@ pub struct VesselResult {
     /// The outline: (radius, axial position) of the outside surface from the bottom (or left) end to
     /// the top, for the drawing; and the inside radius at the same points.
     pub outline: Vec<[f64; 3]>,
+    pub nozzles: Vec<NozzleResult>,
     pub warnings: Vec<String>,
 }
 
@@ -300,8 +368,78 @@ impl Vessel {
                 _ => {}
             }
         }
+        for z in &self.nozzles {
+            if z.part >= n || ![z.pos, z.angle, z.od, z.t, z.leg, z.pad_od, z.pad_t, z.pad_leg, z.proj].iter().all(|v| fin(*v)) || !(z.od > 0.0 && z.t > 0.0 && 2.0 * z.t < z.od) || [z.leg, z.pad_od, z.pad_t, z.pad_leg, z.proj].iter().any(|v| *v < 0.0) {
+                return Err(format!("The nozzle {} of {}: it needs a part of the vessel, an outside diameter larger than twice its wall, and sizes of 0 or more.", z.name, self.name));
+            }
+            if z.pad_od > 0.0 && z.pad_od <= z.od {
+                return Err(format!("The nozzle {} of {}: its pad must be larger than the nozzle.", z.name, self.name));
+            }
+        }
         Ok(())
     }
+}
+
+/// The nozzle checks of a vessel, given each part's design pressure and axial span.
+fn nozzles(v: &Vessel, pressures: &[f64], spans: &[[f64; 2]]) -> Vec<NozzleResult> {
+    v.nozzles.iter().map(|z| {
+        let p = &v.parts[z.part];
+        let ca = v.corrosion;
+        let pd = pressures[z.part];
+        let mut warnings = vec![];
+        // The part's required thickness for pressure with E = 1 (the opening is away from the welds).
+        let kind = match p.kind { PartKind::Cone { d_end } => PartKind::Cone { d_end: d_end + 2.0 * ca }, ref k => k.clone() };
+        let d_part = match p.kind { PartKind::Cone { d_end } => p.d + (d_end - p.d) * (z.pos / p.len.max(1e-9)).clamp(0.0, 1.0), _ => p.d };
+        let (tr, _, _) = pressure(&kind, d_part + 2.0 * ca, p.len, pd, v.s, 1.0, 0.0);
+        let t = p.t - ca - v.under;
+        let tn_nom = if z.pipe { z.t * 0.875 } else { z.t };
+        let tn = tn_nom - ca;
+        let d = z.od - 2.0 * z.t + 2.0 * ca;
+        let rn = d / 2.0;
+        let trn = pd * rn / (v.s - 0.6 * pd);
+        let a_req = d * tr;
+        let a1 = d.max(2.0 * (t + tn)) * (t - tr);
+        let a2 = (5.0 * (tn - trn) * t.min(tn)).max(0.0) * if tn > trn { 1.0 } else { 0.0 };
+        let a41 = z.leg * z.leg;
+        let (a5, a42) = if z.pad_od > 0.0 && z.pad_t > 0.0 {
+            let dp = z.pad_od.min(2.0 * d);
+            if z.pad_od > 2.0 * d {
+                warnings.push(format!("The pad of {} reaches past the reinforcement limit (2 d = {:.0} mm): only the part inside it counts.", z.name, 2.0 * d * 1e3));
+            }
+            (((dp - d - 2.0 * tn).max(0.0)) * z.pad_t, z.pad_leg * z.pad_leg)
+        } else {
+            (0.0, 0.0)
+        };
+        let a_avail = a1.max(0.0) + a2 + a41 + a5 + a42;
+        let area_pass = a_avail + 1e-15 >= a_req;
+        // The neck's minimum: its pressure thickness, but at least the smaller of the shell's need and
+        // the standard-wall pipe's minimum, each with the corrosion allowance.
+        let std = crate::library::pipe(&z.nps, "STD").filter(|s| (s.0 - z.od).abs() < 1e-4).map(|s| s.1 * 0.875);
+        let tb1 = tr + ca;
+        let tb = match std { Some(s) => tb1.min(s + ca), None => tb1 };
+        let t_neck_req = (trn + ca).max(tb);
+        let neck_pass = tn_nom + 1e-12 >= t_neck_req;
+        if d > p.d / 2.0 && d > 0.508 {
+            warnings.push(format!("{} is a large opening (over half the diameter and over 508 mm): area replacement alone may not be enough.", z.name));
+        }
+        if z.pipe && std.is_none() {
+            warnings.push(format!("{}: no standard-wall pipe of that size in the library, so the neck's minimum uses the shell's need.", z.name));
+        }
+        // Where to draw it.
+        let at = match p.kind {
+            PartKind::Cylinder | PartKind::Cone { .. } => [d_part / 2.0 + p.t, spans[z.part][0] + z.pos],
+            _ => {
+                let h = head_depth(&p.kind, p.d);
+                let (zt, sign) = if z.part == 0 { (spans[z.part][1], -1.0) } else { (spans[z.part][0], 1.0) };
+                let r = z.pos.abs().min(p.d / 2.0 * 0.95);
+                // The head's outside surface height at radius r (an ellipse is close enough to draw).
+                let a = p.d / 2.0;
+                let dz = h * (1.0 - (r / a).powi(2)).max(0.0).sqrt() + p.t;
+                [z.pos, zt + sign * dz]
+            }
+        };
+        NozzleResult { name: z.name.clone(), d, tr, trn, a_req, a1, a2, a41, a5, a42, a_avail, area_pass, t_neck_req, t_neck: tn_nom, neck_pass, pass: area_pass && neck_pass, at, warnings }
+    }).collect()
 }
 
 /// Check a vessel.
@@ -394,8 +532,13 @@ pub fn check(v: &Vessel) -> Result<VesselResult, String> {
             outline.push([q[0] + t, q[1], q[0]]);
         }
     }
-    let pass = out.iter().all(|p| p.pass);
-    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, warnings })
+    let pressures: Vec<f64> = out.iter().map(|x| x.p).collect();
+    let nz = nozzles(v, &pressures, &spans);
+    for z in &nz {
+        warnings.extend(z.warnings.iter().cloned());
+    }
+    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass);
+    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, warnings })
 }
 
 /// The liquid's volume: up to the level (vertical, from the bottom tangent line) or the part of the
@@ -490,6 +633,40 @@ mod tests {
         assert!((h - 0.169_338).abs() < 1e-5, "{h}");
         let p = head_profile(&PartKind::Torispherical { crown: 1.0, knuckle: 0.06 }, 1.0, 48);
         assert!((p[0][0] - 0.5).abs() < 1e-12 && p.last().unwrap()[0].abs() < 1e-9 && (p.last().unwrap()[1] - h).abs() < 1e-9, "{:?}", p.last());
+    }
+
+    #[test]
+    fn nozzle_area_rules() {
+        // A 6" Sch 40 nozzle in a 1 m shell, 10 bar, S 138 MPa, no corrosion, t 10 mm, no pad.
+        let (od, tn) = crate::library::pipe("6", "40").unwrap();
+        let mut v = Vessel { corrosion: 0.0, p: 10e5, liquid: 0.0, ..Default::default() };
+        for p in &mut v.parts {
+            p.d = 1.0;
+            p.t = 0.010;
+        }
+        v.nozzles = vec![VNozzle { part: 1, pos: 1.0, nps: "6".into(), od, t: tn, pipe: true, leg: 0.006, ..Default::default() }];
+        let r = check(&v).unwrap();
+        let z = &r.nozzles[0];
+        let tr = 10e5 * 0.5 / (138e6 - 0.6e6);
+        let d = od - 2.0 * tn;
+        let t_n = tn * 0.875;
+        let trn = 10e5 * d / 2.0 / (138e6 - 0.6e6);
+        assert!(close(z.a_req, d * tr, 1e-12));
+        assert!(close(z.a1, d.max(2.0 * (0.010 + t_n)) * (0.010 - tr), 1e-12));
+        assert!(close(z.a2, 5.0 * (t_n - trn) * t_n.min(0.010), 1e-12));
+        assert!(close(z.a_avail, z.a1 + z.a2 + 0.006f64.powi(2), 1e-12));
+        // The neck's minimum: the smaller of the shell's need and the standard wall's 87.5 %.
+        let std = crate::library::pipe("6", "STD").unwrap().1 * 0.875;
+        assert!(close(z.t_neck_req, trn.max(tr.min(std)), 1e-12));
+        // A pad past 2 d counts only up to 2 d, and says so.
+        v.nozzles[0].pad_od = 3.0 * d;
+        v.nozzles[0].pad_t = 0.01;
+        let r = check(&v).unwrap();
+        assert!(close(r.nozzles[0].a5, (2.0 * d - d - 2.0 * t_n) * 0.01, 1e-12));
+        assert!(r.warnings.iter().any(|w| w.contains("reinforcement limit")));
+        // A pad smaller than the nozzle is refused.
+        v.nozzles[0].pad_od = od * 0.9;
+        assert!(check(&v).is_err());
     }
 
     #[test]

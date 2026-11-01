@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, and a vertical vessel's shell and heads. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, and a vessel nozzle's reinforcement. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -647,6 +647,29 @@ pub fn run() -> Vec<Check> {
         let vol = std::f64::consts::PI * 0.9f64.powi(2) * 6.0 + 2.0 * std::f64::consts::PI * 1.8f64.powi(3) / 24.0;
         out.push(row(25, name, "Volume", "ratio", vol, r.volume, 2e-3, "π R² L + 2 × π D³ / 24"));
     }
+    // 26. V-101's 8" Sch 80 inlet with a 380 × 16 mm pad, by area replacement: d = OD − 2 t + 2 c,
+    //     tr the shell's need with E = 1 at its pressure, A = d tr; available A1 = max(d, 2 (t + tn))
+    //     (t − tr), A2 = 5 (tn − trn) min(t, tn), A41 = A42 = 10² mm², A5 = (Dp − d − 2 tn) te; the
+    //     neck's minimum max(trn + c, min(tr + c, 0.875 t_std + c)). tn = 0.875 × 12.7 − 3 mm.
+    {
+        let m = crate::examples::get("separator").unwrap();
+        let r = crate::vessel::check(&m.vessels[0]).unwrap();
+        let z = &r.nozzles[0];
+        let g = 9.806_65;
+        let p = 16e5 + 850.0 * g * 1.8;
+        let (od, tw): (f64, f64) = (8.625 * 0.0254, 0.500 * 0.0254);
+        let d = od - 2.0 * tw + 0.006;
+        let tr = p * (0.9 + 0.003) / (138e6 - 0.6 * p);
+        let (t, tn): (f64, f64) = (0.013, 0.875 * tw - 0.003);
+        let trn = p * d / 2.0 / (138e6 - 0.6 * p);
+        let avail = d.max(2.0 * (t + tn)) * (t - tr) + 5.0 * (tn - trn) * t.min(tn) + 2.0 * 0.01f64.powi(2) + (0.38 - d - 2.0 * tn) * 0.016;
+        let std = 0.875 * 0.322 * 0.0254;
+        let name = "A vessel nozzle's reinforcement (V-101, N1)";
+        let src = "Area replacement within the reinforcement limits";
+        out.push(row(26, name, "Area required d tr", "area", d * tr, z.a_req, TOL, src));
+        out.push(row(26, name, "Area available", "area", avail, z.a_avail, TOL, src));
+        out.push(row(26, name, "Neck's minimum thickness", "len", (trn + 0.003).max((tr + 0.003).min(std + 0.003)), z.t_neck_req, TOL, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -671,7 +694,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=25 {
+        for b in 1..=26 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

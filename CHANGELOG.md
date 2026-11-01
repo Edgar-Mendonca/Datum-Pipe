@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.2 — 2026-11-01
+
+Vessel nozzles.
+
+**Nozzles on vessels.** Each vessel takes nozzles: the part they are on and where, the neck (a pipe size and schedule, its wall counted at 87.5 %, or the diameter and wall of a rolled-plate neck), the outside weld leg, and a reinforcing pad.
+
+**Reinforcement by area replacement.** The metal the opening removes, d × tr (tr the wall the part needs for its pressure with a joint efficiency of 1), must be made up within the reinforcement limit by the shell's excess thickness, the neck's, the welds and the pad (counted up to twice the opening). The neck must be at least the larger of its own pressure thickness and the smaller of the shell's need and 87.5 % of the standard-wall pipe, with corrosion. Large openings are flagged.
+
+**On the page.** Nozzles are edited under the parts, drawn on the vessel, and checked in a Nozzles table with every area; a nozzle that fails turns red and fails the vessel.
+
+**Example.** V-101 has its 8" inlet, 6" gas outlet, 4" liquid outlet and 20" manway, with pads: all pass.
+
+**Verification.** A new benchmark: V-101's inlet by area replacement and its neck's minimum by hand (76 checks); a unit test of the rules (pad past the limit, the neck's minimum).
+
 ## 0.3.1 — 2026-11-01
 
 Pressure vessels: shells and heads.

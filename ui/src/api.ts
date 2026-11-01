@@ -98,9 +98,11 @@ export interface EquipRow { what: string; unit: string; value: number; allow: nu
 export interface EquipCheck { name: string; kind: EquipKind; rows: EquipRow[]; pass: boolean }
 export type PartKind = { kind: "cylinder" } | { kind: "ellipsoidal" } | { kind: "torispherical"; crown: number; knuckle: number } | { kind: "hemispherical" } | { kind: "cone"; d_end: number };
 export type VPart = { name: string; d: number; len: number; t: number; e: number } & PartKind;
-export interface Vessel { name: string; vertical: boolean; p: number; temp: number; s: number; s_cold: number; sy: number; corrosion: number; under: number; rho: number; liquid: number; level: number; extra: number; parts: VPart[] }
+export interface VNozzle { name: string; part: number; pos: number; angle: number; nps: string; od: number; t: number; pipe: boolean; leg: number; pad_od: number; pad_t: number; pad_leg: number; proj: number }
+export interface NozzleResult { name: string; d: number; tr: number; trn: number; a_req: number; a1: number; a2: number; a41: number; a5: number; a42: number; a_avail: number; area_pass: boolean; t_neck_req: number; t_neck: number; neck_pass: boolean; pass: boolean; at: [number, number]; warnings: string[] }
+export interface Vessel { nozzles?: VNozzle[]; name: string; vertical: boolean; p: number; temp: number; s: number; s_cold: number; sy: number; corrosion: number; under: number; rho: number; liquid: number; level: number; extra: number; parts: VPart[] }
 export interface VPartResult { name: string; z: [number, number]; p: number; static_head: number; t_req: number; t_min: number; t_nom: number; mawp: number; mawp_top: number; map: number; test_stress: number; test_allow: number; pass: boolean; formula: string; volume: number; metal: number }
-export interface VesselResult { name: string; parts: VPartResult[]; mawp: number; map: number; test: number; governs: number | null; volume: number; empty: number; operating: number; test_weight: number; pass: boolean; outline: [number, number, number][]; warnings: string[] }
+export interface VesselResult { name: string; parts: VPartResult[]; mawp: number; map: number; test: number; governs: number | null; volume: number; empty: number; operating: number; test_weight: number; pass: boolean; outline: [number, number, number][]; nozzles?: NozzleResult[]; warnings: string[] }
 export interface VesselCheck { result: VesselResult | null; error: string | null }
 export interface Relief { name: string; node: number; flow: number; k: number; temp: number; mw: number; area: number; dir: V3; dlf: number; ambient: number }
 export interface ReliefResult { name: string; node: number; area: number; velocity: number; pressure: number; choked: boolean; stat: number; thrust: number; dlf: number; force: V3 }

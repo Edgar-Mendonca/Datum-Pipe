@@ -125,8 +125,12 @@ fn bellows() -> Model {
 /// allowable stresses, joint efficiencies and yield strength are to be checked against the code
 /// edition and the material certificate).
 fn separator() -> Model {
-    use crate::vessel::{Part, PartKind, Vessel};
+    use crate::vessel::{Part, PartKind, VNozzle, Vessel};
     let mut d = Doc::new(Model::new());
+    let noz = |name: &str, part: usize, pos: f64, angle: f64, nps: &str, sch: &str, leg: f64, pad: (f64, f64, f64)| {
+        let (od, t) = crate::library::pipe(nps, sch).expect("nozzle size");
+        VNozzle { name: name.into(), part, pos, angle, nps: nps.into(), od, t, pipe: true, leg, pad_od: pad.0, pad_t: pad.1, pad_leg: pad.2, proj: 0.25 }
+    };
     let head = |name: &str| Part { name: name.into(), kind: PartKind::Ellipsoidal, d: 1.8, len: 0.0, t: 0.016, e: 1.0 };
     let v = Vessel {
         name: "V-101".into(),
@@ -143,9 +147,16 @@ fn separator() -> Model {
         level: 1.8,
         extra: 1500.0,
         parts: vec![head("Bottom head"), Part { name: "Shell".into(), kind: PartKind::Cylinder, d: 1.8, len: 6.0, t: 0.016, e: 0.85 }, head("Top head")],
+        nozzles: vec![
+            noz("N1 inlet", 1, 4.5, 0.0, "8", "80", 0.010, (0.38, 0.016, 0.010)),
+            noz("N2 gas outlet", 2, 0.0, 0.0, "6", "80", 0.008, (0.3, 0.016, 0.008)),
+            noz("N3 liquid outlet", 0, 0.0, 0.0, "4", "160", 0.008, (0.18, 0.016, 0.008)),
+            // The manway's neck is rolled from 16 mm plate (no pipe under-tolerance).
+            VNozzle { name: "M1 manway".into(), part: 1, pos: 1.2, angle: 180.0, nps: String::new(), od: 0.54, t: 0.016, pipe: false, leg: 0.012, pad_od: 0.84, pad_t: 0.016, pad_leg: 0.012, proj: 0.3 },
+        ],
     };
     d.apply(Op::SetVessels { list: vec![v] }).expect("vessel");
-    meta(&mut d, "Vertical separator V-101", "V-101", "A vertical two-phase separator: 1800 mm inside diameter, 6000 mm between tangent lines, 2:1 semi-ellipsoidal heads; 16 bar and 200 °C, 3 mm corrosion allowance; carbon steel plate with an allowable stress of 138 MPa hot and cold and a yield of 260 MPa (example values); shell joint efficiency 0.85 (spot radiography), seamless heads 1.0. The liquid (850 kg/m³) stands 1.8 m above the bottom tangent line in operation; internals and platforms add 1500 kg. Open the Vessels view for the thicknesses, the MAWP, the test pressure and the weights.");
+    meta(&mut d, "Vertical separator V-101", "V-101", "A vertical two-phase separator: 1800 mm inside diameter, 6000 mm between tangent lines, 2:1 semi-ellipsoidal heads, an 8\" inlet, 6\" gas and 4\" liquid outlets and a 20\" manway with reinforcing pads; 16 bar and 200 °C, 3 mm corrosion allowance; carbon steel plate with an allowable stress of 138 MPa hot and cold and a yield of 260 MPa (example values); shell joint efficiency 0.85 (spot radiography), seamless heads 1.0. The liquid (850 kg/m³) stands 1.8 m above the bottom tangent line in operation; internals and platforms add 1500 kg. Open the Vessels view for the thicknesses, the MAWP, the test pressure and the weights.");
     d.m
 }
 

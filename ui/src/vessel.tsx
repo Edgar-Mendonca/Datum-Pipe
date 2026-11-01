@@ -2,11 +2,11 @@
 // data and a row of parts (heads, cylinders, cones) from the bottom (or the left) to the top; the
 // engine checks them after every edit, and this page shows the drawing, the thicknesses, the MAWP,
 // the test pressure and the weights.
-import { For, Show, createSignal, JSX } from "solid-js";
-import { Vessel, VPart, VesselCheck, VesselResult, invoke, num } from "./api";
+import { For, Show, createSignal, createResource, JSX } from "solid-js";
+import { Vessel, VPart, VNozzle, VesselCheck, VesselResult, Library, invoke, num } from "./api";
 import { model, act, toast, onEditHook, onLoadHook } from "./store";
 import { Help } from "./help";
-import { F, T } from "./props";
+import { F, T, library } from "./props";
 import { Q, toU, fromU, unit, parseQ } from "./units";
 import { Badge } from "./results";
 
@@ -52,10 +52,10 @@ export const VesselDrawing = (p: { v: Vessel; r: VesselResult; w?: number; h?: n
     return { z0: Math.min(...zs), z1: Math.max(...zs), r: Math.max(...rs) };
   };
   // Vertical: z up the page; horizontal: z across it.
-  const sc = () => { const b = box(); const len = b.z1 - b.z0 || 1, wid = 2 * b.r || 1; return p.v.vertical ? Math.min((H - 40) / len, (W - 90) / wid) : Math.min((W - 40) / len, (H - 90) / wid); };
+  const sc = () => { const b = box(); const len = b.z1 - b.z0 || 1, wid = 2 * b.r || 1; return p.v.vertical ? Math.min((H - 90) / len, (W - 120) / wid) : Math.min((W - 110) / len, (H - 90) / wid); };
   const at = (r: number, z: number): [number, number] => {
     const b = box(), s = sc();
-    return p.v.vertical ? [W / 2 + r * s, H - 20 - (z - b.z0) * s] : [20 + (z - b.z0) * s, H / 2 - r * s];
+    return p.v.vertical ? [W / 2 + r * s, H - 45 - (z - b.z0) * s] : [55 + (z - b.z0) * s, H / 2 - r * s];
   };
   const path = (k: 0 | 2) => { const o = pts(); const side = (sg: number) => o.map(q => at(sg * q[k], q[1])); const a = side(1), b = side(-1).reverse(); return "M" + [...a, ...b].map(x => `${x[0].toFixed(1)} ${x[1].toFixed(1)}`).join("L") + "Z"; };
   const tangents = () => p.r.parts.flatMap((x, i) => i === 0 ? [] : [x.z[0]]);
@@ -66,6 +66,13 @@ export const VesselDrawing = (p: { v: Vessel; r: VesselResult; w?: number; h?: n
       <path d={path(2)} fill="var(--panel)" stroke="var(--muted)" stroke-width="0.8" />
       <Show when={level() !== null && p.v.level > 0 && p.v.liquid > 0}>{_ => { const b = box(); const y = Math.min(p.v.level, b.z1); const [x0, y0] = at(-b.r, y), [x1] = at(b.r, y); return <line x1={x0} y1={y0} x2={x1} y2={y0} stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="6 3" />; }}</Show>
       <For each={tangents()}>{z => { const b = box(); const [x0, y0] = at(-b.r - 0.06 / sc() * 40, z), [x1, y1] = at(b.r + 0.06 / sc() * 40, z); return <line x1={x0} y1={y0} x2={x1} y2={y1} stroke="var(--muted)" stroke-width="0.8" stroke-dasharray="2 3" />; }}</For>
+      <For each={p.r.nozzles ?? []}>{(z, k) => { const nz = (p.v.nozzles ?? [])[k()]; if (!nz) return null; const part = p.v.parts[nz.part]; const onShell = part && (part.kind === "cylinder" || part.kind === "cone");
+        const side = Math.cos((nz.angle * Math.PI) / 180) >= 0 ? 1 : -1; const s = sc(); const L = Math.max(nz.proj, 0.05) * s, w = nz.od * s;
+        const [x0, y0] = onShell ? at(side * z.at[0], z.at[1]) : at(z.at[0], z.at[1]);
+        const dirx = onShell ? (p.v.vertical ? side : 0) : (p.v.vertical ? 0 : (nz.part === 0 ? -1 : 1)), diry = onShell ? (p.v.vertical ? 0 : -side) : (p.v.vertical ? (nz.part === 0 ? 1 : -1) : 0);
+        const nx = -diry, ny = dirx;
+        const q = (a: number, b: number) => `${(x0 + dirx * a + nx * b).toFixed(1)} ${(y0 + diry * a + ny * b).toFixed(1)}`;
+        return <g><path d={`M${q(0, -w / 2)}L${q(L, -w / 2)}L${q(L, w / 2)}L${q(0, w / 2)}`} fill="var(--bg2)" stroke={z.pass ? "var(--text)" : "var(--crit)"} stroke-width="1.3" /><path d={`M${q(L, -w / 2 - 3)}L${q(L, w / 2 + 3)}`} stroke={z.pass ? "var(--text)" : "var(--crit)"} stroke-width="2.4" /><text x={x0 + dirx * (L + 6) + (dirx === 0 ? 4 : 0)} y={y0 + diry * (L + 6) + (diry === 0 ? -4 : 4)} font-size="10" text-anchor={dirx < 0 ? "end" : "start"} fill="var(--muted)">{nz.name.split(" ")[0]}</text></g>; }}</For>
       <For each={p.r.parts}>{(x, i) => { const b = box(); const zm = (x.z[0] + x.z[1]) / 2; const [tx, ty] = p.v.vertical ? at(b.r, zm) : at(0, zm); return <text x={p.v.vertical ? tx + 8 : tx} y={p.v.vertical ? ty + 4 : ty} font-size="11" text-anchor={p.v.vertical ? "start" : "middle"} fill={x.pass ? "var(--text)" : "var(--crit)"}>{x.name}{p.r.governs === i() ? " ◂" : ""}</text>; }}</For>
     </svg>
   );
@@ -84,6 +91,13 @@ export const VesselTables = (p: { v: Vessel; r: VesselResult }) => (
     <table class="tbl rtable"><thead><tr><th>Part</th><th class="r">Design P {unit("press")}</th><th class="r">Static head</th><th class="r">t for pressure {unit("len")}</th><th class="r">t + corrosion</th><th class="r">Nominal</th><th class="r">MAWP</th><th class="r">MAWP at top</th><th class="r">MAP</th><th class="r">Test stress {unit("stress")}</th><th class="r">0.9 Sy</th><th>Result</th></tr></thead><tbody>
       <For each={p.r.parts}>{x => <tr><td title={x.formula}>{x.name}</td><td class="r">{v4("press", x.p)}</td><td class="r">{v4("press", x.static_head)}</td><td class="r">{v4("len", x.t_req)}</td><td class="r">{v4("len", x.t_min)}</td><td class="r">{v4("len", x.t_nom)}</td><td class="r">{v4("press", x.mawp)}</td><td class="r">{v4("press", x.mawp_top)}</td><td class="r">{v4("press", x.map)}</td><td class="r">{v4("stress", x.test_stress)}</td><td class="r">{p.v.sy > 0 ? v4("stress", x.test_allow) : "—"}</td><td><Badge pass={x.pass} /></td></tr>}</For>
     </tbody></table>
+    <Show when={(p.r.nozzles ?? []).length}>
+      <h4>Nozzles</h4>
+      <table class="tbl rtable"><thead><tr><th>Nozzle</th><th class="r">d {unit("len")}</th><th class="r">tr</th><th class="r">trn</th><th class="r">Required {unit("area")}</th><th class="r">A1 shell</th><th class="r">A2 neck</th><th class="r">Welds</th><th class="r">A5 pad</th><th class="r">Available</th><th class="r">Neck min. {unit("len")}</th><th class="r">Neck</th><th>Result</th></tr></thead><tbody>
+        <For each={p.r.nozzles}>{z => <tr><td>{z.name}</td><td class="r">{v4("len", z.d)}</td><td class="r">{v4("len", z.tr)}</td><td class="r">{v4("len", z.trn)}</td><td class="r">{v4("area", z.a_req)}</td><td class="r">{v4("area", Math.max(0, z.a1))}</td><td class="r">{v4("area", z.a2)}</td><td class="r">{v4("area", z.a41 + z.a42)}</td><td class="r">{v4("area", z.a5)}</td><td class="r" classList={{ bad: !z.area_pass }}>{v4("area", z.a_avail)}</td><td class="r">{v4("len", z.t_neck_req)}</td><td class="r" classList={{ bad: !z.neck_pass }}>{v4("len", z.t_neck)}</td><td><Badge pass={z.pass} /></td></tr>}</For>
+      </tbody></table>
+      <p class="muted small">Area replacement: the opening's d × tr (tr the wall the part needs with E = 1) made up by the shell's excess (A1), the neck's (A2), the welds and the pad, within the reinforcement limit (pad up to 2 d). The neck must be at least the larger of its pressure thickness and the smaller of the shell's need and the standard-wall pipe's 87.5 %, with corrosion. Pipe necks count 87.5 % of their wall.</p>
+    </Show>
     <p class="muted small mono">{[...new Set(p.r.parts.map(x => x.formula))].map(f => `${p.r.parts.filter(x => x.formula === f).map(x => x.name).join(", ")}: ${f}`).join(" · ")}</p>
     <p class="muted small">Thin-shell membrane equations on the corroded inside dimensions, with the liquid's static head at each part's lowest point. MAWP at the top is the lowest of the parts' MAWP less their static head. The allowable stresses, joint efficiencies and yield strength are your inputs: check them against your code edition and the material certificates.</p>
   </>
@@ -122,6 +136,37 @@ const PartsTable = (p: { i: number; v: Vessel }) => {
   );
 };
 
+const NozzlesTable = (p: { i: number; v: Vessel }) => {
+  const [lib] = createResource(library);
+  const list = () => p.v.nozzles ?? [];
+  const set = (l: VNozzle[]) => putV(p.i, { nozzles: l });
+  const put = (j: number, x: Partial<VNozzle>) => set(list().map((q, k) => k === j ? { ...q, ...x } : q));
+  const sizes = () => (lib() as Library | undefined)?.sizes ?? [];
+  const schedOf = (z: VNozzle) => sizes().find(s => s.nps === z.nps)?.schedules.find(sc => Math.abs(sc[1] * 0.0254 - z.t) < 1e-5)?.[0] ?? "";
+  const setSize = (j: number, nps: string, sched: string) => { const s = sizes().find(x => x.nps === nps); const sc = s?.schedules.find(x => x[0] === sched) ?? s?.schedules.find(x => x[0] === "80") ?? s?.schedules[0]; if (s && sc) put(j, { nps, od: s.od * 0.0254, t: sc[1] * 0.0254, pipe: true }); };
+  const add = () => { const shell = Math.max(0, p.v.parts.findIndex(x => x.kind === "cylinder")); set([...list(), { name: `N${list().length + 1}`, part: shell, pos: (p.v.parts[shell]?.len ?? 2) / 2, angle: 0, nps: "4", od: 0.1143, t: 0.00856, pipe: true, leg: 0.008, pad_od: 0, pad_t: 0, pad_leg: 0, proj: 0.2 }]); };
+  return (
+    <>
+      <table class="tbl vparts"><thead><tr><th>Nozzle</th><th>On</th><th>At ({unit("coord")})</th><th>Angle °</th><th>Size</th><th>Neck OD × t ({unit("len")})</th><th>Weld leg</th><th>Pad OD × t</th><th /></tr></thead><tbody>
+        <For each={list()}>{(z, j) => <tr>
+          <td><input style={{ width: "90px" }} value={z.name} onChange={e => put(j(), { name: e.currentTarget.value })} /></td>
+          <td><select style={{ width: "110px" }} onChange={e => put(j(), { part: +e.currentTarget.value })}><For each={p.v.parts}>{(x, k) => <option value={k()} selected={k() === z.part}>{x.name}</option>}</For></select></td>
+          <td title="Along the axis from the part's start (shells, cones), or the offset from the axis (heads)">{cell("coord", z.pos, pos => put(j(), { pos }), 64)}</td>
+          <td><input class="mono" style={{ width: "44px" }} value={z.angle} onChange={e => put(j(), { angle: +e.currentTarget.value || 0 })} /></td>
+          <td class="nowrap"><select style={{ width: "62px" }} onChange={e => setSize(j(), e.currentTarget.value, schedOf(z) || "80")}><option value="" selected={!z.pipe}>plate</option><For each={sizes()}>{s => <option value={s.nps} selected={z.pipe && s.nps === z.nps}>{s.nps}"</option>}</For></select>
+            <Show when={z.pipe}><select style={{ width: "62px" }} onChange={e => setSize(j(), z.nps, e.currentTarget.value)}><For each={sizes().find(s => s.nps === z.nps)?.schedules ?? []}>{sc => <option value={sc[0]} selected={sc[0] === schedOf(z)}>{sc[0]}</option>}</For></select></Show></td>
+          <td class="nowrap">{cell("len", z.od, od => od > 2 * z.t ? put(j(), { od, pipe: false, nps: "" }) : toast("The outside diameter must be over twice the wall."), 58)} × {cell("len", z.t, t => t > 0 && 2 * t < z.od ? put(j(), { t, pipe: false, nps: "" }) : toast("The wall must be above 0 and under half the diameter."), 46)}</td>
+          <td>{cell("len", z.leg, leg => leg >= 0 && put(j(), { leg }), 40)}</td>
+          <td class="nowrap">{cell("len", z.pad_od, pad_od => pad_od >= 0 && put(j(), { pad_od, pad_leg: z.pad_leg || z.leg }), 52)} × {cell("len", z.pad_t, pad_t => pad_t >= 0 && put(j(), { pad_t }), 40)}</td>
+          <td><button class="x" title="Remove this nozzle" onClick={() => set(list().filter((_, k) => k !== j()))}>×</button></td>
+        </tr>}</For>
+      </tbody></table>
+      <p class="ibtns"><button class="btn sm" onClick={add}>Add a nozzle</button></p>
+      <p class="muted small">Pick a pipe size and schedule for the neck (its wall counts at 87.5 %), or type the outside diameter and wall of a rolled-plate neck. Pad OD 0 = no pad.</p>
+    </>
+  );
+};
+
 export const VesselPage = () => {
   const i = () => Math.min(vesselNo(), Math.max(0, list().length - 1));
   const v = () => list()[i()];
@@ -145,6 +190,8 @@ export const VesselPage = () => {
             <p class="muted small">Example values: the allowable stresses, joint efficiencies and yield strength are your inputs from your code edition and material certificates.</p>
             <h4>Parts</h4>
             <PartsTable i={i()} v={v()!} />
+            <h4>Nozzles</h4>
+            <NozzlesTable i={i()} v={v()!} />
             <p class="ibtns"><button class="btn sm" onClick={() => { setList(list().filter((_, k) => k !== i())); setVesselNo(Math.max(0, i() - 1)); }}>Delete this vessel</button></p>
           </div>
           <div class="vright">

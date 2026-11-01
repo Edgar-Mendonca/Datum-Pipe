@@ -249,8 +249,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.3.6 | Vessels: lifting lugs, trunnions, leg supports | ✅ |
 | 0.3.7 | Vessels and piping linked: the piping model's nozzle loads checked on the vessel's nozzle | ✅ |
 | 0.3.8 | Vessels: external pressure and stiffening rings, from classical shell-buckling theory in free public sources (no code charts) | ✅ |
-| 0.4.0 | Milestone: vessels reviewed | 🔜 |
-| 0.5 | Dynamics: modes, harmonic, response spectrum; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ⬜ |
+| 0.4.0 | Milestone: vessels reviewed | ✅ |
+| 0.5 | Dynamics: modes, harmonic, response spectrum; benchmarks by closed-form theory (not the regulator's problem set: government publication) | 🔜 |
 | 0.6 | Power piping and European piping code equations (EN 13445 for vessels too), buried pipe, cold spring | ⬜ |
 | 0.7 | Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
@@ -424,6 +424,15 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 ### 2026-11-01: Session 2, continued (0.3.8: external pressure)
 - Engine: `ExternalRow`, `cylinder_collapse`, `external()`; unit test, benchmark 32 (92 checks). D-201 at full vacuum with rings every 3 m.
 - UI: external pressure inputs and table; a UI check. Checked in the real app.
+
+### 2026-11-01: Session 2, continued (0.4.0: vessels milestone)
+- A hardening test of 200 random vessels (every shape, nozzles, saddles/skirt/legs, flanges, lifting, vacuum): checked with finite results or refused, and round-tripped through the file. Full checks green (92 benchmark checks).
+
+### Summary of the vessels stage (0.3.0–0.4.0)
+- Owner's rules recorded: one app, open or free public sources only (no proprietary or government), vessel formulas as known without naming the code in public text, no comparison with commercial software anywhere public.
+- Vessels: shells/heads/cones (0.3.1), nozzles (0.3.2), saddles (0.3.3), vertical vessels on skirts (0.3.4), bolted flanges and covers (0.3.5), lugs/trunnions/legs (0.3.6), the piping link (0.3.7), external pressure (0.3.8). Examples V-101 (with its inlet line) and D-201.
+- Bugs found and fixed on the way: edit hooks overwritten (stale results), nozzle sizes 40× too small in the editor, schedule boxes blank, a WebGL context leak per view switch.
+- Not done (on purpose or for later): weld-neck flange hub factors (closed forms unverified here), vessel local stresses at nozzles (copyrighted bulletins; later by our own shell model), tubesheets, fitness for service.
 
 ## 5. Known limits (0.2.0)
 

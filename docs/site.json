@@ -268,7 +268,7 @@
     {
       "v": "0.4.0",
       "title": "Vessels, complete",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Everything in 0.3.1–0.3.8 reviewed",
         "No new features: 0.4.0 marks the stage as finished"
@@ -277,7 +277,7 @@
     {
       "v": "0.5",
       "title": "Dynamics",
-      "when": "Later",
+      "when": "Next",
       "items": [
         "Natural frequencies and mode shapes",
         "Harmonic response",

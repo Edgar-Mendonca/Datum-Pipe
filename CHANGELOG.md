@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — 2026-11-01
+
+The vessels stage, complete.
+
+**Pressure vessels in Datum Pipe.** Since 0.3.1 the same app designs pressure vessels next to the piping: shells, heads and cones under internal pressure with the liquid's static head (MAWP, MAP, test pressure, weights); nozzles by area replacement; horizontal vessels on two saddles by Zick's method; vertical vessels on a skirt or legs in wind and seismic, with their anchor bolts and base ring; bolted flanges and covers; lifting lugs and trunnions; the piping's loads checked on the vessel's nozzles; and external pressure with stiffening rings. Two worked examples show it: the Vertical separator V-101 with its inlet line, and the Horizontal drum D-201 on saddles at full vacuum.
+
+**Reviewed.** Every vessel step with the full checks: 92 benchmark checks (eight of them for vessels), the unit tests by hand, the UI checks and the real app. A new hardening test checks 200 random vessels of every shape, with nozzles, saddles or skirts or legs, flanges, lifting and vacuum: each is checked with every result a number, or refused with a reason, and every one round-trips through the file.
+
+**Sources.** Every vessel equation is from the open literature or first principles (membrane theory, area replacement, Zick 1951, the bolted flange method of 1937, plate and beam theory, classical shell buckling), with the allowable stresses, joint efficiencies, gasket factors and yield strengths left as your inputs; Help › Sources lists each one.
+
+**Next.** Dynamics (0.5), then more codes (0.6) and more options (0.7); the rest of the plant (hydraulics, valve sizing, tanks, nozzle stresses by our own shell model) waits in the roadmap.
+
 ## 0.3.8 — 2026-11-01
 
 External pressure on vessels.

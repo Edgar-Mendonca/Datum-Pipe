@@ -273,3 +273,80 @@ fn speed_gate_on_a_large_rack_with_friction() {
     assert!(t.elapsed().as_secs_f64() < limit, "{:?} for {} elements", t.elapsed(), m.elements.len());
     assert!(r.warnings.is_empty() && r.cases.iter().all(|c| c.imbalance < 1e-9));
 }
+
+#[test]
+fn random_vessels_check_or_explain_and_round_trip() {
+    use crate::vessel::{check, BodyFlange, Legs, Lifting, Part, PartKind, Saddles, Skirt, VNozzle, Vessel};
+    let mut ok = 0;
+    for seed in 0..200 {
+        let mut r = Rng::new(5000 + seed);
+        let d = 0.5 + 3.0 * r.f();
+        let vertical = r.int(2) == 0;
+        let head = |r: &mut Rng| match r.int(4) {
+            0 => PartKind::Ellipsoidal,
+            1 => PartKind::Hemispherical,
+            2 => PartKind::Torispherical { crown: 0.8 + 0.2 * r.f(), knuckle: 0.06 + 0.1 * r.f() },
+            _ => PartKind::Ellipsoidal,
+        };
+        let t = 0.004 + 0.04 * r.f();
+        let mut parts = vec![Part { name: "H1".into(), kind: head(&mut r), d, len: 0.0, t, e: 0.7 + 0.3 * r.f() }];
+        let mut dd = d;
+        for k in 0..1 + r.int(3) {
+            if r.int(4) == 0 {
+                let d_end = dd * (0.6 + 0.3 * r.f());
+                parts.push(Part { name: format!("C{k}"), kind: PartKind::Cone { d_end }, d: dd, len: (dd - d_end) / 2.0 / 0.4, t, e: 1.0 });
+                dd = d_end;
+            } else {
+                parts.push(Part { name: format!("S{k}"), kind: PartKind::Cylinder, d: dd, len: 0.5 + 8.0 * r.f(), t, e: 0.85 });
+            }
+        }
+        parts.push(Part { name: "H2".into(), kind: head(&mut r), d: dd, len: 0.0, t, e: 1.0 });
+        let n = parts.len();
+        let (od, wall) = crate::library::pipe("4", "80").unwrap();
+        let nozzles = (0..r.int(3)).map(|k| VNozzle { name: format!("N{k}"), part: r.int(n as u64) as usize, pos: r.f(), angle: 90.0 * r.int(4) as f64, nps: "4".into(), od, t: wall, pipe: true, leg: 0.006, pad_od: if r.int(2) == 0 { 0.25 } else { 0.0 }, pad_t: 0.01, pad_leg: 0.006, proj: 0.2, link: 0 }).collect();
+        let v = Vessel {
+            name: format!("R{seed}"),
+            vertical,
+            p: 2e6 * r.f(),
+            liquid: 1000.0 * r.f(),
+            level: d * r.f(),
+            parts,
+            nozzles,
+            saddles: (!vertical && r.int(2) == 0).then(|| Saddles { a: 0.2 + 0.5 * r.f(), theta: 120.0 + 60.0 * r.f(), b: 0.2, welded: r.int(2) == 0, rings: r.int(4) == 0 }),
+            skirt: (vertical && r.int(3) == 0).then(Skirt::default),
+            legs: None,
+            seis: 0.3 * r.f(),
+            flanges: if r.int(3) == 0 { vec![BodyFlange::default()] } else { vec![] },
+            lifting: (r.int(2) == 0).then(Lifting::default),
+            pe: if r.int(3) == 0 { 1e5 } else { 0.0 },
+            ring_spacing: if r.int(2) == 0 { 2.0 } else { 0.0 },
+            ring_i: 1e-6,
+            ..Default::default()
+        };
+        let v = if vertical && v.skirt.is_none() && r.int(3) == 0 { Vessel { legs: Some(Legs::default()), ..v } } else { v };
+        match check(&v) {
+            Ok(res) => {
+                ok += 1;
+                let nums = res.parts.iter().flat_map(|p| [p.t_req, p.mawp, p.map, p.test_stress, p.volume, p.metal]).chain([res.mawp, res.map, res.test, res.volume, res.empty, res.operating])
+                    .chain(res.nozzles.iter().flat_map(|z| [z.a_req, z.a_avail, z.t_neck_req]))
+                    .chain(res.external.iter().flat_map(|x| [x.allow, x.elastic]))
+                    .chain(res.saddles.iter().flat_map(|s| s.rows.iter().map(|x| x.stress)))
+                    .chain(res.support.iter().flat_map(|s| s.sections.iter().flat_map(|x| [x.tension, x.compression])))
+                    .chain(res.lifting.iter().chain(&res.legs).map(|x| x.value));
+                for x in nums {
+                    assert!(x.is_finite(), "seed {seed}: a result is not a number: {x}");
+                }
+            }
+            Err(e) => assert!(!e.is_empty(), "seed {seed}"),
+        }
+        // In a model, it round-trips through the file.
+        let mut m = Model::new();
+        if v.check_data().is_ok() {
+            m.vessels.push(v.clone());
+            let (back, warn) = model::from_json(&model::to_json(&m)).unwrap();
+            assert!(warn.is_empty(), "seed {seed}: {warn:?}");
+            assert_eq!(back.vessels, m.vessels, "seed {seed}");
+        }
+    }
+    assert!(ok >= 100, "only {ok} of 200 random vessels could be checked");
+}

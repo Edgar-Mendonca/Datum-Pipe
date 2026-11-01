@@ -413,10 +413,23 @@ const shots = process.env.SHOTS;
   await p.click('.side button[title="Results"]'); await p.waitForTimeout(200);
   await p.click('.rtabs button:text-is("Code stresses")'); await p.waitForTimeout(200);
   check("the steam rack has the response spectrum case OCC SPEC", (await p.$$('.ctabs button:has(b:text-is("OCC SPEC"))')).length === 1);
+  check("the harmonic case is not judged pass or fail (its loads are amplitudes)", !(await p.$('.ctabs button:has(b:text-is("HARM")) .pass, .ctabs button:has(b:text-is("HARM")) .fail')));
+  check("the steam rack has the harmonic case HARM", (await p.$$('.ctabs button:has(b:text-is("HARM"))')).length === 1);
+  await p.click('.rtabs button:text-is("Summary")'); await p.waitForTimeout(200);
+  check("the summary's equilibrium says it does not apply to OCC SPEC and HARM", ((await p.textContent('.rtable tr:has(b:text-is("HARM"))')) ?? "").includes("not applicable") && ((await p.textContent('.rtable tr:has(b:text-is("OCC SPEC"))')) ?? "").includes("not applicable"));
   await p.click('.rtabs button:text-is("Equilibrium")'); await p.waitForTimeout(200);
   check("equilibrium says it does not apply to the combined spectrum", ((await p.textContent(".rtable")) ?? "").includes("not applicable (combined)"));
   await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
   check("Stop goes back to the load case", !((await p.textContent(".legend3d")) ?? "").includes("Mode 1"));
+  // The harmonic load's editor: shown for the steam rack, a node that does not exist is refused, removable.
+  await open("steam");
+  check("Dynamics shows the steam rack's harmonic load", !!(await p.$("#harm-node")) && (await p.inputValue("#harm-node")) === "60");
+  await p.fill("#harm-node", "999"); await p.press("#harm-node", "Tab"); await p.waitForTimeout(150);
+  check("a harmonic load at a missing node is refused", (await p.inputValue("#harm-node")) === "60");
+  await p.click('button:text-is("Remove the harmonic load")'); await p.waitForTimeout(200);
+  check("the harmonic load can be removed and added back", !(await p.$("#harm-node")) && !!(await p.$('button:text-is("Harmonic load")')));
+  await p.click('button:text-is("Harmonic load")'); await p.waitForTimeout(200);
+  check("adding a harmonic load opens its editor", !!(await p.$("#harm-node")));
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

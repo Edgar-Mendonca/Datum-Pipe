@@ -1563,6 +1563,92 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         raw.insert(spec_id, glob);
         results.push(CaseResult { id: spec_id, name: "OCC SPEC".into(), kind: CaseKind::Occ, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true });
     }
+    // ---------------------------------------------------------------- harmonic response
+    // A force at frequency Ω by the modes, with the static part exact (the mode-acceleration form):
+    // u = K⁻¹F + Σ φk (φkᵀF) [1/(ωk² − Ω² + 2iζωkΩ) − 1/ωk²]; the amplitudes |u|, and the section
+    // forces and support loads of the real and imaginary parts, combined as amplitudes: case HARM.
+    if let (Some(h), false, Some(o1)) = (&m.settings.harmonic, modes.is_empty(), ope1) {
+        if let Some(&pt) = g.node_point.get(&h.node) {
+            let mut f = vec![0.0; n];
+            for d in 0..3 {
+                f[6 * pt + d] = h.f[d];
+                f[6 * pt + 3 + d] = h.m[d];
+            }
+            let (us, _) = dyn_sys.solve_many(&held, &[(f.clone(), vec![0.0; n])]).map_err(|e| locate_free(e, &g))?;
+            let us = &us[0];
+            let big_w = 2.0 * std::f64::consts::PI * h.freq;
+            let zeta = m.settings.damping;
+            let (mut re, mut im) = (us.clone(), vec![0.0; n]);
+            for mo in &modes {
+                let wk = 2.0 * std::f64::consts::PI * mo.freq;
+                if wk <= 0.0 {
+                    continue;
+                }
+                let ck: f64 = (0..n).map(|i| mo.shape[i / 6][i % 6] * f[i]).sum();
+                let (a, b) = (wk * wk - big_w * big_w, 2.0 * zeta * wk * big_w);
+                let den = a * a + b * b;
+                let (hr, hi) = (a / den - 1.0 / (wk * wk), -b / den);
+                for i in 0..n {
+                    let phi = mo.shape[i / 6][i % 6];
+                    re[i] += phi * ck * hr;
+                    im[i] += phi * ck * hi;
+                }
+            }
+            let resp = |u: &[f64]| -> (Vec<[[f64; 6]; 2]>, Vec<f64>) {
+                let disp: Vec<[f64; 6]> = (0..np).map(|p| std::array::from_fn(|d| u[6 * p + d])).collect();
+                let glob = g.segs.iter().enumerate().map(|(i, s)| {
+                    let pe = parts[i].el.end_force(&disp[s.a], &disp[s.b], 0.0, &[0.0; 6]);
+                    let l = parts[i].el.line.length();
+                    [(0.0), l].map(|at| { let (ff, mm, _) = parts[i].el.section(at, &pe, [0.0; 3]); [ff[0], ff[1], ff[2], mm[0], mm[1], mm[2]] })
+                }).collect();
+                (glob, dyn_sys.mul(u))
+            };
+            let (gr, kr) = resp(&re);
+            let (gi, ki) = resp(&im);
+            let amp = |a: f64, b: f64| a.hypot(b);
+            let disp: Vec<[f64; 6]> = (0..np).map(|p| std::array::from_fn(|d| amp(re[6 * p + d], im[6 * p + d]))).collect();
+            let glob: Vec<[[f64; 6]; 2]> = gr.iter().zip(&gi).map(|(a, b)| [0, 1].map(|e| std::array::from_fn(|c| amp(a[e][c], b[e][c])))).collect();
+            // Support loads: K u − F at held unknowns (the load is at a free one), springs and contacts.
+            let mut rr: HashMap<u32, [f64; 6]> = HashMap::new();
+            let mut ri: HashMap<u32, [f64; 6]> = HashMap::new();
+            for (&dof, owners) in &hold_owner {
+                for &sid in owners {
+                    rr.entry(sid).or_insert([0.0; 6])[dof % 6] += (kr[dof] - f[dof]) / owners.len() as f64;
+                    ri.entry(sid).or_insert([0.0; 6])[dof % 6] += ki[dof] / owners.len() as f64;
+                }
+            }
+            for (u, map) in [(&re, &mut rr), (&im, &mut ri)] {
+                for sp in &springs {
+                    let off = if sp.rot { 3 } else { 0 };
+                    let ud = dot(sp.dir, [u[6 * sp.pt + off], u[6 * sp.pt + off + 1], u[6 * sp.pt + off + 2]]);
+                    let e = map.entry(sp.support).or_insert([0.0; 6]);
+                    for i in 0..3 {
+                        e[off + i] += -sp.k * ud * sp.dir[i];
+                    }
+                }
+                for cd in &conds {
+                    let kk = if cd.k == 0.0 { RIGID } else { cd.k };
+                    let ud = dot(cd.dir, [u[6 * cd.pt], u[6 * cd.pt + 1], u[6 * cd.pt + 2]]);
+                    let e = map.entry(cd.support).or_insert([0.0; 6]);
+                    for i in 0..3 {
+                        e[i] += -kk * ud * cd.dir[i];
+                    }
+                }
+            }
+            let reactions: Vec<Reaction> = m.supports.iter().filter_map(|sp| {
+                let (a, b) = (rr.get(&sp.id)?, ri.get(&sp.id).copied().unwrap_or([0.0; 6]));
+                Some(Reaction { support: sp.id, node: sp.node, f: std::array::from_fn(|c| amp(a[c], b[c])) })
+            }).collect();
+            let hid = m.max_id() + 1_000_001;
+            cases.push(LoadCase { id: hid, name: "HARM".into(), kind: CaseKind::Ope, recipe: Recipe::Range { a: o1, b: o1 } });
+            raw.insert(hid, glob);
+            results.push(CaseResult { id: hid, name: "HARM".into(), kind: CaseKind::Ope, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true });
+        } else {
+            warnings.push(format!("The harmonic load's node {} is not on the piping.", h.node));
+        }
+    } else if m.settings.harmonic.is_some() && modes.is_empty() {
+        warnings.push("The harmonic load needs natural modes: set the number of modes to find (Model › Dynamics).".into());
+    }
     // ---------------------------------------------------------------- forces, stresses, nozzles
     let f_range = code::range_factor(m.settings.cycles);
     let temp_of = |c: &LoadCase| -> f64 {
@@ -1688,7 +1774,8 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             let bending = local[4].hypot(local[5]);
             let vals = [local[0].abs(), shear, local[3].abs(), bending];
             let ratios: [f64; 4] = std::array::from_fn(|i| if z.allow[i] > 0.0 { vals[i] / z.allow[i] } else { 0.0 });
-            let checked = z.allow.iter().any(|v| *v > 0.0);
+            // A harmonic case's loads are amplitudes: reported, not judged against the static allowables.
+            let checked = z.allow.iter().any(|v| *v > 0.0) && !(res.spectrum && res.kind == CaseKind::Ope);
             res.nozzles.push(NozzleLoad { nozzle: zid, node: z.node, local, shear, bending, ratios, pass: checked.then(|| ratios.iter().all(|r| *r <= 1.0)) });
         }
         // A combined spectrum's values have no signs: equilibrium does not apply to it.

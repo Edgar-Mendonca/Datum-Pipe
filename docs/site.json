@@ -301,15 +301,15 @@
     {
       "v": "0.4.4",
       "title": "Harmonic response",
-      "when": "Next",
+      "when": "Done",
       "items": [
-        "A force or displacement at a frequency, with damping"
+        "A force and moment at a node at a frequency, with damping: the amplitudes of movement, forces and support loads"
       ]
     },
     {
       "v": "0.5.0",
       "title": "Dynamics, complete",
-      "when": "Milestone",
+      "when": "Next",
       "items": [
         "Everything in 0.4.1–0.4.4 reviewed",
         "No new features: 0.5.0 marks the stage as finished"

@@ -88,9 +88,9 @@ export const ResultsPage = () => {
 export const Summary = (p: { r: Results }) => (
   <table class="tbl"><thead><tr><Th>Case</Th><Th>Kind</Th><Th>Check</Th><Th r>Highest ratio</Th><Th>At</Th><Th r>Stress {u("stress")}</Th><Th r>Allowable</Th><Th>Result</Th><Th r>Equilibrium</Th></tr></thead><tbody>
     <For each={p.r.cases}>{c => { const w = c.worst !== null ? c.stresses[c.worst] : null; return <tr class="f" onClick={() => { setCaseId(c.id); setTableKind(c.stresses.length ? "stress" : "supports"); }}>
-      <td><b>{c.name}</b></td><td>{KIND[c.kind]}</td><td>{CHECK[c.kind]}</td>
+      <td><b>{c.name}</b></td><td>{KIND[c.kind]}</td><td>{c.spectrum && c.kind === "ope" ? "Amplitudes, not checked" : CHECK[c.kind]}</td>
       <td class="r">{w ? num(w.ratio, 3) : "—"}</td><td>{w ? p.r.geom.points[w.point]?.label : ""}</td><td class="r">{w ? v("stress", w.stress) : ""}</td><td class="r">{w ? v("stress", w.allow) : ""}</td>
-      <td><Badge pass={casePass(c)} /></td><td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)}</td></tr>; }}</For>
+      <td><Badge pass={casePass(c)} /></td><td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.spectrum ? "not applicable" : c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)}</td></tr>; }}</For>
     <Show when={p.r.walls.length}><tr class="f" onClick={() => setTableKind("wall")}><td><b>Pressure</b></td><td>Minimum wall</td><td>Nominal wall ≥ needed</td><td class="r">{num(Math.max(...p.r.walls.map(w => w.ratio)), 3)}</td><td /><td /><td /><td><Badge pass={p.r.walls.every(w => w.pass)} /></td><td /></tr></Show>
   </tbody></table>
 );

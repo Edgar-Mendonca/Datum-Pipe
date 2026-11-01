@@ -1,7 +1,7 @@
 // The Inspector: the selected element, node, support, nozzle or load, in display units; with
 // nothing selected, the model's name, title block and analysis settings.
 import { For, Show, Switch, Match, JSX } from "solid-js";
-import { Element, Support, Nozzle, Load, SupKind, V3, num } from "./api";
+import { Element, Support, Nozzle, Load, SupKind, V3, HarmonicLoad, num } from "./api";
 import { model, sel, setSel, act, toast } from "./store";
 import { C, SUPPORTS } from "./cmds";
 import { Help } from "./help";
@@ -119,9 +119,24 @@ const Spectrum = () => {
         <For each={rows()}>{(r, i) => <tr><td>{nIn(r[0], x => put(i(), 0, x))}</td><td>{nIn(r[1], x => put(i(), 1, x))}</td><td><button class="x" title="Remove this row" onClick={() => set(rows().filter((_, k) => k !== i()))}>×</button></td></tr>}</For>
       </tbody></table>
       <V3In l="Spectrum factor in X, Y, Z (0 = not in that direction)" q="ratio" v={model()!.settings.rs_dir ?? [0, 0, 0]} set={rs_dir => C.settings({ rs_dir })} />
-      <div class="iprow"><label>Damping ratio (for combining modes)</label><input class="mono" value={model()!.settings.damping ?? 0.05} onChange={e => { const x = +e.currentTarget.value; if (x > 0 && x < 1) C.settings({ damping: x }); else toast("The damping ratio is between 0 and 1."); }} /></div>
     </Show>
     <p class="ibtns"><button class="btn sm" onClick={() => { const r = rows(); set(r.length ? [...r, [r[r.length - 1][0] * 2, r[r.length - 1][1]]] : [[1, 0.2], [10, 0.4], [33, 0.15]]); if (!r.length) C.settings({ spectrum: [[1, 0.2], [10, 0.4], [33, 0.15]], rs_dir: [1, 0, 1] }); }}>{rows().length ? "Add a frequency" : "Response spectrum"}</button></p>
+  </>;
+};
+
+/** A harmonic load: a force and moment at one node at one frequency, solved by the modes. */
+const Harmonic = () => {
+  const h = () => model()?.settings.harmonic ?? null;
+  const put = (x: Partial<HarmonicLoad>) => C.settings({ harmonic: { ...h()!, ...x } });
+  return <>
+    <Show when={h()}>{hh => <>
+      <div class="iprow"><label>Harmonic load at node</label><input class="mono" id="harm-node" value={hh().node} onChange={e => { const x = +e.currentTarget.value; if (model()!.nodes.some(n => n.num === x)) put({ node: x }); else { toast("No node " + e.currentTarget.value + "."); e.currentTarget.value = String(hh().node); } }} /></div>
+      <V3In l="Force amplitude" q="force" v={hh().f} set={f => put({ f })} />
+      <V3In l="Moment amplitude" q="moment" v={hh().m} set={m => put({ m })} />
+      <div class="iprow"><label>Frequency (Hz)</label><input class="mono" id="harm-freq" value={num(hh().freq, 6)} onChange={e => { const x = +e.currentTarget.value; if (x > 0 && Number.isFinite(x)) put({ freq: x }); else { toast("The frequency is above 0."); e.currentTarget.value = num(hh().freq, 6); } }} /></div>
+      <p class="muted small">Gives case HARM: the amplitudes of movement, forces and support loads, with the damping ratio above, from the modes found.</p>
+    </>}</Show>
+    <p class="ibtns"><Show when={h()} fallback={<button class="btn sm" onClick={() => C.settings({ harmonic: { node: model()!.nodes[model()!.nodes.length - 1]?.num ?? 10, f: [0, 1000, 0], m: [0, 0, 0], freq: 10 } })}>Harmonic load</button>}><button class="btn sm" onClick={() => C.settings({ harmonic: null })}>Remove the harmonic load</button></Show></p>
   </>;
 };
 
@@ -210,7 +225,9 @@ const ModelPanel = () => {
     </Sec>
     <Sec t="Dynamics" h="modes">
       <div class="iprow"><label>Natural modes to find (0 = none)</label><input class="mono" value={m().settings.modes ?? 0} onChange={numIn(v => v >= 0 && v <= 200 && v % 1 === 0 && C.settings({ modes: v }), () => m().settings.modes ?? 0)} /></div>
+      <div class="iprow"><label>Damping ratio </label><input class="mono" id="damping" value={model()!.settings.damping ?? 0.05} onChange={e => { const x = +e.currentTarget.value; if (x > 0 && x < 1) C.settings({ damping: x }); else toast("The damping ratio is between 0 and 1."); }} /></div>
       <Spectrum />
+      <Harmonic />
       <p class="muted small">Your inputs: take the wind pressure and seismic factors from the standard for the site. With either, OPE1 is solved with it added and an occasional case checks the sustained stress plus its own stress against 1.33 Sh.</p>
     </Sec>
   </>;

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.4 — 2026-11-01
+
+Harmonic response.
+
+**A load at a frequency.** Under Dynamics in Analysis settings, Harmonic load takes a force and moment amplitude at one node and a frequency, for a pulsation or a machine's out-of-balance. With the natural modes found, the steady response is the static response plus each mode's dynamic part, u = K⁻¹F + Σ φ (φᵀF) [1/(ω² − Ω² + 2iζωΩ) − 1/ω²], with the damping ratio. The result is the case HARM: the amplitudes of the movements, section forces and support loads. Its values are amplitudes without signs, so equilibrium does not apply to it, and it is not stress-checked (judge its forces and movements against your own vibration limits). If no modes are asked for, a warning says the harmonic load needs them.
+
+**Fixed.** Results › Summary showed an equilibrium figure for OCC SPEC; it now says not applicable, as the Equilibrium table does. A nozzle with allowables is not marked pass or fail in HARM, whose loads are amplitudes.
+
+**Example.** The steam rack example has a 500 N sideways pulsation at the corner 60 at 12 Hz (example values): case HARM moves at most 0.37 mm.
+
+**Verification.** A new benchmark: a heavy mass on a cantilever driven at half its natural frequency, against the one-degree-of-freedom amplitude (96 checks).
+
 ## 0.4.3 — 2026-11-01
 
 Response spectrum.

@@ -516,10 +516,28 @@ pub struct Settings {
     pub spectrum: Vec<[f64; 2]>,
     pub rs_dir: [f64; 3],
     pub damping: f64,
+    /// Harmonic response (0.4.4): a force and moment amplitude at a node, at a frequency (Hz).
+    pub harmonic: Option<Harmonic>,
     /// Spring hangers: the spring table (in order of preference) and the largest load variation
     /// allowed, |k Δ| / hot load.
     pub springs: Vec<SpringSize>,
     pub variability: f64,
+}
+
+/// A harmonic load: force and moment amplitudes (N, N·m, global) at a node, at a frequency (Hz).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Harmonic {
+    pub node: u32,
+    pub f: [f64; 3],
+    pub m: [f64; 3],
+    pub freq: f64,
+}
+
+impl Default for Harmonic {
+    fn default() -> Self {
+        Harmonic { node: 10, f: [0.0, 1000.0, 0.0], m: [0.0; 3], freq: 10.0 }
+    }
 }
 
 impl Settings {
@@ -545,7 +563,7 @@ impl Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3], wind_profile: vec![], occ_both: false, modes: 0, spectrum: vec![], rs_dir: [0.0; 3], damping: 0.05, springs: typical_springs(), variability: 0.25 }
+        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3], wind_profile: vec![], occ_both: false, modes: 0, spectrum: vec![], rs_dir: [0.0; 3], damping: 0.05, harmonic: None, springs: typical_springs(), variability: 0.25 }
     }
 }
 
@@ -732,6 +750,11 @@ impl Model {
         }
         if s.modes > 200 {
             return Err("Up to 200 natural modes.".into());
+        }
+        if let Some(h) = &s.harmonic {
+            if !(h.freq >= 0.0 && fin(h.freq)) || !h.f.iter().chain(&h.m).all(|v| fin(*v)) || !self.nodes.iter().any(|n| n.num == h.node) {
+                return Err("The harmonic load needs a node of the model, a frequency of 0 or more and finite amplitudes.".into());
+            }
         }
         if !s.spectrum.iter().all(|r| fin(r[0]) && fin(r[1]) && r[0] > 0.0 && r[1] >= 0.0) || s.spectrum.windows(2).any(|w| w[1][0] <= w[0][0]) || !s.rs_dir.iter().all(|v| fin(*v) && *v >= 0.0) || !(s.damping > 0.0 && s.damping < 1.0) {
             return Err("The response spectrum needs frequencies above 0 in rising order with accelerations of 0 or more, direction factors of 0 or more, and a damping ratio between 0 and 1.".into());
@@ -1174,6 +1197,20 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     if m.flanges.len() < nf {
         warn.push("Flange checks on missing elements, or with damaged values, were left out.".into());
     }
+    if m.settings.harmonic.as_ref().is_some_and(|h| !nodes.contains(&h.node) || !(h.freq >= 0.0 && fin(h.freq)) || !h.f.iter().chain(&h.m).all(|v| fin(*v))) {
+        m.settings.harmonic = None;
+        warn.push("The harmonic load was damaged or on a missing node and was left out.".into());
+    }
+    if !m.settings.spectrum.iter().all(|r| fin(r[0]) && fin(r[1]) && r[0] > 0.0 && r[1] >= 0.0) || m.settings.spectrum.windows(2).any(|w| w[1][0] <= w[0][0]) {
+        m.settings.spectrum = vec![];
+    }
+    if !(m.settings.damping > 0.0 && m.settings.damping < 1.0) {
+        m.settings.damping = 0.05;
+    }
+    if !m.settings.rs_dir.iter().all(|v| fin(*v) && *v >= 0.0) {
+        m.settings.rs_dir = [0.0; 3];
+    }
+    m.settings.modes = m.settings.modes.min(200);
     let nv = m.vessels.len();
     m.vessels.retain(|v| v.check_data().is_ok());
     if m.vessels.len() < nv {

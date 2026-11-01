@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, a vessel nozzle under its piping's loads, a vessel under full vacuum, a pipe span's natural frequencies, and a cantilever in a response spectrum. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, a vessel nozzle under its piping's loads, a vessel under full vacuum, a pipe span's natural frequencies, a cantilever in a response spectrum, and a heavy tip mass driven harmonically. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -834,6 +834,45 @@ pub fn run() -> Vec<Check> {
         let fy = spec.reactions.iter().find(|x| x.node == 10).map_or(f64::NAN, |x| x.f[1]);
         out.push(row(34, "A cantilever in a response spectrum", "Base shear, one mode (flat 0.5 g)", "force", 0.6131 * m_len * 3.0 * 0.5 * 9.806_65, fy, 1e-2, "The first mode of a uniform cantilever carries 0.6131 of its mass: V = 0.6131 m L Sa"));
     }
+    // 35. Harmonic response of a heavy tip mass: a 3 m 6" Sch 40 cantilever in 30 elements carrying
+    //     10 t on a 20 mm rigid end, driven by 1 kN sideways at its tip at half its natural frequency,
+    //     5 % damping. As one degree of freedom: k from the pipe's bending and shear with the 20 mm
+    //     arm, ω = √(k / M_eff) with the mass's two halves and 0.2357 of the pipe's,
+    //     amplitude (F/k) / √((1 − r²)² + (2ζr)²), r = 0.5.
+    {
+        let mut rows: Vec<(u32, u32, f64, f64, f64)> = (0..30u32).map(|i| (10 * (i + 1), 10 * (i + 2), 0.1, 0.0, 0.0)).collect();
+        rows.push((310, 320, 0.02, 0.0, 0.0));
+        let mut d = table("Harmonic", &rows);
+        let mut e = d.m.elements.iter().find(|e| e.to == 320).unwrap().clone();
+        e.comp = Comp::Rigid { rigid: crate::model::RigidKind::Rigid, mass: 10_000.0 };
+        d.apply(Op::Set { item: Item::Element(e) }).unwrap();
+        anchor(&mut d, 10);
+        let h = hand(&d.m);
+        let p = &d.m.pipes[0];
+        let m_len = d.m.materials[0].rho * std::f64::consts::PI / 4.0 * (p.od.powi(2) - (p.od - 2.0 * p.wall).powi(2));
+        let l: f64 = 3.0;
+        // The force 20 mm beyond the pipe's end on the rigid arm: the pipe's end deflection and turn
+        // under F and F a, carried out to the load; the 10 t is lumped half at each end of the arm.
+        let (a, ei) = (0.02, h.e * h.i);
+        let d30 = l.powi(3) / (3.0 * ei) + l / (crate::elements::KAPPA * h.g * h.a) + a * l * l / (2.0 * ei);
+        let t30 = l * l / (2.0 * ei) + a * l / ei;
+        let d32 = d30 + t30 * a;
+        let k = 1.0 / d32;
+        let m_eff = 5000.0 * (d30 / d32).powi(2) + 5000.0 + 0.2357 * m_len * l * (d30 / d32).powi(2);
+        let w = (k / m_eff).sqrt();
+        let f_drive = 0.5 * w / (2.0 * std::f64::consts::PI);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        s.modes = 6;
+        s.damping = 0.05;
+        s.harmonic = Some(crate::model::Harmonic { node: 320, f: [0.0, 1000.0, 0.0], m: [0.0; 3], freq: f_drive });
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        let r = analyze(&d.m).unwrap();
+        let hc = r.cases.iter().find(|c| c.name == "HARM").unwrap();
+        let tip = hc.disp[r.geom.node_point[&320]][1];
+        let amp = 1000.0 / k / ((1.0f64 - 0.25).powi(2) + (2.0 * 0.05 * 0.5f64).powi(2)).sqrt();
+        out.push(row(35, "A heavy tip mass driven at half its natural frequency", "Tip amplitude", "disp", amp, tip, 1e-2, "One degree of freedom: (F/k) / √((1 − r²)² + (2ζr)²)"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -858,7 +897,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=34 {
+        for b in 1..=35 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

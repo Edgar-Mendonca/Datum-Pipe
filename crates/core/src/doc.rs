@@ -131,6 +131,9 @@ fn finish(m: &mut Model) -> Result<(), String> {
     m.nozzles.retain(|s| nodes.contains(&s.node));
     m.loads.retain(|s| nodes.contains(&s.node));
     m.reliefs.retain(|s| nodes.contains(&s.node));
+    if m.settings.harmonic.as_ref().is_some_and(|h| !nodes.contains(&h.node)) {
+        m.settings.harmonic = None;
+    }
     // Equipment keeps only nozzles that are still there.
     let zs: HashSet<u32> = m.nozzles.iter().map(|z| z.id).collect();
     for e in &mut m.equipment {

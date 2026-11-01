@@ -95,6 +95,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.3.0 | **Owner's rules, 2026-11-01.** (1) One app: everything (piping, vessels, and what follows) lives in Datum Pipe; no separate Datum Vessel. (2) Only what is open source or free to the public is used: no proprietary sources and no government publications. A code's equations are taken from free public sources or derived from first principles and checked to agree, never copied from a paid standard; code tables stay user inputs. (3) Vessels come before dynamics; vessels follow ASME VIII-1 first (EN 13445 later). (4) External pressure only by a method that is legal and free (classical shell-buckling theory). | The owner's words; clean and neat, nothing violated |
 | 0.2.6 | **First rule (owner, 2026-11-01): never compare Datum Pipe with commercial software, or name any, in anything public** (README, CHANGELOG, site.json, help, commits, release notes, examples). Comparisons for the owner stay in the conversation only | The owner's most important rule, on top of FAMILY §13 |
 | 0.2.6 | Vessel nozzle local stresses are not implemented: the methods in use are copyrighted bulletins (charts and curve fits) and no free closed form was found. Flexibility is the user's stiffness values; a calculated option waits on reading the public ORNL report (ORNL/Sub/2913-6, 1979), whose host is blocked by this environment's network | Never from memory, never from copyrighted charts |
 | 0.2.6 | `Nozzle.stiff` [axial, shear, torsion, longitudinal bending, circumferential bending] and `Nozzle.vessel` (serde default, 0 = rigid / vertical); an anchor at a flexible nozzle's node uses `nozzle_restraints` (axis a, circumferential c = a × v, longitudinal l = c × a) instead of its global directions | Reuses the support machinery: imposed growth, reactions and nozzle loads unchanged |
@@ -222,11 +223,29 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.2.7 | Expansion joints (bellows: axial, lateral, angular, torsional stiffness; pressure thrust) | ✅ |
 | 0.2.8 | Wind pressure by height (user table); static seismic in both directions | ✅ |
 | 0.2.9 | .pcf export | ✅ |
-| 0.3.0 | Milestone: 0.2.1–0.2.9 reviewed; no new features | 🔜 |
-| 0.6 | Later: load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
-| 0.4 | Dynamics: modes, harmonic, response spectrum; the regulator's public piping benchmark problems (NUREG/CR-1677) | ⬜ |
-| 0.5 | Power piping and European piping code equations, buried pipe, cold spring | ⬜ |
+| 0.3.0 | Milestone: 0.2.1–0.2.9 reviewed; no new features; **source audit**: every equation, value and benchmark checked against the open-sources rule (2026-11-01), anything that fails replaced by a first-principles derivation or a free public source, or removed | 🔜 |
+| 0.3.1 | Vessels: a Vessel workspace in Datum Pipe; shells and heads under internal pressure (cylinder, sphere, 2:1 ellipsoidal, torispherical, hemispherical, cone), required thickness, MAWP, test pressure, report; equations of ASME VIII-1 taken from free public sources | ⬜ |
+| 0.3.2 | Vessels: nozzle reinforcement (area replacement) and nozzle neck thickness | ⬜ |
+| 0.3.3 | Vessels: horizontal vessels on two saddles (Zick's published method) | ⬜ |
+| 0.3.4 | Vessels: vertical vessels: weight, wind, seismic, skirt, base ring, anchor bolts | ⬜ |
+| 0.3.5 | Vessels: body flanges (the published Taylor-Forge method) | ⬜ |
+| 0.3.6 | Vessels: lifting lugs, trunnions, leg supports | ⬜ |
+| 0.3.7 | Vessels and piping linked: the piping model's nozzle loads checked on the vessel's nozzle | ⬜ |
+| 0.3.8 | Vessels: external pressure and stiffening rings, from classical shell-buckling theory in free public sources (no code charts) | ⬜ |
+| 0.4.0 | Milestone: vessels reviewed | ⬜ |
+| 0.5 | Dynamics: modes, harmonic, response spectrum; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ⬜ |
+| 0.6 | Power piping and European piping code equations (EN 13445 for vessels too), buried pipe, cold spring | ⬜ |
+| 0.7 | Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
+
+**Backlog: owner said "we should not miss out anything"** (each becomes small steps when its stage starts; every item from free public sources only):
+- Hydraulics: pressure drop (Darcy–Weisbach, Colebrook), pumps and their curves, pipe networks; line sizing (velocity and pressure-drop limits).
+- Relief valve sizing (gas, steam, liquid: nozzle-flow physics); control valve sizing (Cv/Kv, choked flow).
+- Storage tanks: shell courses by the one-foot method, wind girders, tank wind and seismic.
+- Heat exchanger tubesheets; fitness for service of corroded vessels (only if free public methods exist).
+- Vessel nozzle local stresses by our own shell finite element model (Datum Mesh's solver), instead of the copyrighted bulletins.
+- Water hammer and surge (after dynamics); thermowells; orifice plates.
+- Not planned: thermal design of heat exchangers (proprietary correlations); plant 3D layout (we exchange .pcf files instead).
 
 ## 4. Session log
 
@@ -349,6 +368,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Engine: `export.rs` (`pcf`), round-trip tests on every example and on random models without overlapping pipe (the importer refuses pipe lying on pipe). Shell: `export_pcf`.
 - UI: File › Export tile, command search entry, help; one UI check. Checked in the real app.
 - Stage 0.3 features are all in (0.2.1–0.2.9); next is the 0.3.0 review.
+
+### 2026-11-01: Session 2, continued (planning: vessels and the whole plant)
+- Owner asked for vessel calculations (as in vessel design software) and a plan to cover more of plant design in one app. Research by web search (the Perplexity connector here cannot search). Owner decided: one app (Datum Pipe), ASME VIII-1 first, vessels before dynamics, external pressure only by a legal free method, and only open or free public sources: no proprietary or government ones.
+- Roadmap rewritten: 0.3.0 review with a source audit, 0.3.1–0.3.8 vessels, 0.4.0 milestone, dynamics to 0.5, codes 0.6, options 0.7; the backlog lists every other area so nothing is lost. Example problems for 0.3.1 worked by hand: shell 1.5 MPa, R 750 mm, SE 117.3 MPa → t 9.665 mm; MAWP corroded (t 11, R 753) 1.699 MPa; 2:1 head 9.603 mm, hemisphere 4.801 mm, torispherical (L = D) 17.0 mm.
 
 ## 5. Known limits (0.2.0)
 

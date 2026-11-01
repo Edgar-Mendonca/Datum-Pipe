@@ -894,3 +894,46 @@ fn a_flexible_nozzle_holds_along_its_own_axes_and_passes_on_its_growth() {
     bad.nozzles[0].stiff[1] = -1.0;
     assert!(bad.check().is_err());
 }
+
+#[test]
+fn an_expansion_joint_tied_or_not_and_its_checks() {
+    // 4 m of pipe, a 0.3 m joint, 4 m of pipe between anchors at 10 bar and 150 °C.
+    let mk = |tied: bool, lateral: f64| {
+        let mut d = table("ej", &[(10, 20, 4.0, 0.0, 0.0), (20, 21, 0.3, 0.0, 0.0), (21, 30, 4.0, 0.0, 0.0)]);
+        no_g(&mut d);
+        let mut c = d.m.conds[0].clone();
+        c.p[0] = 1e6;
+        c.t[0] = K0 + 150.0;
+        d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+        let b = crate::model::Bellows { tied, lateral, ..Default::default() };
+        comp(&mut d, 21, Comp::Bellows(b));
+        sup(&mut d, 10, SupKind::Anchor);
+        sup(&mut d, 30, SupKind::Anchor);
+        (analyze(&d.m).unwrap(), d)
+    };
+    let (r, d) = mk(false, 1e6);
+    let od = d.m.pipes[0].od;
+    let pa = 1e6 * std::f64::consts::PI / 4.0 * od * od;
+    // Untied: the anchors carry nearly the whole pressure thrust in SUS, and the joint takes the
+    // thermal growth with only its spring force: far less than the pipe would push alone.
+    assert!(close(-react(&r, "SUS", 30)[0], pa, 0.01), "{:?}", react(&r, "SUS", 30));
+    let growth = react(&r, "EXP1", 30)[0].abs();
+    assert!(growth < 2e5 * 0.02, "the joint's spring force only: {growth}");
+    // No code stress on the joint itself; the pipe at its ends is checked.
+    let joint = r.geom.segs.iter().position(|s| s.bellows.is_some()).unwrap();
+    assert!(case(&r, "SUS").stresses.iter().all(|s| s.seg != joint));
+    assert!(!case(&r, "SUS").stresses.is_empty());
+    assert!(r.cases.iter().all(|c| c.imbalance < 1e-9));
+    // Tied: no thrust on the anchors, and the joint no longer absorbs growth axially.
+    let (r, _) = mk(true, 1e6);
+    assert!(react(&r, "SUS", 30)[0].abs() < 1e-6 * pa, "{:?}", react(&r, "SUS", 30));
+    assert!(react(&r, "EXP1", 30)[0].abs() > 1e5);
+    // A lateral rate the angular rate cannot give is flagged.
+    let (r, _) = mk(false, 1e9);
+    assert!(r.warnings.iter().any(|w| w.contains("lateral rate")), "{:?}", r.warnings);
+    // Damaged data is refused.
+    let mut m = d.m.clone();
+    let e = m.elements.iter_mut().find(|e| e.to == 21).unwrap();
+    e.comp = Comp::Bellows(crate::model::Bellows { axial: -1.0, ..Default::default() });
+    assert!(m.check().is_err());
+}

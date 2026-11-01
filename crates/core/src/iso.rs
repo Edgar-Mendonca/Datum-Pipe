@@ -24,7 +24,7 @@ pub fn project(p: V) -> P2 {
 pub struct Line {
     pub element: u32,
     pub pts: Vec<P2>,
-    /// pipe, valve, flange, slipon, rigid or reducer.
+    /// pipe, valve, flange, slipon, rigid, reducer or bellows.
     pub kind: &'static str,
 }
 
@@ -131,6 +131,7 @@ pub fn draw(m: &Model, per_sheet: usize) -> Result<Iso, String> {
                 (Some((RigidKind::Slipon, _)), _) => "flange",
                 (Some((RigidKind::Rigid, _)), _) => "rigid",
                 (None, Some(Comp::Reducer { .. })) => "reducer",
+                (None, Some(Comp::Bellows(_))) => "bellows",
                 _ => "pipe",
             };
             sh.lines.push(Line { element: s.element, pts, kind });

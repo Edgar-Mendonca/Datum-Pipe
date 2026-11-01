@@ -11,7 +11,7 @@ import { Help } from "./help";
 export const COMPS: [string, string][] = [
   ["pipe", "Pipe"], ["bend:long", "Bend, long radius (1.5D)"], ["bend:short", "Bend, short radius (1D)"], ["bend:custom", "Bend, own radius"],
   ["tee:welding", "Welding tee at end"], ["tee:fabricated", "Fabricated tee at end"], ["tee:reinforced", "Reinforced tee at end"],
-  ["reducer", "Reducer"], ["rigid:valve", "Valve"], ["rigid:flange", "Flange pair, weld neck"], ["rigid:slipon", "Flange pair, slip-on"], ["rigid:rigid", "Rigid part"],
+  ["reducer", "Reducer"], ["rigid:valve", "Valve"], ["rigid:flange", "Flange pair, weld neck"], ["rigid:slipon", "Flange pair, slip-on"], ["rigid:rigid", "Rigid part"], ["bellows", "Expansion joint"],
 ];
 export const compKey = (c: Comp) => c.kind === "bend" ? `bend:${c.bend}` : c.kind === "tee" ? `tee:${c.tee}` : c.kind === "rigid" ? `rigid:${c.rigid}` : c.kind;
 export const compName = (c: Comp) => COMPS.find(x => x[0] === compKey(c))?.[1] ?? "Pipe";
@@ -24,6 +24,8 @@ export const compFrom = (key: string, e: Element, m: Model): Comp => {
   if (k === "tee") return { kind: "tee", tee: v as any, pad: old.kind === "tee" ? old.pad : (m.pipes.find(p => p.id === e.pipe)?.wall ?? 0.007) };
   if (k === "reducer") { const p = m.pipes.find(p => p.id === e.pipe); const smaller = m.pipes.filter(q => p && q.od < p.od).sort((a, b) => b.od - a.od)[0]; return { kind: "reducer", to: old.kind === "reducer" ? old.to : (smaller ?? p ?? m.pipes[0]).id }; }
   if (k === "rigid") return { kind: "rigid", rigid: v as any, mass: old.kind === "rigid" ? old.mass : 0 };
+  // Example rates of a 6" single bellows: the person enters the maker's.
+  if (k === "bellows") return old.kind === "bellows" ? old : { kind: "bellows", axial: 2e5, lateral: 1e6, angular: 3e4, torsion: 0, area: 0, tied: false, mass: 25 };
   return { kind: "pipe" };
 };
 

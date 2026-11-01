@@ -31,7 +31,7 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 
 - **An element table that draws as you type**: From node, To node, DX, DY, DZ, pipe, material, line conditions and component, with values in any unit (20 ft, 150 mm). Node numbers step by 10; new rows copy the row above. Analysis runs again after every edit, and right-click menus in the 3D view add supports and change components.
 - **Pipe data**: nominal sizes ½" to 24" in every schedule, your own sizes, corrosion allowance, mill tolerance, insulation, cladding and contents; carbon, low-alloy, stainless 304 and 316 and duplex steels with modulus and expansion against temperature and their sources.
-- **Components**: long and short radius bends or your own radius, welding, fabricated and reinforced tees, concentric reducers, valves and flanged joints with their weight.
+- **Components**: long and short radius bends or your own radius, welding, fabricated and reinforced tees, concentric reducers, valves and flanged joints with their weight, and bellows expansion joints with the maker's rates and their pressure thrust.
 - **Supports**: anchors, one-way rests the pipe can lift off, guides, line stops, restraints in any direction (rests, guides, line stops and restraints with gaps and friction), springs, spring hangers sized from your spring table, constant-force supports, nozzle points with the vessel or tank wall's flexibility, and imposed equipment movements.
 - **Load cases built for you**: sustained, operating, expansion range and hydrotest, editable; wind, static seismic and relief valve thrust as occasional cases.
 - **Code stresses**: hoop stress and minimum wall, sustained longitudinal stress, the displacement stress range and occasional stress, PASS or FAIL at every point.
@@ -40,7 +40,7 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 - **Import**: plain-text piping component files (.pcf) from design tools, as a new model.
 - **Editing tools**: an expansion loop wizard, copy and mirror a section, insert a node, renumber, undo and redo everything.
 - **Verified**: Help › Verification solves benchmark problems with known answers in front of you: beam theory, heated L-bends, Z-bends and an expansion loop against the flexibility method by hand, a bend's flexibility, the minimum wall equation on straight pipe and at a bend's intrados, pressure elongation, a tee branch's effective section modulus, a one-way rest lifting off, a gap closing, friction sliding and sticking, wind and static seismic on a cantilever and the occasional stress, a spring hanger sized by hand, a steam turbine's nozzle criteria, a flange's equivalent pressure, a relief valve's thrust, and the equilibrium of every example.
-- **Worked examples**: a pump discharge with an expansion loop, a compressor suction line, a steam line on a pipe rack (one-way rests, friction, gapped guides, wind and seismic), a tank outlet with settlement and a sized spring hanger, a safety valve vent stack, and an L-bend and a Z-bend to check by hand.
+- **Worked examples**: a pump discharge with an expansion loop, a compressor suction line, a steam line on a pipe rack (one-way rests, friction, gapped guides, wind and seismic), a tank outlet with settlement and a sized spring hanger, a safety valve vent stack, an expansion joint between anchors, and an L-bend and a Z-bend to check by hand.
 
 | | |
 | --- | --- |

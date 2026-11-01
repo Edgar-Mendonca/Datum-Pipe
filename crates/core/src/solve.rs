@@ -261,6 +261,29 @@ struct Part {
     plane: [Option<V>; 2],
     /// At a tee's branch: the effective section modulus on the nominal and the corroded walls.
     ze: [Option<(f64, f64)>; 2],
+    /// An expansion joint's equivalent stiffness (EA, κGA, GJ, EI).
+    over: Option<[f64; 4]>,
+}
+
+/// The equivalent beam of an expansion joint of length `l` with the maker's spring rates: EA = ka l,
+/// GJ = kt l, EI = kθ l (a pure moment turns it by M / kθ), and the shear flexibility that makes a
+/// parallel offset (ends kept parallel) take F = k_lat δ: δ = F l³/(12 EI) + F l/(κGA). A rate of 0
+/// is rigid (the pipe's own value times the rigid factor). When the lateral rate is higher than the
+/// angular rate allows (k_lat > 12 kθ / l²) there is no shear flexibility left: the second value
+/// says so.
+pub fn bellows_beam(b: &crate::model::Bellows, l: f64, pipe: (f64, f64, f64, f64)) -> ([f64; 4], bool) {
+    let rf = crate::elements::RIGID_FACTOR;
+    let (ea0, gas0, gj0, ei0) = pipe;
+    let ka = if b.tied || b.axial == 0.0 { ea0 * rf } else { b.axial * l };
+    let gj = if b.torsion == 0.0 { gj0 * rf } else { b.torsion * l };
+    let ei = if b.angular == 0.0 { ei0 * rf } else { b.angular * l };
+    let (gas, capped) = if b.lateral == 0.0 {
+        (gas0 * rf, false)
+    } else {
+        let rest = 1.0 / b.lateral - l.powi(3) / (12.0 * ei);
+        if rest > 0.0 { (l / rest, false) } else { (gas0 * rf, true) }
+    };
+    ([ka, gas, gj, ei], capped)
 }
 
 /// The section at fraction s of a segment (a reducer's changes along it).
@@ -796,7 +819,16 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         };
         let rigid = s.rigid.is_some();
         let secf = |x: f64| sec_at(m, pa, pb, x);
-        let el = Elem::new(line, &Props { sec: &secf, e: e_cold, g: gmod, k: kflex, rigid })?;
+        let over = s.bellows.map(|b| {
+            let sec = secf(0.0);
+            let (o, capped) = bellows_beam(&b, line.length().max(1e-9), (e_cold * sec.a, gmod * sec.a * crate::elements::KAPPA, gmod * 2.0 * sec.i, e_cold * sec.i));
+            if capped {
+                let el = m.elements.iter().find(|e| e.id == s.element);
+                warnings.push(format!("The expansion joint {}: its lateral rate is higher than its angular rate and length allow (k_lat ≤ 12 kθ / L²), so it was taken as stiff across. Check the maker's data, or the element's length.", el.map_or(String::new(), |e| format!("{}–{}", e.from, e.to))));
+            }
+            o
+        });
+        let el = Elem::new(line, &Props { sec: &secf, e: e_cold, g: gmod, k: kflex, rigid, over })?;
         // Weight: the pipe's own, or a rigid part's weight spread along it, plus the contents.
         let (mut w, mut ww) = (weight(m, s.pipe, mat.rho, false), weight(m, s.pipe, mat.rho, true));
         if let Some((kind, mass)) = s.rigid {
@@ -809,6 +841,14 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             if kind == RigidKind::Slipon {
                 sif = [Sif { ii: 1.2, io: 1.2, k: 1.0, h: 0.0 }; 2];
             }
+        }
+        if let Some(b) = s.bellows {
+            // The joint's weight spread along it, in place of the pipe's metal.
+            let len = el.line.length().max(1e-9);
+            let metal = weight(m, s.pipe, mat.rho, false) - weight(m, s.pipe, 0.0, false);
+            let add = b.mass * m.settings.g / len - metal;
+            w += add;
+            ww += add;
         }
         if let Some(Comp::Reducer { to }) = m.elements.iter().find(|e| e.id == s.element).map(|e| e.comp.clone()) {
             // The average weight of the two ends; the SIF from the cone angle and the small end.
@@ -833,7 +873,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             }
         }
         let _ = si;
-        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, e_cold, mat: mat.id, corrosion: [pipe.corrosion, m.pipe(s.pipe_b).map_or(pipe.corrosion, |q| q.corrosion)], p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane, ze: [None; 2] });
+        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, e_cold, mat: mat.id, corrosion: [pipe.corrosion, m.pipe(s.pipe_b).map_or(pipe.corrosion, |q| q.corrosion)], p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane, ze: [None; 2], over });
     }
     // Tees: their SIF at every segment end on the tee's point.
     for t in &g.tees {
@@ -946,11 +986,12 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let mut w_rhs = [vec![0.0; n], vec![0.0; n]];
     let mut rb_w: [Vec<[f64; 6]>; 2] = [vec![[0.0; 6]; parts.len()], vec![[0.0; 6]; parts.len()]];
     let props_of = |i: usize| (g.segs[i].pipe, g.segs[i].pipe_b, parts[i].sif[0].k, g.segs[i].rigid.is_some());
+    let over_of = |i: usize| parts[i].over;
     for (i, s) in g.segs.iter().enumerate() {
         let (pa, pb, k, rigid) = props_of(i);
         let secf = |x: f64| sec_at(m, pa, pb, x);
         let mat = m.material(s.material).unwrap();
-        let pr = Props { sec: &secf, e: parts[i].e_cold, g: parts[i].e_cold / (2.0 * (1.0 + mat.nu)), k: if matches!(s.shape, Shape::Arc { .. }) { k } else { 1.0 }, rigid };
+        let pr = Props { sec: &secf, e: parts[i].e_cold, g: parts[i].e_cold / (2.0 * (1.0 + mat.nu)), k: if matches!(s.shape, Shape::Arc { .. }) { k } else { 1.0 }, rigid, over: over_of(i) };
         for (wi, w) in [parts[i].w, parts[i].w_water].into_iter().enumerate() {
             let (la, lb, rb) = parts[i].el.loads([0.0, -w, 0.0], 0.0, &pr);
             for d in 0..6 {
@@ -973,7 +1014,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         let (pa, pb, k, rigid) = props_of(i);
         let secf = |x: f64| sec_at(m, pa, pb, x);
         let mat = m.material(s.material).unwrap();
-        let pr = Props { sec: &secf, e: parts[i].e_cold, g: parts[i].e_cold / (2.0 * (1.0 + mat.nu)), k: if matches!(s.shape, Shape::Arc { .. }) { k } else { 1.0 }, rigid };
+        let pr = Props { sec: &secf, e: parts[i].e_cold, g: parts[i].e_cold / (2.0 * (1.0 + mat.nu)), k: if matches!(s.shape, Shape::Arc { .. }) { k } else { 1.0 }, rigid, over: over_of(i) };
         for o in 0..2 {
             if norm(q_occ[o][i]) == 0.0 {
                 continue;
@@ -992,6 +1033,21 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             for d in 0..3 {
                 point_loads[6 * pt + d] += l.f[d];
                 point_loads[6 * pt + 3 + d] += l.m[d];
+            }
+        }
+    }
+    // Untied expansion joints: the pressure on the bellows' effective area pushes its two ends apart
+    // (pressure cases 1–3 and the hydrotest).
+    let mut thrust_rhs = [vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]];
+    for (i, s) in g.segs.iter().enumerate() {
+        let Some(b) = s.bellows.filter(|b| !b.tied) else { continue };
+        let area = if b.area > 0.0 { b.area } else { m.pipe(s.pipe).map_or(0.0, |p| std::f64::consts::PI / 4.0 * p.od * p.od) };
+        let t = unit(sub(parts[i].el.line.end(), parts[i].el.line.start()));
+        for c in 0..4 {
+            let f = parts[i].p[c] * area;
+            for d in 0..3 {
+                thrust_rhs[c][6 * s.a + d] -= f * t[d];
+                thrust_rhs[c][6 * s.b + d] += f * t[d];
             }
         }
     }
@@ -1063,8 +1119,13 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let sums: Vec<&LoadCase> = m.cases.iter().filter(|c| matches!(c.recipe, Recipe::Sum { .. })).collect();
     let mut rhs = vec![];
     for c in &sums {
-        let Recipe::Sum { w, water, t, d, wind, seis, relief, .. } = c.recipe else { unreachable!() };
+        let Recipe::Sum { w, water, t, d, p, wind, seis, relief } = c.recipe else { unreachable!() };
         let mut f = vec![0.0; n];
+        if (1..=4).contains(&p) {
+            for i in 0..n {
+                f[i] += thrust_rhs[p as usize - 1][i];
+            }
+        }
         if relief {
             for i in 0..n {
                 f[i] += relief_loads[i];
@@ -1144,7 +1205,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let mut results: Vec<CaseResult> = vec![];
     for c in &m.cases {
         let r = match c.recipe {
-            Recipe::Sum { w, water, t, wind, seis, relief, .. } => {
+            Recipe::Sum { w, water, t, wind, seis, relief, p: pcase, .. } => {
                 let k = sums.iter().position(|x| x.id == c.id).unwrap();
                 // The distributed load on each segment in this case, and its fixed-end part.
                 let q_of = |i: usize| -> (V, [f64; 6]) {
@@ -1249,6 +1310,17 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                         }
                     }
                 }
+                if (1..=4).contains(&pcase) {
+                    for pt in 0..np {
+                        let tr = &thrust_rhs[pcase as usize - 1];
+                        let f3 = [tr[6 * pt], tr[6 * pt + 1], tr[6 * pt + 2]];
+                        let mo = cross(g.points[pt].p, f3);
+                        for d in 0..3 {
+                            applied[d] += f3[d];
+                            applied[3 + d] += mo[d];
+                        }
+                    }
+                }
                 if relief {
                     for pt in 0..np {
                         let f3 = [relief_loads[6 * pt], relief_loads[6 * pt + 1], relief_loads[6 * pt + 2]];
@@ -1335,6 +1407,10 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             let mut stresses = vec![];
             for (i, s) in g.segs.iter().enumerate() {
                 let p = &parts[i];
+                // An expansion joint is not pipe: the code stresses are checked on the pipe at its ends.
+                if p.over.is_some() {
+                    continue;
+                }
                 let mat = m.material(p.mat).unwrap();
                 if mat.allow.is_empty() {
                     continue;
@@ -1382,7 +1458,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     }
     // The size of the model's loads, so a case with almost no reactions (a free thermal growth) is
     // judged against the loads of the model and not against its own rounding noise.
-    let wscale = parts.iter().map(|p| p.w.abs() * p.el.line.length()).sum::<f64>() + point_loads.iter().chain(&relief_loads).map(|v| v.abs()).sum::<f64>();
+    let wscale = parts.iter().map(|p| p.w.abs() * p.el.line.length()).sum::<f64>() + point_loads.iter().chain(&relief_loads).chain(thrust_rhs.iter().flatten()).map(|v| v.abs()).sum::<f64>();
     for res in &mut results {
         // Nozzle loads: what the pipe puts on the nozzle (the support reaction reversed).
         let mut at: Vec<crate::equip::NozzleAt> = vec![];

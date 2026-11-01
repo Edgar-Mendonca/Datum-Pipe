@@ -42,6 +42,9 @@ pub struct Seg {
     pub cond: u32,
     /// Rigid (valve, flange, rigid part), with its weight (kg) spread along it.
     pub rigid: Option<(RigidKind, f64)>,
+    /// An expansion joint along it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bellows: Option<crate::model::Bellows>,
     /// The bend's flexibility characteristic is for this element's bend (node).
     pub bend: Option<u32>,
     pub extra: f64,
@@ -190,7 +193,8 @@ impl Geom {
                     Comp::Rigid { rigid, mass } => (e.pipe, Some((*rigid, *mass))),
                     _ => (e.pipe, None),
                 };
-                g.segs.push(Seg { a, b, shape: Shape::Straight, element: e.id, pipe: e.pipe, pipe_b, material: e.material, cond: e.cond, rigid, bend: None, extra: e.extra, length: len });
+                let bellows = if let Comp::Bellows(x) = &e.comp { Some(*x) } else { None };
+                g.segs.push(Seg { a, b, shape: Shape::Straight, element: e.id, pipe: e.pipe, pipe_b, material: e.material, cond: e.cond, rigid, bellows, bend: None, extra: e.extra, length: len });
             }
         }
         // Arcs: near → middle → far, on the element whose To node the bend is at.
@@ -200,7 +204,7 @@ impl Geom {
             let pn = point(&mut g, a.n, format!("{lab} near"), None);
             let pf = point(&mut g, a.f, format!("{lab} far"), None);
             for (x, y) in [(pn, mids[k]), (mids[k], pf)] {
-                g.segs.push(Seg { a: x, b: y, shape: Shape::Arc { centre: a.c, normal: a.normal, r: a.r, angle: a.angle / 2.0 }, element: e.id, pipe: e.pipe, pipe_b: e.pipe, material: e.material, cond: e.cond, rigid: None, bend: Some(lab), extra: e.extra, length: a.r * a.angle / 2.0 });
+                g.segs.push(Seg { a: x, b: y, shape: Shape::Arc { centre: a.c, normal: a.normal, r: a.r, angle: a.angle / 2.0 }, element: e.id, pipe: e.pipe, pipe_b: e.pipe, material: e.material, cond: e.cond, rigid: None, bellows: None, bend: Some(lab), extra: e.extra, length: a.r * a.angle / 2.0 });
             }
         }
         // Tees: at the To node of an element marked with one; three or more elements meet there.

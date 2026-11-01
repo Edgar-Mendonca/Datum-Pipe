@@ -14,7 +14,8 @@ export type TeeKind = "welding" | "fabricated" | "reinforced";
 export type RigidKind = "valve" | "flange" | "slipon" | "rigid";
 export type Comp =
   | { kind: "pipe" } | { kind: "bend"; bend: BendKind; r: number } | { kind: "tee"; tee: TeeKind; pad: number }
-  | { kind: "reducer"; to: number } | { kind: "rigid"; rigid: RigidKind; mass: number };
+  | { kind: "reducer"; to: number } | { kind: "rigid"; rigid: RigidKind; mass: number } | ({ kind: "bellows" } & Bellows);
+export interface Bellows { axial: number; lateral: number; angular: number; torsion: number; area: number; tied: boolean; mass: number }
 export interface Element { id: number; from: number; to: number; d: V3; pipe: number; material: number; cond: number; comp: Comp; extra: number }
 export interface Pipe { id: number; name: string; nps: string; sched: string; od: number; wall: number; corrosion: number; mill: number; ins_t: number; ins_rho: number; clad_t: number; clad_rho: number; fluid_rho: number }
 export interface Material { id: number; name: string; rho: number; nu: number; e: [number, number][]; alpha: [number, number][]; allow: [number, number][]; quality: number; weld: number; y: number; source: string }
@@ -39,7 +40,7 @@ export interface Out { m: Model; path: string | null; dirty: boolean; undo: bool
 // ---------- analysis geometry and results (crates/core/src/geom.rs, solve.rs) ----------
 export interface GPoint { p: V3; label: string; node: number | null }
 export type GShape = { kind: "straight" } | { kind: "arc"; centre: V3; normal: V3; r: number; angle: number };
-export interface Seg { a: number; b: number; shape: GShape; element: number; pipe: number; pipe_b: number; material: number; cond: number; rigid: [RigidKind, number] | null; bend: number | null; extra: number; length: number }
+export interface Seg { a: number; b: number; shape: GShape; element: number; pipe: number; pipe_b: number; material: number; cond: number; rigid: [RigidKind, number] | null; bellows?: Bellows; bend: number | null; extra: number; length: number }
 export interface GTee { node: number; point: number; kind: TeeKind; pad: number; pipe: number; normal: V3 }
 export interface Geom { points: GPoint[]; segs: Seg[]; tees: GTee[]; node_point: Record<string, number>; warnings: string[] }
 export type Six = [number, number, number, number, number, number];

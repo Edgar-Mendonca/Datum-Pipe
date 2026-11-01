@@ -115,7 +115,7 @@ export const Ribbon = () => {
       </Show>
       <Show when={tab() === "model"}>
         <G l="Elements" h="elements"><B big i="addel" l="Add Element" run={C.addAfter} /><S><B i="split" l="Insert Node" run={C.split} /><B i="renum" l="Renumber" run={C.renumber} /><B i="del" l="Delete" run={C.del} off={!sel()} /></S></G>
-        <G l="Components" h="components"><Comp big k="bend:long" i="bend" l="Bend" /><S><Comp k="tee:welding" i="tee" l="Tee" /><Comp k="reducer" i="reducer" l="Reducer" /><Comp k="pipe" i="pipe" l="Straight" /></S><S><Comp k="rigid:valve" i="valve" l="Valve" /><Comp k="rigid:flange" i="flange" l="Flange Pair" /><Comp k="rigid:rigid" i="rigid" l="Rigid" /></S></G>
+        <G l="Components" h="components"><Comp big k="bend:long" i="bend" l="Bend" /><S><Comp k="tee:welding" i="tee" l="Tee" /><Comp k="reducer" i="reducer" l="Reducer" /><Comp k="pipe" i="pipe" l="Straight" /></S><S><Comp k="rigid:valve" i="valve" l="Valve" /><Comp k="rigid:flange" i="flange" l="Flange Pair" /><Comp k="rigid:rigid" i="rigid" l="Rigid" /></S><S><Comp k="bellows" i="bellows" l="Expansion Joint" /></S></G>
         <G l="Properties" h="pipes"><B big i="pipe" l="Pipes" run={() => P.pipes()} /><B big i="material" l="Materials" run={() => P.materials()} /><B big i="temp" l="Line Conditions" run={() => P.conds()} /></G>
         <G l="Edit" h="edit"><B big i="loop" l="Expansion Loop" run={() => T.loopWizard()} title="Turn the selected straight element into an expansion loop" /><S><B i="copy" l="Copy Section" run={() => T.copySection()} /><B i="mirror" l="Mirror Section" run={() => T.copySection(true)} /></S></G>
       </Show>
@@ -155,7 +155,7 @@ export const Ribbon = () => {
         <Show when={selEl()} fallback={<G l="Component"><div class="rnote">Select an element in the table or the 3D view.</div></G>}>
           <G l="Component" h="components"><For each={COMPS.slice(0, 4)}>{c => <Comp k={c[0]} i={c[0] === "pipe" ? "pipe" : "bend"} l={c[1]} />}</For></G>
           <G l="Tees" h="components"><S><For each={COMPS.slice(4, 7)}>{c => <Comp k={c[0]} i="tee" l={c[1]} />}</For></S></G>
-          <G l="Fittings" h="components"><S><Comp k="reducer" i="reducer" l="Reducer" /><Comp k="rigid:valve" i="valve" l="Valve" /><Comp k="rigid:rigid" i="rigid" l="Rigid" /></S><S><Comp k="rigid:flange" i="flange" l="Flange pair, weld neck" /><Comp k="rigid:slipon" i="flange" l="Flange pair, slip-on" /></S></G>
+          <G l="Fittings" h="components"><S><Comp k="reducer" i="reducer" l="Reducer" /><Comp k="rigid:valve" i="valve" l="Valve" /><Comp k="rigid:rigid" i="rigid" l="Rigid" /></S><S><Comp k="rigid:flange" i="flange" l="Flange pair, weld neck" /><Comp k="rigid:slipon" i="flange" l="Flange pair, slip-on" /></S><S><Comp k="bellows" i="bellows" l="Expansion joint" /></S></G>
         </Show>
       </Show>
       <Show when={tab() === "help"}>

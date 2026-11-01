@@ -92,20 +92,26 @@ impl Line {
 }
 
 /// What a segment is made of, for its stiffness: the section at fraction s of its length (a
-/// reducer changes along it), E, G, the bend's flexibility factor, and whether it is rigid.
+/// reducer changes along it), E, G, the bend's flexibility factor, whether it is rigid, and an
+/// expansion joint's own stiffness.
 pub struct Props<'a> {
     pub sec: &'a dyn Fn(f64) -> Section,
     pub e: f64,
     pub g: f64,
     pub k: f64,
     pub rigid: bool,
+    /// An expansion joint's own stiffness, replacing the section's: EA, κGA, GJ, EI.
+    pub over: Option<[f64; 4]>,
 }
 
 /// The compliance C at a section, applied to a resultant [f; m] with the pipe direction t.
 fn comply(p: &Props, s: f64, t: V, fm: &[f64; 6]) -> [f64; 6] {
     let sec = (p.sec)(s);
     let r = if p.rigid { 1.0 / RIGID_FACTOR } else { 1.0 };
-    let (ea, gas, gj, ei) = (p.e * sec.a, p.g * sec.a * KAPPA, p.g * 2.0 * sec.i, p.e * sec.i / p.k);
+    let (ea, gas, gj, ei) = match p.over {
+        Some(o) => (o[0], o[1], o[2], o[3]),
+        None => (p.e * sec.a, p.g * sec.a * KAPPA, p.g * 2.0 * sec.i, p.e * sec.i / p.k),
+    };
     let f = [fm[0], fm[1], fm[2]];
     let m = [fm[3], fm[4], fm[5]];
     let (fa, ma) = (dot(f, t), dot(m, t));
@@ -267,7 +273,7 @@ mod tests {
     use super::*;
 
     fn steel(sec: &dyn Fn(f64) -> Section, k: f64) -> Props<'_> {
-        Props { sec, e: 200e9, g: 200e9 / 2.6, k, rigid: false }
+        Props { sec, e: 200e9, g: 200e9 / 2.6, k, rigid: false, over: None }
     }
 
     #[test]

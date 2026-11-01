@@ -82,6 +82,37 @@ pub enum Comp {
     Reducer { to: u32 },
     /// A valve, flanged joint or other rigid part with its weight (kg, without the fluid).
     Rigid { rigid: RigidKind, mass: f64 },
+    /// A bellows expansion joint (0.2.7) along the whole element, with the maker's spring rates.
+    Bellows(Bellows),
+}
+
+/// A bellows expansion joint's data from its maker: axial and lateral spring rates (N/m),
+/// angular and torsional (N·m/rad), 0 = rigid; the effective area for the pressure thrust (m²,
+/// 0 = the area of the pipe's outside diameter); tied (tie rods carry the pressure thrust and hold
+/// its length); and its weight (kg, without the fluid).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Bellows {
+    pub axial: f64,
+    pub lateral: f64,
+    pub angular: f64,
+    pub torsion: f64,
+    pub area: f64,
+    pub tied: bool,
+    pub mass: f64,
+}
+
+impl Default for Bellows {
+    fn default() -> Self {
+        // Typical of a 6" single bellows (example values: take yours from the maker).
+        Bellows { axial: 2e5, lateral: 1e6, angular: 3e4, torsion: 0.0, area: 0.0, tied: false, mass: 25.0 }
+    }
+}
+
+impl Bellows {
+    pub fn valid(&self) -> bool {
+        [self.axial, self.lateral, self.angular, self.torsion, self.area, self.mass].iter().all(|v| v.is_finite() && *v >= 0.0)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -720,6 +751,7 @@ impl Model {
                 Comp::Tee { pad, .. } if !(*pad >= 0.0 && fin(*pad)) => return Err(format!("The tee at node {}: the pad thickness must be 0 or more.", e.to)),
                 Comp::Reducer { to } if self.pipe(*to).is_none() => return Err(format!("The reducer {}–{} needs the pipe at its small end.", e.from, e.to)),
                 Comp::Rigid { mass, .. } if !(*mass >= 0.0 && fin(*mass)) => return Err(format!("The rigid part {}–{}: its weight must be 0 or more.", e.from, e.to)),
+                Comp::Bellows(b) if !b.valid() => return Err(format!("The expansion joint {}–{}: its spring rates, area and weight must be 0 or more.", e.from, e.to)),
                 _ => {}
             }
         }
@@ -1058,6 +1090,7 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
             Comp::Tee { pad, .. } => !(*pad >= 0.0 && fin(*pad)),
             Comp::Reducer { to } => !pipes.contains(to),
             Comp::Rigid { mass, .. } => !(*mass >= 0.0 && fin(*mass)),
+            Comp::Bellows(b) => !b.valid(),
             _ => false,
         };
         if bad {

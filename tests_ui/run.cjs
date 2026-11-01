@@ -321,6 +321,17 @@ const shots = process.env.SHOTS;
   const vals = await p.$$eval(".insp input", xs => xs.map(x => x.value));
   check("the nozzle Inspector has the wall flexibility with the example's stiffness", insp.includes("Wall flexibility") && insp.includes("Bending, circ.") && vals.includes("35000"), vals.join(","));
 
+  // 17. Expansion joints: the example's joint in the Inspector, analysed, and on the isometric.
+  await open("bellows");
+  await p.click('.egrid tbody tr:nth-child(3) td.rn'); await p.waitForTimeout(150);
+  const bi = (await p.textContent(".insp")) ?? "";
+  check("the expansion joint's Inspector has its rates and the tied box", bi.includes("Axial rate") && bi.includes("Lateral rate") && bi.includes("Tied"));
+  check("the table names the component", ((await p.textContent(".egrid")) ?? "").includes("Expansion joint"));
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.side button[title="Isometric"]'); await p.waitForTimeout(300);
+  check("the isometric draws", (await p.$$(".isosvg path")).length > 5);
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

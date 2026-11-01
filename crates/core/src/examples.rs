@@ -19,6 +19,7 @@ pub fn list() -> Vec<Example> {
         Example { id: "steam", name: "Steam line on a pipe rack", what: "8\" insulated steam at 250 °C along a rack: rests, guides and a line stop, then down to a turbine." },
         Example { id: "tank", name: "Tank outlet with settlement", what: "10\" tank outlet with a valve; the tank settles 12 mm (case 2) and the nozzle grows when hot." },
         Example { id: "relief", name: "Safety valve vent stack", what: "4\" steam safety valve on a header, discharging up a vent stack to the open air: the valve's thrust as an occasional load." },
+        Example { id: "bellows", name: "Expansion joint between anchors", what: "8\" steam in a straight run with an untied bellows: guides each side, and main anchors that take the pressure thrust." },
         Example { id: "lbend", name: "A simple L-bend", what: "6\" carbon steel at 200 °C between two anchors, with a long-radius bend. Check it by hand." },
         Example { id: "zbend", name: "A Z-bend", what: "6\" carbon steel at 250 °C: two bends between two anchors, the classic hand-check case." },
     ]
@@ -32,6 +33,7 @@ pub fn get(id: &str) -> Option<Model> {
         "steam" => Some(steam()),
         "tank" => Some(tank()),
         "relief" => Some(relief()),
+        "bellows" => Some(bellows()),
         "lbend" => Some(lbend()),
         "zbend" => Some(zbend()),
         _ => None,
@@ -94,6 +96,26 @@ fn relief() -> Model {
     let rv = crate::relief::Relief { name: "PSV-1".into(), node: 40, flow: 3.0, k: 1.3, temp: K0 + 200.0, mw: 18.015, ..Default::default() };
     d.apply(Op::SetReliefs { list: vec![rv] }).expect("relief valve");
     meta(&mut d, "Safety valve vent stack", "4\"-SV-01", "A safety valve on a steam header, its 4\" Sch 40 outlet running east and then up a 3 m vent stack to the open air. When the valve lifts, the steam leaving the stack pushes it back down: 3 kg/s at 200 °C (example values) with a dynamic load factor of 2. OPE1+RV adds the thrust to the hot operating case; OCC RV checks the sustained stress plus the thrust's own stress against 1.33 Sh.");
+    d.m
+}
+
+fn bellows() -> Model {
+    // 24 m between main anchors with an untied bellows in the middle, two guides each side.
+    let mut d = table("Expansion joint between anchors", &[(10, 20, 6.0, 0.0, 0.0), (20, 30, 5.6, 0.0, 0.0), (30, 31, 0.4, 0.0, 0.0), (31, 40, 6.0, 0.0, 0.0), (40, 50, 6.0, 0.0, 0.0)]);
+    pipe(&mut d, "8", "40", 0.075, 12.0);
+    conditions(&mut d, "Steam 200 °C", [200.0, 21.0, 21.0], [10.0, 0.0, 0.0], 15.0);
+    // Example values for an 8" single bellows: take yours from the maker.
+    let b = crate::model::Bellows { axial: 3e5, lateral: 1.5e6, angular: 6e4, torsion: 0.0, area: 0.045, tied: false, mass: 45.0 };
+    let mut e = d.m.elements.iter().find(|e| e.to == 31).expect("joint").clone();
+    e.comp = Comp::Bellows(b);
+    d.apply(Op::Set { item: Item::Element(e) }).expect("bellows");
+    support(&mut d, 10, SupKind::Anchor, "MA-10");
+    support(&mut d, 50, SupKind::Anchor, "MA-50");
+    for n in [20, 30, 31, 40] {
+        support(&mut d, n, SupKind::Rest, &format!("S-{n}"));
+        support(&mut d, n, SupKind::Guide, &format!("G-{n}"));
+    }
+    meta(&mut d, "Expansion joint between anchors", "8\"-ST-201", "8\" Sch 40 insulated steam at 200 °C and 10 bar, 24 m straight between main anchors, with an untied bellows expansion joint in the middle (example rates and an effective area of 0.045 m²) and guides each side of it. The joint takes the thermal growth with a small spring force, but the pressure on its effective area (45 kN at 10 bar) pushes the pipe apart: the main anchors carry that thrust in every case with pressure.");
     d.m
 }
 

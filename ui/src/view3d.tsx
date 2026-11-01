@@ -149,6 +149,7 @@ export const View3D = () => {
       if (ampl > 0) addDeform(geo, sg, dispAt);
       if (p.ins_t > 0) { const ro = r0 + p.ins_t + p.clad_t, ig = sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, ro, rad, false) : straight(ro, ro); group.add(new THREE.Mesh(ig, insMat)); if (ampl > 0) addDeform(ig, sg, dispAt); }
       if (sg.rigid) rigidSymbol(sg, r0);
+      if (sg.bellows) bellowsSymbol(sg, r0);
     });
     // Tees: a sphere where the branch joins, so the junction reads solid.
     for (const t of g.tees) { const p = pipeOf(t.pipe); if (!p) continue; const sp = new THREE.Mesh(new THREE.SphereGeometry(p.od / 2 * 1.08, 20, 14), steel); sp.position.copy(V(g.points[t.point].p as Vec)); group.add(sp); }
@@ -288,6 +289,22 @@ export const View3D = () => {
     } else if (kind === "flange" || kind === "slipon") {
       for (const f of [0.25, 0.75]) put(new THREE.CylinderGeometry(r * 1.75, r * 1.75, Math.min(L * 0.4, r * 0.5), 28), addv(a, mul(sub(b, a), f)));
     } else put(new THREE.BoxGeometry(r * 2.6, L * 0.9, r * 2.6), mid);
+  };
+
+  // An expansion joint: convolutions (rings) along it, with tie rods when it is tied.
+  const bellowsSymbol = (sg: Seg, r: number) => {
+    const g = out()!.geom!, a = g.points[sg.a].p as Vec, b = g.points[sg.b].p as Vec, t = unitv(sub(b, a));
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(t));
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8a96a3, metalness: 0.4, roughness: 0.45 });
+    const n = 7;
+    for (let i = 0; i < n; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(r * 1.25, r * 0.22, 8, 28), mat);
+      ring.position.copy(V(addv(a, mul(sub(b, a), (i + 1) / (n + 1))))); ring.quaternion.copy(q); ring.userData = { element: sg.element }; group.add(ring); pickables.push(ring);
+    }
+    if (sg.bellows!.tied) {
+      const side: Vec = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
+      for (const s of [1, -1]) { const rod = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.08, r * 0.08, len(sub(b, a)), 6), mat); rod.position.copy(V(addv(addv(a, mul(sub(b, a), 0.5)), mul(side, s * r * 1.8)))); rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(t)); group.add(rod); }
+    }
   };
 
   const fit = () => {

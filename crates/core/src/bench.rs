@@ -7,8 +7,8 @@
 //! (sliding and sticking, by statics and Hooke's law), and wind, static seismic and the
 //! occasional stress on a cantilever (beam theory), and a spring hanger sized by statics and free
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
-//! flange's equivalent pressure, a relief valve's thrust at an open end, and a cantilever from a
-//! flexible nozzle (springs in series). `run()` gives the rows of Help › Verification; the test fails on any row
+//! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
+//! flexible nozzle (springs in series), and an expansion joint's rates and pressure thrust. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -551,6 +551,50 @@ pub fn run() -> Vec<Check> {
         out.push(row(22, name, "Nozzle rotation", "rot", p * l / kt, -disp(&rf, "OPE1", 10)[5], TOL, src));
         out.push(row(22, name, "Anchor moment", "moment", p * l, reaction(&rf, "OPE1", 10)[5], TOL, src));
     }
+    // 23. An expansion joint 0.3 m long with the maker's rates ka 200 N/mm, k_lat 1000 N/mm,
+    //     kθ 30 kN·m/rad. (a) Between two anchors, the far one moved 5 mm sideways: F = k_lat δ.
+    //     (b) A cantilever joint with 100 N·m at its end turns by M / kθ. (c) 3 m of 6" Sch 40 each
+    //     side between anchors at 10 bar, effective area 0.03 m², no weight: the thrust P A pushes
+    //     the ends apart, the pipe (k1 = EA / 3 m) and the joint share it, so each anchor carries
+    //     P A k1 / (k1 + 2 ka).
+    {
+        let bel = crate::model::Bellows { axial: 2e5, lateral: 1e6, angular: 3e4, torsion: 0.0, area: 0.03, tied: false, mass: 0.0 };
+        let setup = |rows: &[(u32, u32, f64, f64, f64)], at: u32| {
+            let mut d = table("Bellows", rows);
+            let mut s = d.m.settings.clone();
+            s.g = 0.0;
+            d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+            let mut e = d.m.elements.iter().find(|e| e.to == at).unwrap().clone();
+            e.comp = Comp::Bellows(bel);
+            d.apply(Op::Set { item: Item::Element(e) }).unwrap();
+            d
+        };
+        let name = "An expansion joint's spring rates and pressure thrust";
+        let src = "The maker's rates by definition, and statics with springs in series";
+        let mut d = setup(&[(10, 20, 0.3, 0.0, 0.0)], 20);
+        anchor(&mut d, 10);
+        add(&mut d, Item::Support(Support { node: 20, kind: SupKind::Anchor, disp: [[0.0, 0.005, 0.0, 0.0, 0.0, 0.0], [0.0; 6], [0.0; 6]], ..Default::default() }));
+        let r = analyze(&d.m).unwrap();
+        out.push(row(23, name, "Lateral force for a 5 mm offset", "force", 1e6 * 0.005, reaction(&r, "OPE1", 20)[1], TOL, src));
+        let mut d = setup(&[(10, 20, 0.3, 0.0, 0.0)], 20);
+        anchor(&mut d, 10);
+        add(&mut d, Item::Load(Load { node: 20, f: [0.0; 3], m: [0.0, 0.0, 100.0], ..Default::default() }));
+        let r = analyze(&d.m).unwrap();
+        out.push(row(23, name, "Rotation under 100 N·m", "rot", 100.0 / 3e4, disp(&r, "OPE1", 20)[5], TOL, src));
+        let mut d = setup(&[(10, 20, 3.0, 0.0, 0.0), (20, 21, 0.3, 0.0, 0.0), (21, 30, 3.0, 0.0, 0.0)], 21);
+        let mut c = d.m.conds[0].clone();
+        c.p[0] = 1e6;
+        c.t = [d.m.settings.ambient; 3];
+        d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+        anchor(&mut d, 10);
+        anchor(&mut d, 30);
+        let r = analyze(&d.m).unwrap();
+        let p = &d.m.pipes[0];
+        let e = crate::library::interp(&d.m.materials[0].e, d.m.settings.ambient);
+        let k1 = e * std::f64::consts::PI / 4.0 * (p.od.powi(2) - (p.od - 2.0 * p.wall).powi(2)) / 3.0;
+        let pa = 1e6 * 0.03;
+        out.push(row(23, name, "Anchor force from the pressure thrust", "force", pa * k1 / (k1 + 2.0 * 2e5), -reaction(&r, "SUS", 30)[0], TOL, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -575,7 +619,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=22 {
+        for b in 1..=23 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

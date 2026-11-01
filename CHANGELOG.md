@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.7 — 2026-11-01
+
+Expansion joints.
+
+**A new component.** An element can be a bellows expansion joint, with the maker's spring rates: axial, lateral (a parallel offset with the ends kept parallel), angular and torsional (0 is rigid), its effective area, its weight, and whether it is tied. Datum Pipe makes it a short beam with these rates (EA = ka L, EI = kθ L, GJ = kt L, and the shear flexibility that gives the lateral rate); a lateral rate higher than 12 kθ / L² cannot be modelled that way and is flagged.
+
+**Pressure thrust.** An untied joint cannot hold the pressure: the pressure on its effective area pushes the pipe apart at both its ends in every case with pressure (and the hydrotest), so the main anchors carry it. A tied joint's rods carry the thrust and hold its length.
+
+**Where to find it.** Model › Components › Expansion Joint, or Expansion joint in the table's component column; the rates in the Inspector. The 3D view draws the convolutions (and the tie rods), the isometric a zigzag. The code stresses are checked on the pipe at the joint's ends, not on the bellows.
+
+**Example.** A new worked example, Expansion joint between anchors: 8" steam at 200 °C and 10 bar, 24 m between main anchors, an untied joint in the middle: each main anchor carries 60 kN in operation, mostly the 45 kN pressure thrust.
+
+**Verification.** A new benchmark: a joint's lateral and angular rates, and the pressure thrust shared between the pipe and the joint, by hand, and the new example's equilibrium (65 checks). A worked test covers tied and untied joints, the warning and the stress points.
+
 ## 0.2.6 — 2026-11-01
 
 Vessel and tank nozzle flexibility.

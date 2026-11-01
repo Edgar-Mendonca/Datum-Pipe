@@ -37,6 +37,14 @@ const ElementPanel = (p: { e: Element }) => {
       <Show when={e().comp.kind === "tee"}><p class="muted small">The tee is at node {e().to}, where three elements meet.</p></Show>
       <Show when={e().comp.kind === "reducer"}><div class="iprow"><label>Small end</label><select onChange={ev => put({ comp: { kind: "reducer", to: +ev.currentTarget.value } })}><For each={m().pipes}>{x => <option value={x.id} selected={x.id === (e().comp as any).to}>{x.name}</option>}</For></select></div></Show>
       <Show when={e().comp.kind === "rigid"}><F l="Weight (without contents)" q="mass" v={(e().comp as any).mass} set={mass => put({ comp: { ...(e().comp as any), mass } })} /></Show>
+      <Show when={e().comp.kind === "bellows"}>{_ => { const b = () => e().comp as any; const pb = (x: any) => { if (Object.values(x).some(v => typeof v === "number" && v < 0)) return toast("The rates, area and weight must be 0 or more."); put({ comp: { ...b(), ...x } }); };
+        return <>
+          <div class="two"><F l="Axial rate" q="tstiff" v={b().axial} set={axial => pb({ axial })} /><F l="Lateral rate" q="tstiff" v={b().lateral} set={lateral => pb({ lateral })} /></div>
+          <div class="two"><F l="Angular rate" q="rstiff" v={b().angular} set={angular => pb({ angular })} /><F l="Torsional rate" q="rstiff" v={b().torsion} set={torsion => pb({ torsion })} /></div>
+          <div class="two"><F l="Effective area" q="area" v={b().area} set={area => pb({ area })} /><F l="Weight (without contents)" q="mass" v={b().mass} set={mass => pb({ mass })} /></div>
+          <label class="chk"><input type="checkbox" checked={b().tied} onChange={ev => pb({ tied: ev.currentTarget.checked })} />Tied (tie rods carry the pressure thrust)</label>
+          <p class="muted small">The maker's data; 0 is rigid. An area of 0 takes the pipe's outside diameter. Untied, the pressure on the effective area pushes the pipe apart: the main anchors must carry it.</p>
+        </>; }}</Show>
     </Sec>
     <Sec t="Properties" h="pipes">
       <div class="iprow"><label>Pipe</label><div class="inline"><select onChange={ev => put({ pipe: +ev.currentTarget.value })}><For each={m().pipes}>{x => <option value={x.id} selected={x.id === e().pipe}>{x.name}</option>}</For></select><button class="btn sm" onClick={() => P.pipes(e().pipe)}>Edit</button></div></div>

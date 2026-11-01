@@ -128,6 +128,128 @@ pub struct Vessel {
     /// Bolted flanges and covers (0.3.5).
     #[serde(default)]
     pub flanges: Vec<BodyFlange>,
+    /// Lifting lugs and trunnions (0.3.6).
+    #[serde(default)]
+    pub lifting: Option<Lifting>,
+    /// Legs instead of a skirt, for a vertical vessel (0.3.6).
+    #[serde(default)]
+    pub legs: Option<Legs>,
+}
+
+/// Lifting: plate lugs (number, thickness, width at the base, height of the hole above the base,
+/// radius of the metal round the hole, hole and pin diameters, fillet weld leg at the base) and the
+/// sling's angle from vertical; pipe trunnions (outside diameter, wall, arm to the load; 0 = none);
+/// the impact factor on the empty weight, and the lug and trunnion metal's yield strength.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Lifting {
+    pub lugs: u32,
+    pub t: f64,
+    pub w: f64,
+    pub h: f64,
+    pub r: f64,
+    pub hole: f64,
+    pub pin: f64,
+    pub weld: f64,
+    pub sling: f64,
+    pub tr_od: f64,
+    pub tr_t: f64,
+    pub tr_arm: f64,
+    pub impact: f64,
+    pub sy: f64,
+}
+
+impl Default for Lifting {
+    fn default() -> Self {
+        Lifting { lugs: 2, t: 0.03, w: 0.25, h: 0.12, r: 0.075, hole: 0.055, pin: 0.05, weld: 0.012, sling: 30.0, tr_od: 0.0, tr_t: 0.0, tr_arm: 0.0, impact: 1.5, sy: 250e6 }
+    }
+}
+
+/// Legs: number, length from the base to the bottom tangent line, their section (area, section
+/// modulus, radius of gyration), the circle they stand on, and their yield strength.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Legs {
+    pub n: u32,
+    pub len: f64,
+    pub area: f64,
+    pub z: f64,
+    pub rg: f64,
+    pub circle: f64,
+    pub sy: f64,
+}
+
+impl Default for Legs {
+    fn default() -> Self {
+        // Four 6" Sch 80 pipe legs (A 5.42e-3 m², Z 1.89e-4 m³, r 0.0559 m).
+        Legs { n: 4, len: 1.5, area: 5.42e-3, z: 1.89e-4, rg: 0.0559, circle: 1.6, sy: 240e6 }
+    }
+}
+
+/// A row of the lifting or leg checks.
+#[derive(Clone, Debug, Serialize)]
+pub struct CheckRow {
+    pub what: String,
+    pub value: f64,
+    pub allow: f64,
+    pub ratio: f64,
+    pub pass: bool,
+}
+
+fn crow(what: &str, value: f64, allow: f64) -> CheckRow {
+    let ratio = if allow > 0.0 { value.abs() / allow } else { f64::INFINITY };
+    CheckRow { what: what.into(), value, allow, ratio, pass: ratio <= 1.0 + 1e-12 }
+}
+
+/// Lifting lugs and trunnions under the empty weight times the impact factor, by statics.
+pub fn lifting_check(l: &Lifting, empty_kg: f64) -> Vec<CheckRow> {
+    let mut rows = vec![];
+    let w = l.impact * empty_kg * G;
+    if l.lugs > 0 && l.t > 0.0 {
+        let phi = l.sling.to_radians();
+        let f = w / l.lugs as f64 / phi.cos();
+        rows.push(crow("Lug: tension across the hole", f / ((2.0 * l.r - l.hole) * l.t), 0.6 * l.sy));
+        rows.push(crow("Lug: shear tear-out", f / (2.0 * (l.r - l.hole / 2.0) * l.t), 0.4 * l.sy));
+        rows.push(crow("Lug: pin bearing", f / (l.pin * l.t), 0.9 * l.sy));
+        let (fv, fh) = (f * phi.cos(), f * phi.sin());
+        rows.push(crow("Lug: tension and bending at the base", fv / (l.w * l.t) + 6.0 * fh * l.h / (l.t * l.w * l.w), 0.66 * l.sy));
+        if l.weld > 0.0 {
+            let throat = 0.707 * l.weld;
+            let fn_ = fv / (2.0 * throat * l.w) + 6.0 * fh * l.h / (2.0 * throat * l.w * l.w);
+            let fs = fh / (2.0 * throat * l.w);
+            rows.push(crow("Lug: base fillet welds", (fn_ * fn_ + fs * fs).sqrt(), 0.4 * l.sy));
+        }
+    }
+    if l.tr_od > 0.0 && l.tr_t > 0.0 {
+        // Two trunnions share the lift; each a cantilever from the shell to its load.
+        let f = w / 2.0;
+        let id = l.tr_od - 2.0 * l.tr_t;
+        let pi = std::f64::consts::PI;
+        let z = pi / 32.0 * (l.tr_od.powi(4) - id.powi(4)) / l.tr_od;
+        let a = pi / 4.0 * (l.tr_od * l.tr_od - id * id);
+        rows.push(crow("Trunnion: bending at the shell", f * l.tr_arm / z, 0.66 * l.sy));
+        rows.push(crow("Trunnion: shear", 2.0 * f / a, 0.4 * l.sy));
+    }
+    rows
+}
+
+/// Legs: each carries the weight over the legs plus the overturning moment over the leg circle
+/// (4 M / (n D)), against Euler buckling of a cantilever leg with a factor of 2 and 0.6 Sy, with the
+/// base shear's bending in the leg (fixed at the shell, free at the base: V / n × L).
+pub fn legs_check(g: &Legs, weight_n: f64, moment: f64, shear: f64, e: f64) -> Vec<CheckRow> {
+    let n = g.n.max(1) as f64;
+    let p = weight_n / n + 4.0 * moment / (n * g.circle);
+    let fa = p / g.area;
+    let kl_r = 2.0 * g.len / g.rg;
+    let euler = std::f64::consts::PI.powi(2) * e / (kl_r * kl_r);
+    let fa_allow = (euler / 2.0).min(0.6 * g.sy);
+    let fb = shear / n * g.len / g.z;
+    let fb_allow = 0.66 * g.sy;
+    vec![
+        crow("Legs: axial (weight and overturning)", fa, fa_allow),
+        crow("Legs: bending from the base shear", fb, fb_allow),
+        crow("Legs: combined fa/Fa + fb/Fb", fa / fa_allow + fb / fb_allow, 1.0),
+    ]
 }
 
 /// A bolted flange or cover at the vessel's design pressure: a ring (loose) flange or a blind
@@ -465,6 +587,8 @@ impl Default for Vessel {
             emod: emod0(),
             base_el: 0.0,
             flanges: vec![],
+            lifting: None,
+            legs: None,
         }
     }
 }
@@ -519,6 +643,8 @@ pub struct VesselResult {
     pub saddles: Option<SaddleResult>,
     pub support: Option<SupportResult>,
     pub flanges: Vec<FlangeResult>,
+    pub lifting: Vec<CheckRow>,
+    pub legs: Vec<CheckRow>,
     pub warnings: Vec<String>,
 }
 
@@ -680,6 +806,19 @@ impl Vessel {
                 return Err(format!("The flange {} of {}: outside diameter > bolt circle > gasket outside > gasket inside (> bore for a ring flange), a thickness, bolts and allowable stresses above 0.", f.name, self.name));
             }
         }
+        if let Some(l) = &self.lifting {
+            if ![l.t, l.w, l.h, l.r, l.hole, l.pin, l.weld, l.sling, l.tr_od, l.tr_t, l.tr_arm, l.impact, l.sy].iter().all(|v| fin(*v) && *v >= 0.0) || l.sling >= 80.0 || l.impact < 1.0 || l.sy <= 0.0 || (l.lugs > 0 && !(l.t > 0.0 && l.w > 0.0 && l.r > l.hole / 2.0 && l.pin <= l.hole)) || (l.tr_od > 0.0 && 2.0 * l.tr_t >= l.tr_od) {
+                return Err(format!("The lifting data of {}: sizes 0 or more, the hole inside the lug and the pin no larger than the hole, a sling angle under 80°, an impact factor of 1 or more.", self.name));
+            }
+        }
+        if let Some(g) = &self.legs {
+            if !self.vertical || self.skirt.is_some() {
+                return Err(format!("The vessel {}: legs are for a vertical vessel without a skirt.", self.name));
+            }
+            if g.n < 3 || ![g.len, g.area, g.z, g.rg, g.circle, g.sy].iter().all(|v| fin(*v) && *v > 0.0) {
+                return Err(format!("The legs of {}: three or more, with a length, section and circle above 0.", self.name));
+            }
+        }
         if let Some(s) = &self.saddles {
             if self.vertical {
                 return Err(format!("The vessel {} is vertical: saddles are for horizontal vessels.", self.name));
@@ -780,7 +919,7 @@ fn supports(v: &Vessel, site: &crate::model::Settings, spans: &[[f64; 2]], profi
     let top = spans.iter().map(|s| s[1]).fold(f64::NEG_INFINITY, f64::max);
     let bottom = spans.iter().map(|s| s[0]).fold(f64::INFINITY, f64::min);
     let skirt_h = v.skirt.as_ref().map_or(0.0, |k| k.h);
-    let zb = if v.skirt.is_some() { -skirt_h } else { bottom };
+    let zb = if v.skirt.is_some() { -skirt_h } else if let Some(g) = &v.legs { -g.len } else { bottom };
     let shell_od = v.parts.iter().filter(|p| matches!(p.kind, PartKind::Cylinder)).map(|p| p.d + 2.0 * p.t).fold(0.0, f64::max);
     // The outside radius at height z, from the outline of each part (the skirt below the tangent line).
     let r_at = |z: f64| -> f64 {
@@ -1076,14 +1215,19 @@ pub fn check_in(v: &Vessel, site: &crate::model::Settings) -> Result<VesselResul
         Some(s) => Some(saddle_check(v, s, operating.max(test_weight), &spans, &mut warnings)?),
         None => None,
     };
-    let sup = if v.vertical && (v.skirt.is_some() || site.has_wind() || v.seis > 0.0) {
+    let sup = if v.vertical && (v.skirt.is_some() || v.legs.is_some() || site.has_wind() || v.seis > 0.0) {
         Some(supports(v, site, &spans, &profiles, empty, operating, &mut warnings))
     } else {
         None
     };
     let fl: Vec<FlangeResult> = v.flanges.iter().map(|f| flange_check(f, v.p)).collect();
-    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass) && sad.as_ref().is_none_or(|s| s.pass) && sup.as_ref().is_none_or(|s| s.pass) && fl.iter().all(|f| f.pass);
-    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, saddles: sad, support: sup, flanges: fl, warnings })
+    let lift = v.lifting.as_ref().map(|l| lifting_check(l, empty)).unwrap_or_default();
+    let legs = match (&v.legs, &sup) {
+        (Some(g), Some(s)) => legs_check(g, s.weight_op, s.moment_wind.max(s.moment_seis), s.shear_wind.max(s.shear_seis), v.emod),
+        _ => vec![],
+    };
+    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass) && sad.as_ref().is_none_or(|s| s.pass) && sup.as_ref().is_none_or(|s| s.pass) && fl.iter().all(|f| f.pass) && lift.iter().chain(&legs).all(|x| x.pass);
+    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, saddles: sad, support: sup, flanges: fl, lifting: lift, legs, warnings })
 }
 
 /// The liquid's volume: up to the level (vertical, from the bottom tangent line) or the part of the
@@ -1253,6 +1397,28 @@ mod tests {
         let (ad, ag) = ((0.686 - 0.5) / 2.0, hg);
         let mo = hd * ad + (h - hd) * (ad + ag) / 2.0 + (wm1 - h) * ag;
         assert!(close(r.m_op, mo, 1e-12) && close(r.op, ring_y(0.775 / 0.5) * mo / (0.0036 * 0.5), 1e-12));
+    }
+
+    #[test]
+    fn legs_by_hand() {
+        // Four legs of A 5.42e-3 m², Z 1.89e-4 m³, r 0.0559 m, 1.5 m long on a 1.6 m circle; 100 kN
+        // weight, 40 kN·m overturning, 10 kN shear: P = W/4 + 4M/(4 × 1.6); Euler with K = 2.
+        let g = Legs::default();
+        let rows = legs_check(&g, 100e3, 40e3, 10e3, 200e9);
+        let p = 100e3 / 4.0 + 4.0 * 40e3 / (4.0 * 1.6);
+        let kl = 2.0 * 1.5 / 0.0559;
+        let fa_allow = (std::f64::consts::PI.powi(2) * 200e9 / (kl * kl) / 2.0).min(0.6 * 240e6);
+        assert!(close(rows[0].value, p / 5.42e-3, 1e-12) && close(rows[0].allow, fa_allow, 1e-12));
+        assert!(close(rows[1].value, 10e3 / 4.0 * 1.5 / 1.89e-4, 1e-12));
+        // A leg vessel's base moment comes from its legs' length.
+        let mut v = Vessel { legs: Some(g), seis: 0.2, ..Default::default() };
+        v.parts[1].len = 3.0;
+        let r = check(&v).unwrap();
+        assert_eq!(r.legs.len(), 3);
+        assert!(r.support.as_ref().unwrap().moment_seis > r.support.as_ref().unwrap().shear_seis * 1.5);
+        // Legs and a skirt together are refused.
+        v.skirt = Some(Skirt::default());
+        assert!(check(&v).is_err());
     }
 
     #[test]

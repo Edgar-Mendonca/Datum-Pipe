@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.6 — 2026-11-01
+
+Lifting lugs, trunnions and legs.
+
+**Lifting.** Plate lifting lugs (number, thickness, width, hole height, metal round the hole, hole and pin diameters, base weld) lifted along a sling at an angle from vertical, and pipe trunnions (diameter, wall, arm), under the empty weight times an impact factor. The lugs are checked for tension across the hole, shear tear-out, pin bearing, tension and bending at the base, and the base fillet welds; the trunnions for bending and shear at the shell. Allowables are fractions of the yield: 0.6 in tension, 0.4 in shear and on the welds, 0.9 in bearing, 0.66 in bending.
+
+**Legs.** A vertical vessel can stand on legs instead of a skirt: each leg carries the weight over the legs plus 4 M / (n D) from the overturning moment of the wind or seismic, checked against Euler buckling of a cantilever leg (K = 2) with a factor of 2 and 0.6 of the yield, with the base shear's bending in the leg and the two combined.
+
+**Example.** V-101 has two 30 mm lifting lugs on its top head, lifted at 30° with an impact factor of 1.5: the highest ratio 0.31, on the base welds.
+
+**Verification.** A new benchmark: V-101's lugs by hand (88 checks); a unit test of the legs.
+
 ## 0.3.5 — 2026-11-01
 
 Bolted flanges and covers on vessels.

@@ -370,6 +370,7 @@ const shots = process.env.SHOTS;
   await p.selectOption(".vleft table:nth-of-type(2) tbody tr:nth-child(1) td:nth-child(5) select >> nth=0", "6"); await p.waitForTimeout(250);
   const nn = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetVessels).map(c => c[1].op.SetVessels.list[0].nozzles[0]).pop());
   check("picking a nozzle size sends its outside diameter in metres", Math.abs(nn.od - 0.168275) < 1e-6 && nn.t > 0.005 && nn.t < 0.02, JSON.stringify(nn));
+  check("V-101's lifting lugs are checked", ((await p.textContent(".vpage")) ?? "").includes("Lug: tension across the hole") && ((await p.textContent(".vpage")) ?? "").includes("Lifting lugs and trunnions"));
   check("V-101's manway cover is checked by the bolted flange method", vt.includes("Bolted flanges and covers") && vt.includes("M1 cover (cover, thickness)"));
   await p.click('.vpage h1 button:has-text("Add a horizontal vessel")'); await p.waitForTimeout(300);
   const nv = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetVessels).map(c => c[1].op.SetVessels.list).pop());

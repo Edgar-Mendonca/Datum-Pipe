@@ -97,6 +97,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.3.6 | `Vessel.lifting` (`Lifting`: lugs and trunnions, impact, Sy) and `Vessel.legs` (`Legs`: n, len, A, Z, r, circle, Sy) as `CheckRow`s; lug load = impact × empty × g / n / cos φ; allowables 0.6/0.4/0.9/0.66 Sy; legs P = W/n + 4M/(n D), Euler K = 2 / factor 2 capped 0.6 Sy, bending V/n × L, interaction; legs take the base at −len for the moments; no skirt with legs | Statics and Euler only, with the usual working-stress fractions |
 | 0.3.5 | `Vessel.flanges` (`BodyFlange`): ring (loose, Y Mo/(t² B), Y = (0.66845 + 5.71690 K² log K/(K² − 1))/(K − 1)) and blind (G √(0.3 P/S + 1.9 W hG/(S G³))); b = b0 up to 6.35 mm else 2.52 √b0 (mm), G = gasket OD − 2b (or the mean); Wm1, Wm2, Am, W = (Am + Ab) Sa/2. Weld-neck (hub factors F, V, f) not done: their closed forms could not be verified from here | Only what could be checked against known values (Y at K = 1.5 = 4.96) |
 | 0.3.5 | Fixed: the nozzle editor multiplied the library's sizes (already in metres) by 0.0254; the schedule boxes now show their value (drawn after the library loads) | Found by a new UI check written for the display bug |
 | 0.3.4 | `Vessel.skirt` (`Skirt`), `wind_cd` (0.7), `wind_dfac` (1.2), `seis`, `emod` (195 GPa), `base_el`; `check_in(v, settings)` uses the model's wind (`check` = no wind); `supports()` integrates wind and seismic over 400 slices from the base (outline radius + t; bottom head inside the skirt), masses spread over each part's span, extra over the tangent length; larger moment of wind or seismic; compressive allowable min(S, 0.0625 E t / R) (no material charts) | Statics and classical buckling only; the site's wind is shared with the piping |
@@ -242,8 +243,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.3.3 | Vessels: horizontal vessels on two saddles (Zick's published method) | ✅ |
 | 0.3.4 | Vessels: vertical vessels: weight, wind, seismic, skirt, base ring, anchor bolts | ✅ |
 | 0.3.5 | Vessels: body flanges (the published Taylor-Forge method) | ✅ ring and blind; weld-neck later |
-| 0.3.6 | Vessels: lifting lugs, trunnions, leg supports | 🔜 |
-| 0.3.7 | Vessels and piping linked: the piping model's nozzle loads checked on the vessel's nozzle | ⬜ |
+| 0.3.6 | Vessels: lifting lugs, trunnions, leg supports | ✅ |
+| 0.3.7 | Vessels and piping linked: the piping model's nozzle loads checked on the vessel's nozzle | 🔜 |
 | 0.3.8 | Vessels: external pressure and stiffening rings, from classical shell-buckling theory in free public sources (no code charts) | ⬜ |
 | 0.4.0 | Milestone: vessels reviewed | ⬜ |
 | 0.5 | Dynamics: modes, harmonic, response spectrum; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ⬜ |
@@ -408,6 +409,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 ### 2026-11-01: Session 2, continued (0.3.5: bolted flanges and covers)
 - Engine: `BodyFlange`, `flange_check`, `ring_y`; unit test and benchmark 29 (86 checks). V-101's manway cover.
 - UI: flanges editor and results table; the nozzle-size unit bug and the schedule box display fixed with UI checks. Checked in the real app.
+
+### 2026-11-01: Session 2, continued (0.3.6: lifting and legs)
+- Engine: `Lifting`, `Legs`, `lifting_check`, `legs_check`, `CheckRow`; unit test of the legs, benchmark 30 (88 checks). V-101's lugs.
+- UI: lifting and legs editors, the Lifting and legs table; a UI check. Checked in the real app. (An insertion left a stray `fn cd0` line; the compiler caught it.)
 
 ## 5. Known limits (0.2.0)
 

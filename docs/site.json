@@ -244,7 +244,7 @@
     {
       "v": "0.3.6",
       "title": "Vessels: lifting and legs",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Lifting lugs, trunnions and leg supports"
       ]
@@ -252,7 +252,7 @@
     {
       "v": "0.3.7",
       "title": "Vessels and piping together",
-      "when": "Planned",
+      "when": "Next",
       "items": [
         "The piping model's nozzle loads checked on the vessel's nozzle"
       ]

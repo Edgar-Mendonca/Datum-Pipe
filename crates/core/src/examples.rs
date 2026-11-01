@@ -164,6 +164,8 @@ fn separator() -> Model {
         // The manway's bolted cover (example dimensions and gasket factors: take yours from the
         // flange standard and the gasket maker).
         flanges: vec![crate::vessel::BodyFlange { name: "M1 cover".into(), ..Default::default() }],
+        // Two 30 mm lifting lugs on the top head, lifted at 30° from vertical with an impact factor of 1.5.
+        lifting: Some(crate::vessel::Lifting::default()),
         ..Default::default()
     };
     let mut st = d.m.settings.clone();

@@ -260,7 +260,7 @@
     {
       "v": "0.3.8",
       "title": "Vessels: external pressure",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "External pressure and stiffening rings from classical shell-buckling theory"
       ]
@@ -268,7 +268,7 @@
     {
       "v": "0.4.0",
       "title": "Vessels, complete",
-      "when": "Milestone",
+      "when": "Next",
       "items": [
         "Everything in 0.3.1–0.3.8 reviewed",
         "No new features: 0.4.0 marks the stage as finished"

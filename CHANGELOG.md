@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.8 — 2026-11-01
+
+External pressure on vessels.
+
+**Vacuum and external pressure.** A vessel takes an external design pressure (full vacuum is 1.013 bar outside), a design factor on collapse (3 by default) and stiffening rings on its shell (spacing and moment of inertia). From classical shell buckling, with no code charts: a cylinder between stiffeners collapses at 2.42 E (t/D)^2.5 / ((1 − ν²)^0.75 (L/D − 0.45 √(t/D))), never below the long-tube 2 E / (1 − ν²) (t/D)³, L the shell between the heads plus a third of each head's depth, or the ring spacing; heads are spheres of their crown radius (0.9 D for a 2:1 head) at 0.1875 E (t/R)², the classical result with a knockdown for imperfections; each is capped by yield and divided by the design factor. A ring needs a moment of inertia of at least the factor × pe R³ Ls / (3 E).
+
+**Example.** D-201 is checked for full vacuum (the steam-out case) with rings every 3 m: the shell at 0.52 of its allowable, the rings at 0.92. Without the rings the 9.4 m shell would fail.
+
+**Verification.** A new benchmark: D-201's allowable external pressure and its rings by hand (92 checks); a unit test of the collapse formulas.
+
 ## 0.3.7 — 2026-11-01
 
 Vessels and piping together.

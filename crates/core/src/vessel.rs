@@ -134,6 +134,101 @@ pub struct Vessel {
     /// Legs instead of a skirt, for a vertical vessel (0.3.6).
     #[serde(default)]
     pub legs: Option<Legs>,
+    /// External pressure (0.3.8): the design external pressure (Pa, 0 = none), the design factor on
+    /// collapse, and stiffening rings on the cylinders (spacing, m, 0 = none; each ring's moment of
+    /// inertia with its share of shell, m⁴).
+    #[serde(default)]
+    pub pe: f64,
+    #[serde(default = "fs0")]
+    pub ext_fs: f64,
+    #[serde(default)]
+    pub ring_spacing: f64,
+    #[serde(default)]
+    pub ring_i: f64,
+}
+
+fn fs0() -> f64 {
+    3.0
+}
+
+/// A part's external pressure check.
+#[derive(Clone, Debug, Serialize)]
+pub struct ExternalRow {
+    pub name: String,
+    /// The design length (cylinders) or the spherical radius (heads) used, and the corroded thickness.
+    pub length: f64,
+    pub t: f64,
+    /// Elastic collapse pressure, the yield limit, and the allowable after the design factor.
+    pub elastic: f64,
+    pub yield_p: f64,
+    pub allow: f64,
+    pub ratio: f64,
+    pub pass: bool,
+}
+
+/// The elastic collapse pressure of a cylinder of outside diameter d, thickness t and length l
+/// between stiffeners: the short-tube result 2.42 E (t/d)^2.5 / ((1 − ν²)^0.75 (l/d − 0.45 √(t/d))),
+/// never below the long-tube limit 2 E / (1 − ν²) (t/d)³.
+pub fn cylinder_collapse(e: f64, d: f64, t: f64, l: f64) -> f64 {
+    let nu: f64 = 0.3;
+    let td = t / d;
+    let long = 2.0 * e / (1.0 - nu * nu) * td.powi(3);
+    let den = l / d - 0.45 * td.sqrt();
+    let short = if den > 0.0 { 2.42 * e * td.powf(2.5) / ((1.0 - nu * nu).powf(0.75) * den) } else { f64::INFINITY };
+    short.max(long)
+}
+
+/// External pressure on every part: cylinders over their design length (the course plus a third of
+/// each end head's depth, or the ring spacing), heads as spheres of their crown radius
+/// (0.1875 E (t/R)², the classical result with a knockdown), each capped by yield and divided by the
+/// design factor; and the rings.
+fn external(v: &Vessel, spans: &[[f64; 2]]) -> (Vec<ExternalRow>, Option<CheckRow>) {
+    let n = v.parts.len();
+    let mut rows = vec![];
+    let ca = v.corrosion;
+    let sy = if v.sy > 0.0 { v.sy } else { 1.5 * v.s };
+    let head_third = |i: usize| -> f64 { if matches!(v.parts[i].kind, PartKind::Cylinder | PartKind::Cone { .. }) { 0.0 } else { head_depth(&v.parts[i].kind, v.parts[i].d) / 3.0 } };
+    let mut ring = None;
+    for (i, p) in v.parts.iter().enumerate() {
+        let t = p.t - ca - v.under;
+        let dout = p.d + 2.0 * p.t;
+        match p.kind {
+            PartKind::Cylinder | PartKind::Cone { .. } => {
+                // The run of shell between the heads, unless rings break it.
+                let tl = spans[n - 1][0] - spans[0][1];
+                let mut l = tl + head_third(0) + head_third(n - 1);
+                if v.ring_spacing > 0.0 {
+                    l = l.min(v.ring_spacing);
+                }
+                let _ = i;
+                let elastic = cylinder_collapse(v.emod, dout, t, l);
+                let yield_p = 2.0 * sy * t / dout;
+                let allow = elastic.min(yield_p) / v.ext_fs;
+                let ratio = v.pe / allow;
+                rows.push(ExternalRow { name: p.name.clone(), length: l, t, elastic, yield_p, allow, ratio, pass: ratio <= 1.0 + 1e-12 });
+                if v.ring_spacing > 0.0 && ring.is_none() {
+                    // A ring carries the pressure over its spacing: 3 E I / (R³ Ls) ≥ factor × pe.
+                    let r = dout / 2.0;
+                    let need = v.ext_fs * v.pe * r.powi(3) * v.ring_spacing / (3.0 * v.emod);
+                    ring = Some(crow("Stiffening ring: moment of inertia (m⁴)", need, v.ring_i));
+                }
+            }
+            _ => {
+                let r = match p.kind {
+                    PartKind::Ellipsoidal => 0.9 * p.d,
+                    PartKind::Torispherical { crown, .. } => crown * p.d,
+                    _ => p.d / 2.0,
+                } + p.t;
+                // The classical sphere 1.21 E (t/R)² with a knockdown for imperfections: 0.1875 E (t/R)².
+                let elastic = 0.1875 * v.emod * (t / r).powi(2);
+                let yield_p = 2.0 * sy * t / r;
+                let allow = elastic.min(yield_p) / v.ext_fs;
+                let ratio = v.pe / allow;
+                rows.push(ExternalRow { name: p.name.clone(), length: r, t, elastic, yield_p, allow, ratio, pass: ratio <= 1.0 + 1e-12 });
+            }
+        }
+    }
+    (rows, ring)
 }
 
 /// Lifting: plate lugs (number, thickness, width at the base, height of the hole above the base,
@@ -634,6 +729,10 @@ impl Default for Vessel {
             flanges: vec![],
             lifting: None,
             legs: None,
+            pe: 0.0,
+            ext_fs: fs0(),
+            ring_spacing: 0.0,
+            ring_i: 0.0,
         }
     }
 }
@@ -690,6 +789,8 @@ pub struct VesselResult {
     pub flanges: Vec<FlangeResult>,
     pub lifting: Vec<CheckRow>,
     pub legs: Vec<CheckRow>,
+    pub external: Vec<ExternalRow>,
+    pub rings: Option<CheckRow>,
     pub warnings: Vec<String>,
 }
 
@@ -855,6 +956,9 @@ impl Vessel {
             if ![l.t, l.w, l.h, l.r, l.hole, l.pin, l.weld, l.sling, l.tr_od, l.tr_t, l.tr_arm, l.impact, l.sy].iter().all(|v| fin(*v) && *v >= 0.0) || l.sling >= 80.0 || l.impact < 1.0 || l.sy <= 0.0 || (l.lugs > 0 && !(l.t > 0.0 && l.w > 0.0 && l.r > l.hole / 2.0 && l.pin <= l.hole)) || (l.tr_od > 0.0 && 2.0 * l.tr_t >= l.tr_od) {
                 return Err(format!("The lifting data of {}: sizes 0 or more, the hole inside the lug and the pin no larger than the hole, a sling angle under 80°, an impact factor of 1 or more.", self.name));
             }
+        }
+        if !(self.pe >= 0.0 && fin(self.pe) && self.ext_fs >= 1.0 && fin(self.ext_fs) && self.ring_spacing >= 0.0 && fin(self.ring_spacing) && self.ring_i >= 0.0 && fin(self.ring_i)) {
+            return Err(format!("The vessel {}: the external pressure, ring spacing and ring inertia must be 0 or more, the design factor 1 or more.", self.name));
         }
         if let Some(g) = &self.legs {
             if !self.vertical || self.skirt.is_some() {
@@ -1271,8 +1375,9 @@ pub fn check_in(v: &Vessel, site: &crate::model::Settings) -> Result<VesselResul
         (Some(g), Some(s)) => legs_check(g, s.weight_op, s.moment_wind.max(s.moment_seis), s.shear_wind.max(s.shear_seis), v.emod),
         _ => vec![],
     };
-    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass) && sad.as_ref().is_none_or(|s| s.pass) && sup.as_ref().is_none_or(|s| s.pass) && fl.iter().all(|f| f.pass) && lift.iter().chain(&legs).all(|x| x.pass);
-    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, saddles: sad, support: sup, flanges: fl, lifting: lift, legs, warnings })
+    let (ext, rings) = if v.pe > 0.0 { external(v, &spans) } else { (vec![], None) };
+    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass) && sad.as_ref().is_none_or(|s| s.pass) && sup.as_ref().is_none_or(|s| s.pass) && fl.iter().all(|f| f.pass) && lift.iter().chain(&legs).all(|x| x.pass) && ext.iter().all(|x| x.pass) && rings.as_ref().is_none_or(|r| r.pass);
+    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, saddles: sad, support: sup, flanges: fl, lifting: lift, legs, external: ext, rings, warnings })
 }
 
 /// The liquid's volume: up to the level (vertical, from the bottom tangent line) or the part of the
@@ -1464,6 +1569,21 @@ mod tests {
         // Legs and a skirt together are refused.
         v.skirt = Some(Skirt::default());
         assert!(check(&v).is_err());
+    }
+
+    #[test]
+    fn external_pressure_by_hand() {
+        // A long tube: 2 E / (1 − ν²) (t/D)³; a short one by the short-tube formula.
+        let (e, d, t) = (200e9, 1.0, 0.01);
+        assert!(close(cylinder_collapse(e, d, t, 1000.0), 2.0 * e / 0.91 * 1e-6, 1e-12));
+        let short = 2.42 * e * 0.01f64.powf(2.5) / (0.91f64.powf(0.75) * (2.0 - 0.45 * 0.1));
+        assert!(close(cylinder_collapse(e, d, t, 2.0), short, 1e-12));
+        // Rings: the drum without them fails full vacuum, with them it passes.
+        let m = crate::examples::get("drum").unwrap();
+        let mut v = m.vessels[0].clone();
+        assert!(check(&v).unwrap().external.iter().all(|x| x.pass));
+        v.ring_spacing = 0.0;
+        assert!(!check(&v).unwrap().external[1].pass);
     }
 
     #[test]

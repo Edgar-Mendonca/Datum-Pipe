@@ -97,6 +97,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 
 | Version | Decision | Why |
 | --- | --- | --- |
+| 0.3.8 | `Vessel.pe`, `ext_fs` (3), `ring_spacing`, `ring_i`; `cylinder_collapse` (von Mises short tube in closed form, floored by Bryan's long tube), L = tangent length + a third of each head's depth or the ring spacing; heads as spheres R = 0.9 D (2:1), crown (torispherical), D/2 (hemi), 0.1875 E (t/R)²; each min with hoop yield 2 Sy t/D, ÷ factor; ring I ≥ F pe R³ Ls / (3E) | Classical theory only, per the owner's rule: no material charts |
 | 0.3.7 | `VNozzle.link` = a piping `Nozzle` id; `vessel::link_checks(m, cases)` in `analyze` → `Results.vessel_links`: neck (pipe at 87.5 % less corrosion) P d/(4tn) (no pressure in EXP/OCC) + |Fa|/A + √(Mb² + Mc²)/Z, with torsion by max shear, ≤ 1.5 S; the window shows them on the Vessels page from the piping results | The piping engine gives the loads; the vessel side checks what it can without copyrighted local-stress methods |
 | 0.3.7 | Fixed: the 3D view's cleanup now calls `forceContextLoss()` and disposes the scene's geometry | Leaking a WebGL context per view switch crashed the UI suite (and could crash a long session) |
 | 0.3.6 | `Vessel.lifting` (`Lifting`: lugs and trunnions, impact, Sy) and `Vessel.legs` (`Legs`: n, len, A, Z, r, circle, Sy) as `CheckRow`s; lug load = impact × empty × g / n / cos φ; allowables 0.6/0.4/0.9/0.66 Sy; legs P = W/n + 4M/(n D), Euler K = 2 / factor 2 capped 0.6 Sy, bending V/n × L, interaction; legs take the base at −len for the moments; no skirt with legs | Statics and Euler only, with the usual working-stress fractions |
@@ -247,8 +248,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.3.5 | Vessels: body flanges (the published Taylor-Forge method) | ✅ ring and blind; weld-neck later |
 | 0.3.6 | Vessels: lifting lugs, trunnions, leg supports | ✅ |
 | 0.3.7 | Vessels and piping linked: the piping model's nozzle loads checked on the vessel's nozzle | ✅ |
-| 0.3.8 | Vessels: external pressure and stiffening rings, from classical shell-buckling theory in free public sources (no code charts) | 🔜 |
-| 0.4.0 | Milestone: vessels reviewed | ⬜ |
+| 0.3.8 | Vessels: external pressure and stiffening rings, from classical shell-buckling theory in free public sources (no code charts) | ✅ |
+| 0.4.0 | Milestone: vessels reviewed | 🔜 |
 | 0.5 | Dynamics: modes, harmonic, response spectrum; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ⬜ |
 | 0.6 | Power piping and European piping code equations (EN 13445 for vessels too), buried pipe, cold spring | ⬜ |
 | 0.7 | Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
@@ -420,6 +421,10 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Engine: `VNozzle.link`, `LinkCheck`, `link_checks`, `Results.vessel_links`; V-101 gains its 8" inlet line (piping + vessel in one model); benchmark 31 and the separator's equilibrium (90 checks).
 - UI: Piping column in the nozzles table, Piping loads table on the Vessels page, failures counted in the analysis message; the WebGL context leak found by the UI suite crashing once the separator gained piping, fixed with a 30-switch UI check. Disk filled (18 GB target); `cargo clean` freed it.
 
+### 2026-11-01: Session 2, continued (0.3.8: external pressure)
+- Engine: `ExternalRow`, `cylinder_collapse`, `external()`; unit test, benchmark 32 (92 checks). D-201 at full vacuum with rings every 3 m.
+- UI: external pressure inputs and table; a UI check. Checked in the real app.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.
@@ -436,6 +441,6 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Relief valve thrust is for an ideal gas at an open discharge only (no liquids, two-phase flow or closed discharge systems), acts with operating case 1 only, and is static (times the load factor; no time history).
 - The .pcf export writes geometry, bores, weights and supports only; expansion joints come back as rigid parts and springs or restraints as rests on import.
 - Expansion joints: one bellows per element, no hinged or gimbal joints, no movement or cycle check against the maker's limits.
-- Vessels: internal pressure, nozzles, saddles, and vertical vessels on skirts so far (no external pressure, body flanges, lugs or legs yet); wind and seismic are static, not combined, and the larger is used; no wind-induced vibration; skirt-to-head weld and openings in the skirt not checked; saddles: two equal saddles, no wear plates, stiffening rings not themselves checked, compression checked against S (no buckling allowable); nozzle reinforcement without inward projection, same material for neck, pad and shell, nozzles not counted in the weights; heads formed from one plate (no crown/knuckle thickness split); weights from the inside surface times the thickness.
+- Vessels: external pressure by classical buckling with a single design factor (no plasticity interaction beyond the yield cap); cones under external pressure treated as cylinders of their large diameter; wind and seismic are static, not combined, and the larger is used; no wind-induced vibration; skirt-to-head weld and openings in the skirt not checked; saddles: two equal saddles, no wear plates, stiffening rings not themselves checked, compression checked against S (no buckling allowable); nozzle reinforcement without inward projection, same material for neck, pad and shell, nozzles not counted in the weights; heads formed from one plate (no crown/knuckle thickness split); weights from the inside surface times the thickness.
 - Nozzle flexibility is the user's stiffness values only; vessel local stresses are not calculated.
 - The equilibrium check cannot find stiffness, SIF or axis mistakes (each element is self-equilibrated); the benchmarks and worked cases test those.

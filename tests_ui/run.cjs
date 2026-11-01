@@ -385,6 +385,7 @@ const shots = process.env.SHOTS;
   const dt = (await p.textContent(".vpage")) ?? "";
   check("the drum shows its saddle stresses by Zick's method", dt.includes("Saddles") && dt.includes("saddle horn") && dt.includes("Tangential shear"));
   check("the saddle editor shows for a horizontal vessel", dt.includes("On two saddles") && dt.includes("Contact angle"));
+  check("the drum is checked for full vacuum with its rings", dt.includes("External pressure (") && dt.includes("Stiffening rings"));
   check("the drum passes", ((await p.textContent(".vpage .ctabs")) ?? "").includes("PASS"));
   // Results go out of date after an edit even with Analyze automatically off (a hook was lost before 0.3.1).
   await open("lbend");

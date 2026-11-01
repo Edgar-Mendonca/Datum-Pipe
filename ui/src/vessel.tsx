@@ -104,6 +104,14 @@ export const VesselTables = (p: { v: Vessel; r: VesselResult }) => (
       </tbody></table>
       <p class="muted small">Area replacement: the opening's d × tr (tr the wall the part needs with E = 1) made up by the shell's excess (A1), the neck's (A2), the welds and the pad, within the reinforcement limit (pad up to 2 d). The neck must be at least the larger of its pressure thickness and the smaller of the shell's need and the standard-wall pipe's 87.5 %, with corrosion. Pipe necks count 87.5 % of their wall.</p>
     </Show>
+    <Show when={(p.r.external ?? []).length}>
+      <h4>External pressure ({v4("press", p.v.pe ?? 0)} {unit("press")})</h4>
+      <table class="tbl rtable"><thead><tr><th>Part</th><th class="r">Design length / radius {unit("coord")}</th><th class="r">t {unit("len")}</th><th class="r">Elastic collapse {unit("press")}</th><th class="r">Yield limit</th><th class="r">Allowable</th><th class="r">Ratio</th><th>Result</th></tr></thead><tbody>
+        <For each={p.r.external}>{x => <tr><td>{x.name}</td><td class="r">{v4("coord", x.length)}</td><td class="r">{v4("len", x.t)}</td><td class="r">{v4("press", x.elastic)}</td><td class="r">{v4("press", x.yield_p)}</td><td class="r">{v4("press", x.allow)}</td><td class="r">{num(x.ratio, 3)}</td><td><Badge pass={x.pass} /></td></tr>}</For>
+        <Show when={p.r.rings}>{_ => { const g = p.r.rings!; return <tr><td>Stiffening rings: moment of inertia needed / given (m⁴)</td><td colSpan={4} /><td class="r">{g.value.toExponential(3)} / {g.allow.toExponential(3)}</td><td class="r">{num(g.ratio, 3)}</td><td><Badge pass={g.pass} /></td></tr>; }}</Show>
+      </tbody></table>
+      <p class="muted small">Classical shell buckling: a cylinder between stiffeners collapses at 2.42 E (t/D)^2.5 / ((1 − ν²)^0.75 (L/D − 0.45 √(t/D))) (never below the long-tube 2E/(1 − ν²)(t/D)³), L the shell between the heads plus a third of each head's depth, or the ring spacing; heads as spheres of their crown radius (0.9 D for 2:1), 0.1875 E (t/R)² with a knockdown for imperfections; each capped by yield and divided by the design factor ({num(p.v.ext_fs ?? 3, 3)}). A ring needs I ≥ factor × pe R³ Ls / (3 E).</p>
+    </Show>
     <Show when={(p.r.flanges ?? []).length}>
       <h4>Bolted flanges and covers</h4>
       <table class="tbl rtable"><thead><tr><th>Flange</th><th class="r">G {unit("len")}</th><th class="r">Wm1 {unit("force")}</th><th class="r">Wm2</th><th class="r">Bolt area needed {unit("area")}</th><th class="r">Bolt area</th><th class="r">Operating</th><th class="r">Seating</th><th class="r">Allowable</th><th>Result</th></tr></thead><tbody>
@@ -268,6 +276,10 @@ export const VesselPage = () => {
             <PartsTable i={i()} v={v()!} />
             <h4>Nozzles</h4>
             <NozzlesTable i={i()} v={v()!} />
+            <h4>External pressure</h4>
+            <div class="two"><F l="External design pressure (0 = none)" q="press" v={v()!.pe ?? 0} set={pe => pe >= 0 && putV(i(), { pe })} /><div class="iprow"><label>Design factor on collapse</label><input class="mono" value={v()!.ext_fs ?? 3} onChange={e => { const x = +e.currentTarget.value; if (x >= 1) putV(i(), { ext_fs: x }); else toast("The factor is 1 or more."); }} /></div></div>
+            <div class="two"><F l="Stiffening ring spacing (0 = none)" q="coord" v={v()!.ring_spacing ?? 0} set={ring_spacing => ring_spacing >= 0 && putV(i(), { ring_spacing })} /><div class="iprow"><label>Ring moment of inertia (m⁴)</label><input class="mono" value={v()!.ring_i ?? 0} onChange={e => { const x = +e.currentTarget.value; if (x >= 0) putV(i(), { ring_i: x }); }} /></div></div>
+            <p class="muted small">Full vacuum is 1.013 bar outside. The elastic modulus is under Wind, seismic and skirt (vertical vessels) and 195 GPa by default.</p>
             <h4>Bolted flanges and covers</h4>
             <FlangesTable i={i()} v={v()!} />
             <h4>Lifting</h4>

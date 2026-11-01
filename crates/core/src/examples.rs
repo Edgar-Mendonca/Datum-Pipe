@@ -214,6 +214,10 @@ fn drum() -> Model {
         parts: vec![head("Left head"), Part { name: "Shell".into(), kind: PartKind::Cylinder, d: 2.4, len: 9.0, t: 0.014, e: 0.85 }, head("Right head")],
         nozzles: vec![noz("N1 inlet", 1, 1.5, 0.0, "8", "80", (0.38, 0.014)), noz("N2 outlet", 1, 7.5, 180.0, "6", "80", (0.3, 0.014)), noz("N3 vent", 2, 0.0, 0.0, "2", "160", (0.0, 0.0))],
         saddles: Some(Saddles { a: 0.6, theta: 120.0, b: 0.3, welded: true, rings: false }),
+        // Full vacuum when it is drained hot (the steam-out case), with rings every 3 m.
+        pe: 1.0e5,
+        ring_spacing: 3.0,
+        ring_i: 3.0e-6,
         ..Default::default()
     };
     d.apply(Op::SetVessels { list: vec![v] }).expect("vessel");

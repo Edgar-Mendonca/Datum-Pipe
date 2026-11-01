@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, and a vessel nozzle under its piping's loads. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, a vessel nozzle under its piping's loads, and a vessel under full vacuum. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -770,6 +770,20 @@ pub fn run() -> Vec<Check> {
         let st = q[3].abs() / (2.0 * z);
         out.push(row(31, "A vessel nozzle under its piping's loads (V-101, N1)", "Neck stress in OPE1", "stress", (sl * sl + 4.0 * st * st).sqrt(), l.stress, TOL, "Beam theory on the neck: pressure, axial force, bending and torsion"));
     }
+    // 32. D-201 at full vacuum (1 bar outside) with rings every 3 m: the shell (2428 mm outside, 11 mm
+    //     corroded) collapses elastically at 2.42 E (t/D)^2.5 / ((1 − ν²)^0.75 (L/D − 0.45 √(t/D))),
+    //     the allowable a third of it; a ring needs I = 3 pe R³ Ls / (3 E).
+    {
+        let m = crate::examples::get("drum").unwrap();
+        let r = crate::vessel::check(&m.vessels[0]).unwrap();
+        let (e, d, t, l) = (195e9, 2.428, 0.011, 3.0);
+        let td: f64 = t / d;
+        let pc = 2.42 * e * td.powf(2.5) / (0.91f64.powf(0.75) * (l / d - 0.45 * td.sqrt()));
+        let name = "A horizontal vessel under full vacuum (D-201)";
+        let src = "Elastic collapse of a ring-stiffened tube (von Mises, short tube) and ring buckling 3EI/(R³ Ls)";
+        out.push(row(32, name, "Allowable external pressure, shell", "press", pc / 3.0, r.external[1].allow, TOL, src));
+        out.push(row(32, name, "Ring's moment of inertia needed", "ratio", 3.0 * 1e5 * (d / 2.0).powi(3) * 3.0 / (3.0 * e), r.rings.as_ref().unwrap().value, TOL, src));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -794,7 +808,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=31 {
+        for b in 1..=32 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

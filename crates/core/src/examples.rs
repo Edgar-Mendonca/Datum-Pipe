@@ -157,9 +157,17 @@ fn separator() -> Model {
             VNozzle { name: "M1 manway".into(), part: 1, pos: 1.2, angle: 180.0, nps: String::new(), od: 0.54, t: 0.016, pipe: false, leg: 0.012, pad_od: 0.84, pad_t: 0.016, pad_leg: 0.012, proj: 0.3 },
         ],
         saddles: None,
+        // On a 2.5 m skirt with a base ring and twelve M30 anchor bolts (root diameter 26.2 mm),
+        // in a 1 kPa wind and 0.15 g of static seismic (example values).
+        skirt: Some(crate::vessel::Skirt { h: 2.5, t: 0.012, ring_od: 2.25, ring_id: 1.55, ring_t: 0.03, bolts: 12, bolt_d: 0.0262, bc: 2.05, bolt_s: 140e6, bearing: 7e6 }),
+        seis: 0.15,
+        ..Default::default()
     };
+    let mut st = d.m.settings.clone();
+    st.wind_q = 1000.0;
+    d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("wind");
     d.apply(Op::SetVessels { list: vec![v] }).expect("vessel");
-    meta(&mut d, "Vertical separator V-101", "V-101", "A vertical two-phase separator: 1800 mm inside diameter, 6000 mm between tangent lines, 2:1 semi-ellipsoidal heads, an 8\" inlet, 6\" gas and 4\" liquid outlets and a 20\" manway with reinforcing pads; 16 bar and 200 °C, 3 mm corrosion allowance; carbon steel plate with an allowable stress of 138 MPa hot and cold and a yield of 260 MPa (example values); shell joint efficiency 0.85 (spot radiography), seamless heads 1.0. The liquid (850 kg/m³) stands 1.8 m above the bottom tangent line in operation; internals and platforms add 1500 kg. Open the Vessels view for the thicknesses, the MAWP, the test pressure and the weights.");
+    meta(&mut d, "Vertical separator V-101", "V-101", "A vertical two-phase separator: 1800 mm inside diameter, 6000 mm between tangent lines, 2:1 semi-ellipsoidal heads, an 8\" inlet, 6\" gas and 4\" liquid outlets and a 20\" manway with reinforcing pads; 16 bar and 200 °C, 3 mm corrosion allowance; carbon steel plate with an allowable stress of 138 MPa hot and cold and a yield of 260 MPa (example values); shell joint efficiency 0.85 (spot radiography), seamless heads 1.0. The liquid (850 kg/m³) stands 1.8 m above the bottom tangent line in operation; internals and platforms add 1500 kg. It stands on a 2.5 m skirt with a base ring and twelve M30 anchor bolts, in a 1 kPa wind (Analysis settings) and 0.15 g of static seismic. Open the Vessels view for the thicknesses, the MAWP, the test pressure and the weights.");
     d.m
 }
 
@@ -189,6 +197,7 @@ fn drum() -> Model {
         parts: vec![head("Left head"), Part { name: "Shell".into(), kind: PartKind::Cylinder, d: 2.4, len: 9.0, t: 0.014, e: 0.85 }, head("Right head")],
         nozzles: vec![noz("N1 inlet", 1, 1.5, 0.0, "8", "80", (0.38, 0.014)), noz("N2 outlet", 1, 7.5, 180.0, "6", "80", (0.3, 0.014)), noz("N3 vent", 2, 0.0, 0.0, "2", "160", (0.0, 0.0))],
         saddles: Some(Saddles { a: 0.6, theta: 120.0, b: 0.3, welded: true, rings: false }),
+        ..Default::default()
     };
     d.apply(Op::SetVessels { list: vec![v] }).expect("vessel");
     meta(&mut d, "Horizontal drum D-201 on saddles", "D-201", "A horizontal drum: 2400 mm inside diameter, 9000 mm between tangent lines, 2:1 semi-ellipsoidal heads, 14 mm plate; 10 bar and 150 °C, 3 mm corrosion allowance; allowable stress 138 MPa, yield 260 MPa (example values); shell joint efficiency 0.85, seamless heads. Two 120° saddles 300 mm wide, welded, 600 mm from the tangent lines (within R/2, so the heads stiffen the shell there). Liquid 1.6 m deep in operation; the saddles carry the heavier of the operating weight and the weight full of water. Open the Vessels view for the shell, heads, nozzles and the saddle stresses by Zick's method.");

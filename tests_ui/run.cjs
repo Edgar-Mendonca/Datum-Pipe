@@ -362,6 +362,8 @@ const shots = process.env.SHOTS;
   check("the nozzles are drawn", (await p.$$(".vdraw g path")).length >= 8);
   check("the nozzle editor lists them with their sizes", (await p.$$(".vleft table:nth-of-type(2) tbody tr")).length === 4);
   check("the shell governs", ((await p.textContent(".vsum")) ?? "").includes("set by Shell"));
+  check("V-101 shows wind, seismic, the skirt, bolts and base ring", vt.includes("Wind, seismic and the skirt") && vt.includes("Anchor bolts") && vt.includes("Base ring thickness") && vt.includes("Skirt (base)"));
+  check("the skirt editor shows for a vertical vessel", vt.includes("On a skirt") && vt.includes("Bolt circle"));
   await p.click('.vpage h1 button:has-text("Add a horizontal vessel")'); await p.waitForTimeout(300);
   const nv = await p.evaluate(() => window.__calls.filter(c => c[0] === "apply" && c[1].op.SetVessels).map(c => c[1].op.SetVessels.list).pop());
   check("Add a horizontal vessel adds one with two heads and a shell", Array.isArray(nv) && nv.length === 2 && nv[1].vertical === false && nv[1].parts.length === 3, JSON.stringify(nv?.[1]?.parts?.map(x => x.kind)));

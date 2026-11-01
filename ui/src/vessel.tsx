@@ -49,7 +49,8 @@ export const VesselDrawing = (p: { v: Vessel; r: VesselResult; w?: number; h?: n
   const pts = () => p.r.outline;
   const box = () => {
     const zs = pts().map(q => q[1]), rs = pts().map(q => q[0]);
-    return { z0: Math.min(...zs), z1: Math.max(...zs), r: Math.max(...rs) };
+    const zlow = p.v.vertical && p.v.skirt ? -p.v.skirt.h : Math.min(...zs);
+    return { z0: Math.min(zlow, ...zs), z1: Math.max(...zs), r: Math.max(...rs, p.v.vertical && p.v.skirt ? p.v.skirt.ring_od / 2 : 0) };
   };
   // Vertical: z up the page; horizontal: z across it.
   const sc = () => { const b = box(); const len = b.z1 - b.z0 || 1, wid = 2 * b.r || 1; return p.v.vertical ? Math.min((H - 90) / len, (W - 120) / wid) : Math.min((W - 110) / len, (H - 90) / wid); };
@@ -66,6 +67,8 @@ export const VesselDrawing = (p: { v: Vessel; r: VesselResult; w?: number; h?: n
       <path d={path(2)} fill="var(--panel)" stroke="var(--muted)" stroke-width="0.8" />
       <Show when={level() !== null && p.v.level > 0 && p.v.liquid > 0}>{_ => { const b = box(); const y = Math.min(p.v.level, b.z1); const [x0, y0] = at(-b.r, y), [x1] = at(b.r, y); return <line x1={x0} y1={y0} x2={x1} y2={y0} stroke="var(--blue)" stroke-width="1.4" stroke-dasharray="6 3" />; }}</Show>
       <For each={tangents()}>{z => { const b = box(); const [x0, y0] = at(-b.r - 0.06 / sc() * 40, z), [x1, y1] = at(b.r + 0.06 / sc() * 40, z); return <line x1={x0} y1={y0} x2={x1} y2={y1} stroke="var(--muted)" stroke-width="0.8" stroke-dasharray="2 3" />; }}</For>
+      <Show when={p.v.vertical && p.v.skirt}>{_ => { const k = p.v.skirt!; const shell = p.v.parts.find(x => x.kind === "cylinder"); const ro = shell ? shell.d / 2 + shell.t : box().r; const [xa, ya] = at(-ro, 0), [xb] = at(ro, 0); const [, yb] = at(0, -k.h); const [xr0] = at(-k.ring_od / 2, 0), [xr1] = at(k.ring_od / 2, 0);
+        return <g><path d={`M${xa} ${ya}V${yb}M${xb} ${ya}V${yb}`} stroke="var(--text)" stroke-width="1.6" fill="none" /><rect x={xr0} y={yb - 3} width={xr1 - xr0} height={4} fill="var(--panel2)" stroke="var(--text)" stroke-width="1" /><line x1={xr0 - 20} y1={yb + 1} x2={xr1 + 20} y2={yb + 1} stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 3" /></g>; }}</Show>
       <Show when={!p.v.vertical && p.v.saddles}>{_ => { const sd = p.v.saddles!; const b = box(); const t0 = p.r.parts[0]?.z[1] ?? 0, t1 = p.r.parts[p.r.parts.length - 1]?.z[0] ?? 0; const s = sc();
         return <For each={[t0 + sd.a, t1 - sd.a]}>{z => { const [x, y] = at(-b.r, z); const w = Math.max(sd.b * s, 6); const half = b.r * Math.sin(Math.min(sd.theta, 180) * Math.PI / 360) * s; return <path d={`M${x - half} ${y - 4}L${x - half * 0.8} ${y + 22}L${x + half * 0.8} ${y + 22}L${x + half} ${y - 4}M${x - w / 2} ${y + 22}h${w}`} fill="var(--panel2)" stroke="var(--text)" stroke-width="1.2" opacity="0.9" />; }}</For>; }}</Show>
       <For each={p.r.nozzles ?? []}>{(z, k) => { const nz = (p.v.nozzles ?? [])[k()]; if (!nz) return null; const part = p.v.parts[nz.part]; const onShell = part && (part.kind === "cylinder" || part.kind === "cone");
@@ -100,6 +103,17 @@ export const VesselTables = (p: { v: Vessel; r: VesselResult }) => (
       </tbody></table>
       <p class="muted small">Area replacement: the opening's d × tr (tr the wall the part needs with E = 1) made up by the shell's excess (A1), the neck's (A2), the welds and the pad, within the reinforcement limit (pad up to 2 d). The neck must be at least the larger of its pressure thickness and the smaller of the shell's need and the standard-wall pipe's 87.5 %, with corrosion. Pipe necks count 87.5 % of their wall.</p>
     </Show>
+    <Show when={p.r.support}>{_ => { const su = p.r.support!; return <>
+      <h4>Wind, seismic and the skirt</h4>
+      <p class="muted small">Base shear: wind {v4("force", su.shear_wind)}, seismic {v4("force", su.shear_seis)} {unit("force")}; base moment: wind {v4("moment", su.moment_wind)}, seismic {v4("moment", su.moment_seis)} {unit("moment")} (the larger is used). Weight operating {v4("force", su.weight_op)}, empty {v4("force", su.weight_empty)} {unit("force")}.</p>
+      <table class="tbl rtable"><thead><tr><th>Section</th><th class="r">Moment, wind {unit("moment")}</th><th class="r">Moment, seismic</th><th class="r">Weight above {unit("force")}</th><th class="r">Tension {unit("stress")}</th><th class="r">Allowable</th><th class="r">Compression</th><th class="r">Allowable</th><th>Result</th></tr></thead><tbody>
+        <For each={su.sections}>{x => <tr><td>{x.name}</td><td class="r">{v4("moment", x.m_wind)}</td><td class="r">{v4("moment", x.m_seis)}</td><td class="r">{v4("force", x.weight)}</td><td class="r">{v4("stress", x.tension)}</td><td class="r">{v4("stress", x.allow_t)}</td><td class="r">{v4("stress", x.compression)}</td><td class="r">{v4("stress", x.allow_c)}</td><td><Badge pass={x.pass} /></td></tr>}</For>
+        <Show when={su.bolt_allow > 0}><tr><td>Anchor bolts ({v4("force", su.bolt_load)} {unit("force")} each)</td><td colSpan={3} /><td class="r">{v4("stress", su.bolt_stress)}</td><td class="r">{v4("stress", su.bolt_allow)}</td><td colSpan={2} /><td><Badge pass={su.bolt_stress <= su.bolt_allow * (1 + 1e-9)} /></td></tr></Show>
+        <Show when={su.bearing_allow > 0}><tr><td>Foundation bearing</td><td colSpan={5} /><td class="r">{v4("stress", su.bearing)}</td><td class="r">{v4("stress", su.bearing_allow)}</td><td><Badge pass={su.bearing <= su.bearing_allow * (1 + 1e-9)} /></td></tr></Show>
+        <Show when={su.ring_t > 0}><tr><td>Base ring thickness {unit("len")}</td><td colSpan={3} /><td class="r">{v4("len", su.ring_t_req)} needed</td><td class="r">{v4("len", su.ring_t)}</td><td colSpan={2} /><td><Badge pass={su.ring_t >= su.ring_t_req - 1e-12} /></td></tr></Show>
+      </tbody></table>
+      <p class="muted small">Statics of the vessel as a cantilever from its base: wind = the site's pressure (Analysis settings) × Cd × the outside diameter × the factor for ladders and platforms; seismic = the coefficient × the mass at each height. Shell courses: pressure plus bending less weight in tension; bending and weight in compression against min(S, 0.0625 E t / R) (axial buckling with a knockdown). The skirt carries no pressure. Bolts 4M/(N BC) − W/N; bearing W/A + M/Z; ring l √(3 σ / S).</p>
+    </>; }}</Show>
     <Show when={p.r.saddles}>{_ => { const sd = p.r.saddles!; return <>
       <h4>Saddles</h4>
       <p class="muted small">Load on each saddle {v4("force", sd.q)} {unit("force")}; moment at the saddles {v4("moment", sd.m1)}, at mid-span {v4("moment", sd.m2)} {unit("moment")}; constants K1 {num(sd.k[0], 3)}, K1* {num(sd.k[1], 3)}, K2 {num(sd.k[2], 3)}, K3 {num(sd.k[3], 3)}, K5 {num(sd.k[4], 3)}, K6 {num(sd.k[5], 4)}.</p>
@@ -202,6 +216,22 @@ export const VesselPage = () => {
             <PartsTable i={i()} v={v()!} />
             <h4>Nozzles</h4>
             <NozzlesTable i={i()} v={v()!} />
+            <Show when={v()!.vertical}>
+              <h4>Wind, seismic and skirt</h4>
+              <div class="two"><div class="iprow"><label>Wind shape factor Cd</label><input class="mono" value={v()!.wind_cd ?? 0.7} onChange={e => { const x = +e.currentTarget.value; if (x >= 0) putV(i(), { wind_cd: x }); }} /></div><div class="iprow"><label>Diameter factor (ladders, platforms)</label><input class="mono" value={v()!.wind_dfac ?? 1.2} onChange={e => { const x = +e.currentTarget.value; if (x >= 1) putV(i(), { wind_dfac: x }); else toast("The factor is 1 or more."); }} /></div></div>
+              <div class="two"><div class="iprow"><label>Seismic coefficient (g)</label><input class="mono" value={v()!.seis ?? 0} onChange={e => { const x = +e.currentTarget.value; if (x >= 0 && x <= 5) putV(i(), { seis: x }); }} /></div><F l="Base elevation (for the wind profile)" q="coord" v={v()!.base_el ?? 0} set={base_el => putV(i(), { base_el })} /></div>
+              <div class="two"><F l="Elastic modulus (buckling)" q="modulus" v={v()!.emod ?? 195e9} set={emod => emod > 0 && putV(i(), { emod })} /><div /></div>
+              <p class="muted small">The wind pressure (or profile) is the site's, in Analysis settings (select nothing on the Model view).</p>
+              <label class="chk"><input type="checkbox" checked={!!v()!.skirt} onChange={e => { const shell = v()!.parts.find(x => x.kind === "cylinder"); const od = shell ? shell.d + 2 * shell.t : 1.5; putV(i(), { skirt: e.currentTarget.checked ? { h: 2, t: 0.012, ring_od: od + 0.4, ring_id: od - 0.25, ring_t: 0.025, bolts: 8, bolt_d: 0.0237, bc: od + 0.2, bolt_s: 140e6, bearing: 7e6 } : null }); }} />On a skirt</label>
+              <Show when={v()!.skirt}>{_ => { const k = () => v()!.skirt!; const pk = (x: Partial<NonNullable<Vessel["skirt"]>>) => putV(i(), { skirt: { ...k(), ...x } });
+                return <>
+                  <div class="two"><F l="Skirt height (base to tangent)" q="coord" v={k().h} set={h => h > 0 && pk({ h })} /><F l="Skirt thickness" q="len" v={k().t} set={t => t > 0 && pk({ t })} /></div>
+                  <div class="two"><F l="Base ring outside diameter" q="len" v={k().ring_od} set={ring_od => ring_od > k().ring_id && pk({ ring_od })} /><F l="Base ring inside diameter" q="len" v={k().ring_id} set={ring_id => ring_id >= 0 && ring_id < k().ring_od && pk({ ring_id })} /></div>
+                  <div class="two"><F l="Base ring thickness" q="len" v={k().ring_t} set={ring_t => ring_t >= 0 && pk({ ring_t })} /><div class="iprow"><label>Anchor bolts</label><input class="mono" value={k().bolts} onChange={e => { const x = Math.round(+e.currentTarget.value); if (x >= 0) pk({ bolts: x }); }} /></div></div>
+                  <div class="two"><F l="Bolt root diameter" q="len" v={k().bolt_d} set={bolt_d => bolt_d >= 0 && pk({ bolt_d })} /><F l="Bolt circle" q="len" v={k().bc} set={bc => bc >= 0 && pk({ bc })} /></div>
+                  <div class="two"><F l="Bolt allowable stress" q="stress" v={k().bolt_s} set={bolt_s => bolt_s >= 0 && pk({ bolt_s })} /><F l="Foundation allowable bearing" q="stress" v={k().bearing} set={bearing => bearing >= 0 && pk({ bearing })} /></div>
+                </>; }}</Show>
+            </Show>
             <Show when={!v()!.vertical}>
               <h4>Saddles</h4>
               <label class="chk"><input type="checkbox" checked={!!v()!.saddles} onChange={e => putV(i(), { saddles: e.currentTarget.checked ? { a: Math.min(0.6, (v()!.parts.find(p => p.kind === "cylinder")?.d ?? 1.2) / 4), theta: 120, b: 0.3, welded: true, rings: false } : null })} />On two saddles (Zick's method)</label>

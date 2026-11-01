@@ -108,6 +108,97 @@ pub struct Vessel {
     /// Two saddles, for a horizontal vessel (0.3.3).
     #[serde(default)]
     pub saddles: Option<Saddles>,
+    /// A skirt with its base ring and anchor bolts, for a vertical vessel (0.3.4).
+    #[serde(default)]
+    pub skirt: Option<Skirt>,
+    /// Wind and seismic on a vertical vessel (0.3.4): the shape factor, the factor on the outside
+    /// diameter for ladders, platforms and insulation, the horizontal seismic coefficient (g), the
+    /// metal's elastic modulus (Pa) for the buckling allowable, and the base's elevation (m) for the
+    /// site's wind profile. The wind pressure is the model's (Analysis settings).
+    #[serde(default = "cd0")]
+    pub wind_cd: f64,
+    #[serde(default = "dfac0")]
+    pub wind_dfac: f64,
+    #[serde(default)]
+    pub seis: f64,
+    #[serde(default = "emod0")]
+    pub emod: f64,
+    #[serde(default)]
+    pub base_el: f64,
+}
+
+fn cd0() -> f64 {
+    0.7
+}
+fn dfac0() -> f64 {
+    1.2
+}
+fn emod0() -> f64 {
+    195e9
+}
+
+/// A vertical vessel's skirt (height from the base to the bottom tangent line, thickness; its
+/// outside diameter is the shell's), base ring (outside and inside diameters, thickness) and anchor
+/// bolts (number, root diameter, bolt circle, allowable stress), and the foundation's allowable
+/// bearing pressure (all m, Pa).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Skirt {
+    pub h: f64,
+    pub t: f64,
+    pub ring_od: f64,
+    pub ring_id: f64,
+    pub ring_t: f64,
+    pub bolts: u32,
+    pub bolt_d: f64,
+    pub bc: f64,
+    pub bolt_s: f64,
+    pub bearing: f64,
+}
+
+impl Default for Skirt {
+    fn default() -> Self {
+        Skirt { h: 2.0, t: 0.012, ring_od: 2.1, ring_id: 1.6, ring_t: 0.025, bolts: 8, bolt_d: 0.0237, bc: 1.95, bolt_s: 140e6, bearing: 7e6 }
+    }
+}
+
+/// One horizontal section of a vertical vessel: where, what it is, the wind and seismic moments
+/// above it, the operating weight above, its thickness and radius, and the longitudinal stresses
+/// (tension with pressure, compression without) against their allowables.
+#[derive(Clone, Debug, Serialize)]
+pub struct SectionRow {
+    pub name: String,
+    pub z: f64,
+    pub m_wind: f64,
+    pub m_seis: f64,
+    pub weight: f64,
+    pub tension: f64,
+    pub compression: f64,
+    pub allow_t: f64,
+    pub allow_c: f64,
+    pub pass: bool,
+}
+
+/// The vertical vessel's support check.
+#[derive(Clone, Debug, Serialize)]
+pub struct SupportResult {
+    pub shear_wind: f64,
+    pub moment_wind: f64,
+    pub shear_seis: f64,
+    pub moment_seis: f64,
+    pub weight_op: f64,
+    pub weight_empty: f64,
+    pub sections: Vec<SectionRow>,
+    /// Anchor bolts: tension per bolt (N, 0 when none) and its stress against the allowable.
+    pub bolt_load: f64,
+    pub bolt_stress: f64,
+    pub bolt_allow: f64,
+    /// Foundation bearing under the base ring, and the ring's required and given thickness.
+    pub bearing: f64,
+    pub bearing_allow: f64,
+    pub ring_t_req: f64,
+    pub ring_t: f64,
+    pub pass: bool,
 }
 
 /// Two equal saddles under a horizontal vessel: the distance from each tangent line to its saddle's
@@ -257,6 +348,12 @@ impl Default for Vessel {
             ],
             nozzles: vec![],
             saddles: None,
+            skirt: None,
+            wind_cd: cd0(),
+            wind_dfac: dfac0(),
+            seis: 0.0,
+            emod: emod0(),
+            base_el: 0.0,
         }
     }
 }
@@ -309,6 +406,7 @@ pub struct VesselResult {
     pub outline: Vec<[f64; 3]>,
     pub nozzles: Vec<NozzleResult>,
     pub saddles: Option<SaddleResult>,
+    pub support: Option<SupportResult>,
     pub warnings: Vec<String>,
 }
 
@@ -323,7 +421,7 @@ pub struct VesselCheck {
 
 /// Every vessel of the model.
 pub fn check_all(m: &crate::model::Model) -> Vec<VesselCheck> {
-    m.vessels.iter().map(|v| match check(v) { Ok(r) => VesselCheck { result: Some(r), error: None }, Err(e) => VesselCheck { result: None, error: Some(e) } }).collect()
+    m.vessels.iter().map(|v| match check_in(v, &m.settings) { Ok(r) => VesselCheck { result: Some(r), error: None }, Err(e) => VesselCheck { result: None, error: Some(e) } }).collect()
 }
 
 /// A head's depth (inside, m) for inside diameter d.
@@ -451,6 +549,17 @@ impl Vessel {
                 _ => {}
             }
         }
+        if let Some(k) = &self.skirt {
+            if !self.vertical {
+                return Err(format!("The vessel {} is horizontal: a skirt is for vertical vessels.", self.name));
+            }
+            if ![k.h, k.t, k.ring_od, k.ring_id, k.ring_t, k.bolt_d, k.bc, k.bolt_s, k.bearing].iter().all(|v| fin(*v) && *v >= 0.0) || !(k.h > 0.0 && k.t > 0.0 && k.ring_od > k.ring_id) {
+                return Err(format!("The skirt of {}: its height and thickness must be above 0, the base ring's outside diameter larger than its inside, and the rest 0 or more.", self.name));
+            }
+        }
+        if !(self.wind_cd >= 0.0 && fin(self.wind_cd) && self.wind_dfac >= 1.0 && fin(self.wind_dfac) && self.seis >= 0.0 && self.seis <= 5.0 && self.emod > 0.0 && fin(self.emod) && fin(self.base_el)) {
+            return Err(format!("The vessel {}: the shape factor 0 or more, the diameter factor 1 or more, the seismic coefficient from 0 to 5 g and the modulus above 0.", self.name));
+        }
         if let Some(s) = &self.saddles {
             if self.vertical {
                 return Err(format!("The vessel {} is vertical: saddles are for horizontal vessels.", self.name));
@@ -536,6 +645,147 @@ fn nozzles(v: &Vessel, pressures: &[f64], spans: &[[f64; 2]]) -> Vec<NozzleResul
     }).collect()
 }
 
+/// The longitudinal compressive stress a cylinder can carry: classical axial buckling
+/// 0.605 E t / R with a knockdown for imperfections and a safety factor, 0.0625 E t / R, and never
+/// more than the allowable stress S.
+pub fn compressive_allow(e: f64, t: f64, r: f64, s: f64) -> f64 {
+    (0.0625 * e * t / r).min(s)
+}
+
+/// A vertical vessel under its weight, wind and seismic, on a skirt: the moments and weight above
+/// each section by statics, the shell's and the skirt's longitudinal stresses, the anchor bolts,
+/// the foundation bearing and the base ring's thickness.
+fn supports(v: &Vessel, site: &crate::model::Settings, spans: &[[f64; 2]], profiles: &[Vec<[f64; 2]>], empty: f64, operating: f64, warnings: &mut Vec<String>) -> SupportResult {
+    let n = v.parts.len();
+    let top = spans.iter().map(|s| s[1]).fold(f64::NEG_INFINITY, f64::max);
+    let bottom = spans.iter().map(|s| s[0]).fold(f64::INFINITY, f64::min);
+    let skirt_h = v.skirt.as_ref().map_or(0.0, |k| k.h);
+    let zb = if v.skirt.is_some() { -skirt_h } else { bottom };
+    let shell_od = v.parts.iter().filter(|p| matches!(p.kind, PartKind::Cylinder)).map(|p| p.d + 2.0 * p.t).fold(0.0, f64::max);
+    // The outside radius at height z, from the outline of each part (the skirt below the tangent line).
+    let r_at = |z: f64| -> f64 {
+        let mut r: f64 = 0.0;
+        for (i, pr) in profiles.iter().enumerate() {
+            for w in pr.windows(2) {
+                let (lo, hi) = (w[0][1].min(w[1][1]), w[0][1].max(w[1][1]));
+                if z >= lo && z <= hi && hi > lo {
+                    let f = (z - w[0][1]) / (w[1][1] - w[0][1]);
+                    r = r.max(w[0][0] + (w[1][0] - w[0][0]) * f + v.parts[i].t);
+                }
+            }
+        }
+        if z < 0.0 && v.skirt.is_some() { r.max(shell_od / 2.0) } else { r }
+    };
+    // Mass per height: each part's metal and its share of the liquid over its span, the skirt's metal,
+    // and the extra weight over the tangent length.
+    let liq = operating - empty;
+    let vol: f64 = profiles.iter().map(|p| turned(p).0).sum::<f64>().max(1e-12);
+    let mut lumps: Vec<(f64, f64, f64)> = vec![]; // (z0, z1, kg)
+    for (i, pr) in profiles.iter().enumerate() {
+        let (pv, area) = turned(pr);
+        let liquid_share = if v.level > 0.0 && v.liquid > 0.0 { liq * pv / vol } else { 0.0 };
+        lumps.push((spans[i][0], spans[i][1], area * v.parts[i].t * v.rho + liquid_share));
+    }
+    if let Some(k) = &v.skirt {
+        lumps.push((zb, 0.0, std::f64::consts::PI * (shell_od - k.t) * k.t * k.h * v.rho));
+    }
+    let tl = (spans[n - 1][0] - spans[0][1]).max(1e-9);
+    lumps.push((spans[0][1], spans[n - 1][0], v.extra));
+    let steps = 400;
+    let dz = (top - zb) / steps as f64;
+    let mut wind = vec![0.0; steps];
+    let mut mass = vec![0.0; steps];
+    let zc: Vec<f64> = (0..steps).map(|i| zb + (i as f64 + 0.5) * dz).collect();
+    for i in 0..steps {
+        let z = zc[i];
+        let q = site.wind_at(v.base_el + (z - zb));
+        wind[i] = q * v.wind_cd * v.wind_dfac * 2.0 * r_at(z) * dz;
+        for &(a, b, kg) in &lumps {
+            if b > a && z >= a && z < b {
+                mass[i] += kg * dz / (b - a);
+            }
+        }
+    }
+    let _ = tl;
+    let seis: Vec<f64> = mass.iter().map(|m| v.seis * m * G).collect();
+    let above = |z: f64, f: &[f64]| -> (f64, f64) {
+        let (mut sh, mut mo) = (0.0, 0.0);
+        for i in 0..steps {
+            if zc[i] > z {
+                sh += f[i];
+                mo += f[i] * (zc[i] - z);
+            }
+        }
+        (sh, mo)
+    };
+    let weight_above = |z: f64, m: &[f64]| -> f64 { (0..steps).filter(|&i| zc[i] > z).map(|i| m[i] * G).sum() };
+    let (shear_wind, moment_wind) = above(zb, &wind);
+    let (shear_seis, moment_seis) = above(zb, &seis);
+    let mut sections = vec![];
+    let ca = v.corrosion;
+    // Each cylindrical course at its bottom.
+    for (i, p) in v.parts.iter().enumerate() {
+        if !matches!(p.kind, PartKind::Cylinder) {
+            continue;
+        }
+        let z = spans[i][0];
+        let t = p.t - ca - v.under;
+        let r = (p.d + 2.0 * ca + t) / 2.0;
+        let (_, mw) = above(z, &wind);
+        let (_, ms) = above(z, &seis);
+        let m = mw.max(ms);
+        let w = weight_above(z, &mass);
+        let a = 2.0 * std::f64::consts::PI * r * t;
+        let zmod = std::f64::consts::PI * r * r * t;
+        let tension = v.p * r / (2.0 * t) + m / zmod - w / a;
+        let compression = -m / zmod - w / a;
+        let allow_c = compressive_allow(v.emod, t, r, v.s);
+        sections.push(SectionRow { name: format!("{} (bottom)", p.name), z, m_wind: mw, m_seis: ms, weight: w, tension, compression, allow_t: v.s * p.e, allow_c, pass: tension <= v.s * p.e + 1e-6 && -compression <= allow_c + 1e-6 });
+    }
+    let (mut bolt_load, mut bolt_stress, mut bolt_allow, mut bearing, mut bearing_allow, mut ring_t_req, mut ring_t) = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    if let Some(k) = &v.skirt {
+        let pi = std::f64::consts::PI;
+        let t = k.t - ca;
+        let r = (shell_od - k.t) / 2.0;
+        let a = 2.0 * pi * r * t;
+        let zmod = pi * r * r * t;
+        let allow_c = compressive_allow(v.emod, t, r, v.s);
+        for (name, z) in [("Skirt (top)", -1e-6), ("Skirt (base)", zb)] {
+            let (_, mw) = above(z, &wind);
+            let (_, ms) = above(z, &seis);
+            let m = mw.max(ms);
+            // The skirt carries no pressure: compression with the operating weight, tension with the empty one.
+            let w_op = weight_above(z, &mass);
+            let w_empty = w_op * (empty / operating.max(1e-9));
+            let compression = -m / zmod - w_op / a;
+            let tension = m / zmod - w_empty / a;
+            sections.push(SectionRow { name: name.into(), z, m_wind: mw, m_seis: ms, weight: w_op, tension, compression, allow_t: v.s, allow_c, pass: tension <= v.s + 1e-6 && -compression <= allow_c + 1e-6 });
+        }
+        // Anchor bolts: the moment over the bolt circle less the empty weight, shared by the bolts.
+        let m = moment_wind.max(moment_seis);
+        let we = empty * G;
+        if k.bolts > 0 && k.bc > 0.0 && k.bolt_d > 0.0 {
+            bolt_load = (4.0 * m / (k.bolts as f64 * k.bc) - we / k.bolts as f64).max(0.0);
+            bolt_stress = bolt_load / (pi / 4.0 * k.bolt_d * k.bolt_d);
+            bolt_allow = k.bolt_s;
+        }
+        // Bearing under the ring: the operating weight over its area plus the moment over its section modulus.
+        let ab = pi / 4.0 * (k.ring_od.powi(2) - k.ring_id.powi(2));
+        let zb_mod = pi * (k.ring_od.powi(4) - k.ring_id.powi(4)) / (32.0 * k.ring_od);
+        bearing = operating * G / ab + m / zb_mod;
+        bearing_allow = k.bearing;
+        // The ring's outside projection as a cantilever strip under the bearing pressure.
+        let l = ((k.ring_od - shell_od) / 2.0).max(0.0);
+        ring_t_req = l * (3.0 * bearing / v.s).sqrt();
+        ring_t = k.ring_t;
+        if k.ring_od < shell_od {
+            warnings.push(format!("The base ring of {} is smaller than the skirt.", v.name));
+        }
+    }
+    let pass = sections.iter().all(|s| s.pass) && (bolt_allow == 0.0 || bolt_stress <= bolt_allow + 1e-6) && (bearing_allow == 0.0 || bearing <= bearing_allow + 1e-6) && ring_t + 1e-12 >= ring_t_req;
+    SupportResult { shear_wind, moment_wind, shear_seis, moment_seis, weight_op: operating * G, weight_empty: empty * G, sections, bolt_load, bolt_stress, bolt_allow, bearing, bearing_allow, ring_t_req, ring_t, pass }
+}
+
 /// The saddle check by Zick's method (L. P. Zick, Stresses in large horizontal cylindrical pressure
 /// vessels on two saddle supports, 1951): the vessel as a beam on two saddles carrying its heavier
 /// weight (operating or full of water), the shell at the design pressure, hot and corroded.
@@ -602,8 +852,13 @@ fn saddle_check(v: &Vessel, s: &Saddles, weight: f64, spans: &[[f64; 2]], warnin
     Ok(SaddleResult { q, m1, m2, k, rows, pass })
 }
 
-/// Check a vessel.
+/// Check a vessel with no wind (the site's wind comes with `check_in`).
 pub fn check(v: &Vessel) -> Result<VesselResult, String> {
+    check_in(v, &crate::model::Settings { wind_q: 0.0, wind_profile: vec![], ..Default::default() })
+}
+
+/// Check a vessel at the model's site (its wind pressure or profile).
+pub fn check_in(v: &Vessel, site: &crate::model::Settings) -> Result<VesselResult, String> {
     v.check_data()?;
     let n = v.parts.len();
     let mut warnings = vec![];
@@ -701,8 +956,13 @@ pub fn check(v: &Vessel) -> Result<VesselResult, String> {
         Some(s) => Some(saddle_check(v, s, operating.max(test_weight), &spans, &mut warnings)?),
         None => None,
     };
-    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass) && sad.as_ref().is_none_or(|s| s.pass);
-    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, saddles: sad, warnings })
+    let sup = if v.vertical && (v.skirt.is_some() || site.has_wind() || v.seis > 0.0) {
+        Some(supports(v, site, &spans, &profiles, empty, operating, &mut warnings))
+    } else {
+        None
+    };
+    let pass = out.iter().all(|p| p.pass) && nz.iter().all(|z| z.pass) && sad.as_ref().is_none_or(|s| s.pass) && sup.as_ref().is_none_or(|s| s.pass);
+    Ok(VesselResult { name: v.name.clone(), parts: out, mawp, map, test, governs, volume, empty, operating, test_weight, pass, outline, nozzles: nz, saddles: sad, support: sup, warnings })
 }
 
 /// The liquid's volume: up to the level (vertical, from the bottom tangent line) or the part of the

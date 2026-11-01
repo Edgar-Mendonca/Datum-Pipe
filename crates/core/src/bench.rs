@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, and a horizontal vessel on two saddles. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, and a vertical vessel on a skirt. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -692,6 +692,28 @@ pub fn run() -> Vec<Check> {
         out.push(row(27, name, "Tangential shear (stiffened by the head)", "stress", 0.880 * q / (rm * t), find("Tangential shear in the shell"), 2e-3, src));
         out.push(row(27, name, "Circumferential stress at the horn", "stress", horn, find("Circumferential at the saddle horn"), 2e-3, src));
     }
+    // 28. V-101 on its skirt: 1 kPa wind × Cd 0.7 × 1.2 on the projected outline (the skirt and the
+    //     shell at their outside diameter 1832 mm over 2.5 m + 6 m, the top head π a h / 2 + 2 t h,
+    //     the bottom head inside the skirt); 0.15 g on the operating weight and the skirt's metal;
+    //     the anchor bolts 4 M / (N BC) − W / N on their root area; the base ring l √(3 σ / S).
+    {
+        let m = crate::examples::get("separator").unwrap();
+        let r = crate::vessel::check_in(&m.vessels[0], &m.settings).unwrap();
+        let su = r.support.as_ref().unwrap();
+        let g = 9.806_65;
+        let pi = std::f64::consts::PI;
+        let od = 1.8 + 2.0 * 0.016;
+        let area = od * (2.5 + 6.0) + pi * 0.9 * 0.45 / 2.0 + 2.0 * 0.016 * 0.45;
+        let skirt = pi * (od - 0.012) * 0.012 * 2.5 * 7850.0;
+        let mo = su.moment_wind.max(su.moment_seis);
+        let bolt = (4.0 * mo / (12.0 * 2.05) - r.empty * g / 12.0) / (pi / 4.0 * 0.0262f64.powi(2));
+        let ring = (2.25 - od) / 2.0 * (3.0 * su.bearing / 138e6).sqrt();
+        let name = "A vertical vessel on a skirt (V-101)";
+        out.push(row(28, name, "Wind base shear", "force", 1000.0 * 0.7 * 1.2 * area, su.shear_wind, 1e-3, "Drag on the projected outline"));
+        out.push(row(28, name, "Seismic base shear", "force", 0.15 * g * (r.operating + skirt), su.shear_seis, 1e-3, "Newton's second law: c m g"));
+        out.push(row(28, name, "Anchor bolt stress", "stress", bolt, su.bolt_stress, TOL, "Statics: 4M/(N BC) − W/N over the root area"));
+        out.push(row(28, name, "Base ring thickness", "len", ring, su.ring_t_req, TOL, "A cantilever strip: l √(3 σ / S)"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -716,7 +738,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=27 {
+        for b in 1..=28 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.4 — 2026-11-01
+
+Vertical vessels: wind, seismic and the skirt.
+
+**Loads on a vertical vessel.** Wind (the site's pressure or profile from Analysis settings, times the shape factor and the outside diameter grown by a factor for ladders, platforms and insulation) and static seismic (a coefficient times the mass at each height) give the shear and moment at every height, the vessel taken as a cantilever from its base. The larger of the two moments is used.
+
+**The checks.** Each shell course at its bottom: pressure plus bending less weight in tension against S E, bending and weight in compression against min(S, 0.0625 E t / R), axial buckling with a knockdown. On a skirt: the skirt at its top and base (no pressure), the anchor bolts (4 M / (N × bolt circle) − empty weight / N, on their root area), the foundation bearing under the base ring (weight over its area plus the moment over its section modulus), and the base ring's thickness (its projection as a cantilever strip, l √(3 σ / S)).
+
+**On the page.** For vertical vessels, a Wind, seismic and skirt section takes the shape factor, the diameter factor, the seismic coefficient, the base elevation, the modulus and the skirt, base ring and bolts; the skirt and base ring are drawn; a table gives every section, the bolts, the bearing and the ring.
+
+**Example.** V-101 now stands on a 2.5 m skirt with twelve M30 anchor bolts, in a 1 kPa wind and 0.15 g of seismic: everything passes, the bolts at 18 MPa.
+
+**Verification.** A new benchmark: V-101's wind and seismic base shears, its anchor bolt stress and base ring thickness by hand (83 checks).
+
 ## 0.3.3 — 2026-11-01
 
 Horizontal vessels on saddles.

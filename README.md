@@ -60,6 +60,7 @@ The equations come from openly published engineering work: Barlow's thin-wall pr
 Some values are tabulated in the standard, such as allowable stresses. In Datum Pipe these are inputs you enter. They are pre-filled with typical values worked out from published minimum material strengths and are marked "check against your code edition".
 
 ASME and B31.3 are trademarks of the American Society of Mechanical Engineers.
+Product and file-format names are trademarks of their owners and are used only to describe file compatibility.
 
 ## Build it yourself
 

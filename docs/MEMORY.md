@@ -465,6 +465,9 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - New tests: harmonic at 0 Hz equals static with 2 or 10 modes, linear in the load, finite at resonance (5–12 × static); random models run dynamics on seeds ≡ 1 mod 4 and must give ≥ 10 OCC SPEC/HARM cases.
 - Found by the review: the printed report had no dynamics input, no modes table and no HARM support loads (HARM is Ope, filtered out). Fixed, with a UI check. The Equilibrium table now says HARM's values are amplitudes (it said "combined").
 
+### 2026-11-02: Session 2, continued (cleanup, no functional change)
+- A CSS comment in `ui/src/styles.css` named another product; it now describes the styles only (ribbon.tsx had no such comment). README and NOTICE gain: "Product and file-format names are trademarks of their owners and are used only to describe file compatibility."
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.

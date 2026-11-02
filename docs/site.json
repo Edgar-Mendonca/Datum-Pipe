@@ -351,15 +351,15 @@
     {
       "v": "0.5.5",
       "title": "European vessel rules",
-      "when": "Next",
+      "when": "Done",
       "items": [
-        "Vessel shells, heads and cones by the equations of the European pressure vessel standard (EN 13445-3)"
+        "Vessel cylinders, spheres and cones, the test pressure and test stress by the equations of the European pressure vessel standard (EN 13445-3)"
       ]
     },
     {
       "v": "0.6.0",
       "title": "More codes, complete",
-      "when": "Milestone",
+      "when": "Next",
       "items": [
         "Everything in 0.5.1–0.5.5 reviewed"
       ]

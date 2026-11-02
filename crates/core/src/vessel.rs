@@ -75,11 +75,26 @@ impl Default for Part {
     }
 }
 
+/// The rules a vessel's shells and heads are calculated with (0.5.5).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Rules {
+    /// The default thin-shell rules used since 0.3.1.
+    #[default]
+    #[serde(rename = "default")]
+    Default,
+    /// The European unfired pressure vessel standard's equations (EN 13445-3) for cylinders,
+    /// spheres, hemispherical heads and cones, its test pressure and test stress limit.
+    #[serde(rename = "en13445")]
+    European,
+}
+
 /// A pressure vessel and its design data.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Vessel {
     pub name: String,
+    /// The rules for the shells and heads (0.5.5).
+    pub rules: Rules,
     /// Vertical (parts from the bottom up) or horizontal (from left to right).
     pub vertical: bool,
     /// Internal design pressure at the top (Pa, gauge) and design temperature (K).
@@ -701,6 +716,7 @@ impl Default for Vessel {
     fn default() -> Self {
         Vessel {
             name: "V-1".into(),
+            rules: Rules::Default,
             vertical: true,
             p: 10e5,
             temp: 273.15 + 150.0,
@@ -897,6 +913,25 @@ pub fn pressure(k: &PartKind, d_in: f64, len: f64, p: f64, s: f64, e: f64, t: f6
     }
 }
 
+/// Required thickness and MAWP of a part by the vessel's rules: the European standard's membrane
+/// equations where it has them (a cylinder e = P Di / (2 f z − P), a sphere or hemispherical head
+/// e = P Di / (4 f z − P), a cone e = P Dk / ((2 f z − P) cos α) at its larger diameter), the
+/// default rules otherwise (torispherical and ellipsoidal heads: their knuckle rule is not
+/// implemented, and the result says so).
+pub fn pressure_by(rules: Rules, k: &PartKind, d_in: f64, len: f64, p: f64, s: f64, e: f64, t: f64) -> (f64, f64, &'static str) {
+    let fz = s * e;
+    match (rules, k) {
+        (Rules::European, PartKind::Cylinder) => (p * d_in / (2.0 * fz - p), 2.0 * fz * t / (d_in + t), "e = P Di / (2 f z − P)"),
+        (Rules::European, PartKind::Hemispherical) => (p * d_in / (4.0 * fz - p), 4.0 * fz * t / (d_in + t), "e = P Di / (4 f z − P)"),
+        (Rules::European, PartKind::Cone { d_end }) => {
+            let dk = d_in.max(*d_end);
+            let c = cone_angle(d_in, *d_end, len).cos();
+            (p * dk / ((2.0 * fz - p) * c), 2.0 * fz * t * c / (dk + t * c), "e = P Dk / ((2 f z − P) cos α)")
+        }
+        _ => pressure(k, d_in, len, p, s, e, t),
+    }
+}
+
 /// A cone's half apex angle from its two diameters and axial length.
 pub fn cone_angle(d1: f64, d2: f64, len: f64) -> f64 {
     ((d1 - d2).abs() / 2.0).atan2(len.max(1e-12))
@@ -998,7 +1033,7 @@ fn nozzles(v: &Vessel, pressures: &[f64], spans: &[[f64; 2]]) -> Vec<NozzleResul
         // The part's required thickness for pressure with E = 1 (the opening is away from the welds).
         let kind = match p.kind { PartKind::Cone { d_end } => PartKind::Cone { d_end: d_end + 2.0 * ca }, ref k => k.clone() };
         let d_part = match p.kind { PartKind::Cone { d_end } => p.d + (d_end - p.d) * (z.pos / p.len.max(1e-9)).clamp(0.0, 1.0), _ => p.d };
-        let (tr, _, _) = pressure(&kind, d_part + 2.0 * ca, p.len, pd, v.s, 1.0, 0.0);
+        let (tr, _, _) = pressure_by(v.rules, &kind, d_part + 2.0 * ca, p.len, pd, v.s, 1.0, 0.0);
         let t = p.t - ca - v.under;
         let tn_nom = if z.pipe { z.t * 0.875 } else { z.t };
         let tn = tn_nom - ca;
@@ -1316,8 +1351,8 @@ pub fn check_in(v: &Vessel, site: &crate::model::Settings) -> Result<VesselResul
         let d_corr = p.d + 2.0 * v.corrosion;
         let t_avail = p.t - v.corrosion - v.under;
         let kind = match p.kind { PartKind::Cone { d_end } => PartKind::Cone { d_end: d_end + 2.0 * v.corrosion }, ref k => k.clone() };
-        let (treq, mawp, formula) = pressure(&kind, d_corr, p.len, pd, v.s, p.e, t_avail);
-        let (_, map, _) = pressure(&p.kind, p.d, p.len, 0.0, v.s_cold, p.e, p.t - v.under);
+        let (treq, mawp, formula) = pressure_by(v.rules, &kind, d_corr, p.len, pd, v.s, p.e, t_avail);
+        let (_, map, _) = pressure_by(v.rules, &p.kind, p.d, p.len, 0.0, v.s_cold, p.e, p.t - v.under);
         let t_min = treq + v.corrosion + v.under;
         let mawp_top = mawp - sh;
         // Hydrotest stress: new thickness, the test pressure at the top plus the water's head here.
@@ -1330,15 +1365,22 @@ pub fn check_in(v: &Vessel, site: &crate::model::Settings) -> Result<VesselResul
     let mawp = parts.iter().map(|x| x.6).fold(f64::INFINITY, f64::min);
     let map = parts.iter().map(|x| x.7).fold(f64::INFINITY, f64::min);
     let governs = parts.iter().position(|x| x.6 == mawp);
-    let test = 1.3 * mawp * (v.s_cold / v.s);
+    // The hydrostatic test: 1.3 MAWP × the stress ratio by the default rules; by the European
+    // standard the larger of 1.25 Pd × the ratio and 1.43 Pd.
+    let test = match v.rules {
+        Rules::Default => 1.3 * mawp * (v.s_cold / v.s),
+        Rules::European => (1.25 * mawp * (v.s_cold / v.s)).max(1.43 * mawp),
+    };
     let mut out = vec![];
     for (i, sh, pd, treq, t_min, m, mt, mp, formula) in parts {
         let p = &v.parts[i];
         let pt = test + 1000.0 * G * if v.vertical { top - spans[i][0] } else { height };
         // The membrane stress the test gives this part (new thickness): the MAWP equation solved for S.
-        let (_, unit, _) = pressure(&p.kind, p.d, p.len, 0.0, 1.0, 1.0, p.t - v.under);
+        let (_, unit, _) = pressure_by(v.rules, &p.kind, p.d, p.len, 0.0, 1.0, 1.0, p.t - v.under);
         let ts = pt / unit;
-        let allow = 0.9 * v.sy;
+        // The test's membrane stress limit: 0.9 of the yield by the default rules, yield / 1.05 by
+        // the European standard (for steels other than austenitic).
+        let allow = match v.rules { Rules::Default => 0.9 * v.sy, Rules::European => v.sy / 1.05 };
         let pass = p.t + 1e-12 >= t_min && (v.sy <= 0.0 || ts <= allow);
         let (vol, area) = turned(&profiles[i]);
         out.push(PartResult { name: p.name.clone(), z: spans[i], p: pd, static_head: sh, t_req: treq, t_min, t_nom: p.t, mawp: m, mawp_top: mt, map: mp, test_stress: ts, test_allow: allow, pass, formula, volume: vol, metal: area * p.t * v.rho });
@@ -1359,6 +1401,11 @@ pub fn check_in(v: &Vessel, site: &crate::model::Settings) -> Result<VesselResul
     let nz = nozzles(v, &pressures, &spans);
     for z in &nz {
         warnings.extend(z.warnings.iter().cloned());
+    }
+    if v.rules == Rules::European {
+        for p in v.parts.iter().filter(|p| matches!(p.kind, PartKind::Torispherical { .. } | PartKind::Ellipsoidal)) {
+            warnings.push(format!("{}: torispherical and ellipsoidal heads are calculated with the default rules (the European standard's knuckle rule is not in Datum Pipe yet).", p.name));
+        }
     }
     let sad = match &v.saddles {
         Some(s) => Some(saddle_check(v, s, operating.max(test_weight), &spans, &mut warnings)?),
@@ -1458,6 +1505,30 @@ mod tests {
         let len = 0.25 / 30f64.to_radians().tan();
         let (t, _, _) = pressure(&PartKind::Cone { d_end: 1.0 }, 1.5, len, p, s, e, 0.0);
         assert!(close(t, p * 1.5 / (2.0 * 30f64.to_radians().cos() * (117.3e6 - 0.9e6)), 1e-9), "{t}");
+    }
+
+    #[test]
+    fn european_rules_by_hand() {
+        // 1.5 MPa, Di 1.5 m, f 138 MPa, z 0.85: a cylinder e = P Di / (2 f z − P) = 9.6525 mm and its
+        // MAWP at that thickness is P again; a hemispherical head e = P Di / (4 f z − P) = 4.8122 mm.
+        let (p, f, z) = (1.5e6, 138e6, 0.85);
+        let (e, _, _) = pressure_by(Rules::European, &PartKind::Cylinder, 1.5, 1.0, p, f, z, 0.0);
+        assert!((e - 1.5e6 * 1.5 / (2.0 * f * z - p)).abs() < 1e-12 && (e - 0.009_652_5).abs() < 1e-7, "{e}");
+        let (_, m, _) = pressure_by(Rules::European, &PartKind::Cylinder, 1.5, 1.0, 0.0, f, z, e);
+        assert!((m - p).abs() < 1e-3, "{m}");
+        let (h, _, _) = pressure_by(Rules::European, &PartKind::Hemispherical, 1.5, 0.0, p, f, z, 0.0);
+        assert!((h - 1.5e6 * 1.5 / (4.0 * f * z - p)).abs() < 1e-12);
+        // Dished heads fall back to the default rules.
+        let k = PartKind::Ellipsoidal;
+        assert_eq!(pressure_by(Rules::European, &k, 1.5, 0.0, p, f, z, 0.0), pressure(&k, 1.5, 0.0, p, f, z, 0.0));
+        // The test pressure: the larger of 1.25 Pd × ratio and 1.43 Pd, with a warning for the heads.
+        let mut v = Vessel { rules: Rules::European, s_cold: 138e6, s: 120e6, ..Vessel::default() };
+        let r = check(&v).unwrap();
+        assert!((r.test - (1.25 * r.mawp * 138.0 / 120.0).max(1.43 * r.mawp)).abs() < 1e-6 * r.test);
+        assert!(r.warnings.iter().any(|w| w.contains("knuckle rule")));
+        v.s = 138e6;
+        let r = check(&v).unwrap();
+        assert!((r.test - 1.43 * r.mawp).abs() < 1e-6 * r.test, "1.43 governs at equal stresses");
     }
 
     #[test]

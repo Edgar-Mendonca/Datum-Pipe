@@ -346,6 +346,8 @@ fn random_vessels_check_or_explain_and_round_trip() {
             ..Default::default()
         };
         let v = if vertical && v.skirt.is_none() && r.int(3) == 0 { Vessel { legs: Some(Legs::default()), ..v } } else { v };
+        // Half of them by the European rules.
+        let v = if seed % 2 == 0 { Vessel { rules: crate::vessel::Rules::European, ..v } } else { v };
         match check(&v) {
             Ok(res) => {
                 ok += 1;

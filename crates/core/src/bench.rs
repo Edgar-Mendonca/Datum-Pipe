@@ -968,6 +968,24 @@ pub fn run() -> Vec<Check> {
         let f = h.e * h.a * STRAIN_200;
         out.push(row(39, name, "Free end movement of a long heated pipe", "disp", -f * f / (2.0 * h.e * h.a * 2e4), disp(&r, "OPE1", 10)[0], 2e-2, "Statics with friction f per length: δ = F² / (2 EA f), F = EA ε"));
     }
+    // 40. V-101 by the European vessel rules: the shell e = P Di / (2 f z − P) with Di = 1806 mm
+    //     (corroded) at the bottom tangent line; MAWP at the top 2 f z e / (Di + e) with e = 13 mm,
+    //     less the static head; the test pressure the larger of 1.25 Pd × ratio and 1.43 Pd.
+    {
+        let m = crate::examples::get("separator").unwrap();
+        let mut v = m.vessels[0].clone();
+        v.rules = crate::vessel::Rules::European;
+        let r = crate::vessel::check(&v).unwrap();
+        let g = 9.806_65;
+        let fz = 138e6 * 0.85;
+        let p_sh = 16e5 + 850.0 * g * 1.8;
+        let mawp = 2.0 * fz * 0.013 / (1.806 + 0.013) - 850.0 * g * 1.8;
+        let name = "A vertical vessel's shell by the European rules (V-101)";
+        let src = "e = P Di / (2 f z − P); Pmax = 2 f z e / (Di + e)";
+        out.push(row(40, name, "Shell thickness for pressure", "len", p_sh * 1.806 / (2.0 * fz - p_sh), r.parts[1].t_req, TOL, src));
+        out.push(row(40, name, "MAWP at the top (shell governs)", "press", mawp, r.mawp, TOL, src));
+        out.push(row(40, name, "Hydrostatic test pressure", "press", (1.25 * mawp).max(1.43 * mawp), r.test, TOL, "max(1.25 Pd f20/fd, 1.43 Pd)"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -992,7 +1010,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=39 {
+        for b in 1..=40 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

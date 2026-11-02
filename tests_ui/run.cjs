@@ -409,6 +409,9 @@ const shots = process.env.SHOTS;
   check("the Vessels view shows V-101 with its MAWP and test pressure", vt.includes("V-101") && vt.includes("MAWP at the top") && vt.includes("Hydrotest pressure"));
   check("the vessel is drawn", (await p.$$(".vdraw path")).length >= 2);
   check("every part has a result row", (await p.$$(".vtables table:first-of-type tbody tr")).length === 3);
+  check("the vessel offers the European rules, default first", (await p.inputValue("#vrules")) === "default" && ((await p.textContent("#vrules")) ?? "").includes("EN 13445-3"));
+  await p.selectOption("#vrules", "en13445"); await p.waitForTimeout(200);
+  { const op = await lastOp(); check("choosing the European rules sends them", op?.SetVessels?.list?.[0]?.rules === "en13445", JSON.stringify(op?.SetVessels?.list?.[0]?.rules)); }
   check("every nozzle has a reinforcement row, all passing", (await p.$$(".vtables table:nth-of-type(2) tbody tr")).length === 4 && (await p.$$(".vtables table:nth-of-type(2) .fail")).length === 0);
   check("the nozzles are drawn", (await p.$$(".vdraw g path")).length >= 8);
   check("the nozzle editor lists them with their sizes", (await p.$$(".vleft table:nth-of-type(2) tbody tr")).length === 4);

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.5 — 2026-11-02
+
+European vessel rules.
+
+**A choice of rules for each vessel.** The Vessels page has Rules for shells and heads: the default thin-shell rules (as before) or the European unfired pressure vessel standard (EN 13445-3). With the European rules, cylinders are calculated using its equation e = P Di / (2 f z − P), spheres and hemispherical heads e = P Di / (4 f z − P), and cones e = P Dk / ((2 f z − P) cos α), with the MAWP from the same equations; the hydrostatic test pressure is the larger of 1.25 Pd × f20/fd and 1.43 Pd, and the test's membrane stress is limited to the yield strength / 1.05. Torispherical and ellipsoidal heads keep the default rules for now, and the results say so. The design stress f is your input from the standard's rules for the material.
+
+**Verification.** A new benchmark: the vertical separator V-101 by the European rules, its shell thickness, MAWP and test pressure by hand (108 checks), and a unit test of each equation.
+
 ## 0.5.4 — 2026-11-02
 
 Buried pipe.

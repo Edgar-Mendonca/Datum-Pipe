@@ -265,6 +265,7 @@ export const VesselPage = () => {
           <div class="vleft">
             <h4>Design data</h4>
             <div class="two"><T l="Name" v={v()!.name} set={name => putV(i(), { name })} /><div class="iprow"><label>Orientation</label><select onChange={e => putV(i(), { vertical: e.currentTarget.value === "v" })}><option value="v" selected={v()!.vertical}>Vertical</option><option value="h" selected={!v()!.vertical}>Horizontal</option></select></div></div>
+            <div class="iprow"><label>Rules for shells and heads</label><select id="vrules" onChange={e => putV(i(), { rules: e.currentTarget.value as any })}><option value="default" selected={(v()!.rules ?? "default") === "default"}>Default (thin-shell rules)</option><option value="en13445" selected={v()!.rules === "en13445"}>European (EN 13445-3)</option></select><span class="hint">European: cylinders, spheres, hemispherical heads and cones by its equations, its test pressure and test stress limit; dished heads keep the default rules. Allowables are your inputs: f from the standard's rules for the material.</span></div>
             <div class="two"><F l="Design pressure" q="press" v={v()!.p} set={p => p >= 0 ? putV(i(), { p }) : toast("The pressure must be 0 or more.")} /><F l="Design temperature" q="temp" v={v()!.temp} set={temp => putV(i(), { temp })} /></div>
             <div class="two"><F l="Allowable stress, hot" q="stress" v={v()!.s} set={s => s > 0 && putV(i(), { s })} /><F l="Allowable stress, cold" q="stress" v={v()!.s_cold} set={s_cold => s_cold > 0 && putV(i(), { s_cold })} /></div>
             <div class="two"><F l="Yield strength, cold (0 = no test check)" q="stress" v={v()!.sy} set={sy => sy >= 0 && putV(i(), { sy })} /><F l="Corrosion allowance" q="len" v={v()!.corrosion} set={corrosion => corrosion >= 0 && putV(i(), { corrosion })} /></div>
@@ -351,6 +352,6 @@ export const VesselPage = () => {
 export const vesselReport = (): (() => JSX.Element)[] => (model()?.vessels ?? []).map((x, k) => () => {
   const c = vchecks()[k];
   return <div><h3>Vessel {x.name}</h3>
-    <p class="muted small">{x.vertical ? "Vertical" : "Horizontal"}; design {v4("press", x.p)} {unit("press")} at {v4("temp", x.temp)} {unit("temp")}; S hot {v4("stress", x.s)}, cold {v4("stress", x.s_cold)} {unit("stress")}; corrosion {v4("len", x.corrosion)} {unit("len")}; liquid {v4("density", x.liquid)} {unit("density")} to {v4("coord", x.level)} {unit("coord")}.</p>
+    <p class="muted small">{x.vertical ? "Vertical" : "Horizontal"}{x.rules === "en13445" ? "; European rules (EN 13445-3) for shells, spheres and cones" : ""}; design {v4("press", x.p)} {unit("press")} at {v4("temp", x.temp)} {unit("temp")}; S hot {v4("stress", x.s)}, cold {v4("stress", x.s_cold)} {unit("stress")}; corrosion {v4("len", x.corrosion)} {unit("len")}; liquid {v4("density", x.liquid)} {unit("density")} to {v4("coord", x.level)} {unit("coord")}.</p>
     <Show when={c?.result} fallback={<p class="warnline">{c?.error}</p>}><div class="vtop"><VesselDrawing v={x} r={c!.result!} w={220} h={300} /><div class="vtables"><VesselTables v={x} r={c!.result!} /></div></div></Show></div>;
 });

@@ -1755,7 +1755,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                     // The code's sustained and range expressions.
                     let sus = |pr: f64| match m.settings.code {
                         code::PipingCode::Process => code::sustained(loads, sif, pr, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1)),
-                        code::PipingCode::Power => code::sustained_power(loads, sif, pr, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1)),
+                        code::PipingCode::Power | code::PipingCode::European => code::sustained_power(loads, sif, pr, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1)),
                     };
                     let occ_allow = m.settings.occ_k * sh;
                     let (stress, allow) = if occ_range {
@@ -1772,9 +1772,9 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                     } else {
                         let se = match m.settings.code {
                             code::PipingCode::Process => code::expansion(loads, sif, sec.od, sec.wall, p.ze[end].map(|z| z.0)),
-                            code::PipingCode::Power => code::expansion_power(loads, sif, sec.od, sec.wall, p.ze[end].map(|z| z.0)),
+                            code::PipingCode::Power | code::PipingCode::European => code::expansion_power(loads, sif, sec.od, sec.wall, p.ze[end].map(|z| z.0)),
                         };
-                        (se, code::allowable_range(f_range, sc, sh, m.settings.liberal.then_some(sl_max[i][end])))
+                        (se, m.settings.code.range_allow(f_range, sc, sh, m.settings.liberal.then_some(sl_max[i][end])))
                     };
                     let ratio = if allow > 0.0 { stress / allow } else { f64::INFINITY };
                     stresses.push(Stress { seg: i, end: end as u8, point: if end == 0 { s.a } else { s.b }, stress, allow, ratio, pass: ratio <= 1.0, ii: sif.ii, io: sif.io });
@@ -1878,7 +1878,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             if cond.p[c] > 0.0 {
                 let s = interp(&mat.allow, cond.t[c].max(m.settings.ambient));
                 for &(q, i, at) in &checks {
-                    let w = code::wall_at(e.id, c as u8 + 1, cond.p[c], cond.t[c], s, q.od, q.wall, q.corrosion, q.mill, mat.quality, mat.weld, mat.y, i, at);
+                    let w = code::wall_at(e.id, c as u8 + 1, cond.p[c], cond.t[c], s, q.od, q.wall, q.corrosion, q.mill, mat.quality, mat.weld, m.settings.code.wall_y(mat.y), i, at);
                     if w.thick && !warnings.iter().any(|x| x.contains(&format!("element {}–{} ", e.from, e.to))) {
                         warnings.push(format!("The pressure design thickness of element {}–{} is D/6 or more: the thin-wall equation does not apply, so its wall check fails. It needs a thick-wall design.", e.from, e.to));
                     }

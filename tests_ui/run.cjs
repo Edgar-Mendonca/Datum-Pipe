@@ -348,6 +348,9 @@ const shots = process.env.SHOTS;
   check("the report names the power piping code", ((await p.textContent(".preport")) ?? "").includes("the power piping code (ASME B31.1)"));
   await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
   await open("power");
+  await p.selectOption("#pcode", "en13480"); await p.waitForTimeout(200);
+  { const op = await lastOp(); check("choosing the European piping standard sends it with k 1.2", op?.SetSettings?.s?.code === "en13480" && op?.SetSettings?.s?.occ_k === 1.2); }
+  await open("power");
   await p.selectOption("#pcode", "b31.3"); await p.waitForTimeout(200);
   { const op = await lastOp(); check("choosing the process piping code sends it with k 1.33", op?.SetSettings?.s?.code === "b31.3" && op?.SetSettings?.s?.occ_k === 1.33, JSON.stringify(op?.SetSettings?.s?.code)); }
 

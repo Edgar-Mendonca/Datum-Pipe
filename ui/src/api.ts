@@ -31,7 +31,7 @@ export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: nu
 export interface LoadCase { id: number; name: string; kind: CaseKind; recipe: Recipe }
 export interface Project { project: string; line: string; calc: string; by: string; checked: string; rev: string; client: string }
 export interface HarmonicLoad { node: number; f: V3; m: V3; freq: number }
-export type PipingCode = "b31.3" | "b31.1";
+export type PipingCode = "b31.3" | "b31.1" | "en13480";
 export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; code?: PipingCode; occ_k?: number; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3; wind_profile?: [number, number][]; occ_both?: boolean; modes?: number; spectrum?: [number, number][]; rs_dir?: V3; damping?: number; harmonic?: HarmonicLoad | null; springs: SpringSize[]; variability: number }
 export interface Model {
   format: number; name: string; notes: string; units: "SI" | "US"; project: Project; settings: Settings;
@@ -126,5 +126,7 @@ export interface FlangeSpec { element: number; gasket: number; rating: number }
 export interface FlangeCheck { element: number; at: string; force: number; moment: number; pressure: number; equivalent: number; rating: number; ratio: number; pass: boolean }
 
 /** The piping code whose equations the stresses use, in words, and its usual occasional factor. */
-export const CODES: [PipingCode, string, string, number][] = [["b31.3", "Process piping (ASME B31.3)", "the process piping code (ASME B31.3)", 1.33], ["b31.1", "Power piping (ASME B31.1)", "the power piping code (ASME B31.1)", 1.2]];
+export const CODES: [PipingCode, string, string, number][] = [["b31.3", "Process piping (ASME B31.3)", "the process piping code (ASME B31.3)", 1.33], ["b31.1", "Power piping (ASME B31.1)", "the power piping code (ASME B31.1)", 1.2], ["en13480", "European piping (EN 13480-3)", "the European piping standard (EN 13480-3)", 1.2]];
+/** Who publishes the chosen code, for "not affiliated with or endorsed by". */
+export const codeBody = (c?: PipingCode) => c === "en13480" ? "CEN" : "ASME";
 export const codeName = (c?: PipingCode) => (CODES.find(x => x[0] === (c ?? "b31.3")) ?? CODES[0])[2];

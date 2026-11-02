@@ -19,6 +19,9 @@ pub enum PipingCode {
     /// The power piping code (ASME B31.1).
     #[serde(rename = "b31.1")]
     Power,
+    /// The European metallic industrial piping standard (EN 13480-3).
+    #[serde(rename = "en13480")]
+    European,
 }
 
 impl PipingCode {
@@ -27,7 +30,26 @@ impl PipingCode {
     pub fn occ_factor(self) -> f64 {
         match self {
             PipingCode::Process => 1.33,
-            PipingCode::Power => 1.2,
+            PipingCode::Power | PipingCode::European => 1.2,
+        }
+    }
+
+    /// The coefficient Y in the wall equation t = P D / (2 (S E W + P Y)): the European standard's
+    /// e = p Do / (2 f z + p) is that equation with Y = 0.5; the ASME codes use the material's Y.
+    pub fn wall_y(self, material_y: f64) -> f64 {
+        match self {
+            PipingCode::European => 0.5,
+            _ => material_y,
+        }
+    }
+
+    /// The allowable displacement stress range: the ASME codes' f (1.25 Sc + 0.25 Sh), or with the
+    /// liberal allowance f [1.25 (Sc + Sh) − SL]; the European standard's fa = U (1.25 fc + 0.25 fh),
+    /// or with its alternative σ1 + σ3 ≤ fh + fa, that is fa + (fh − σ1).
+    pub fn range_allow(self, f: f64, sc: f64, sh: f64, liberal: Option<f64>) -> f64 {
+        match (self, liberal) {
+            (PipingCode::European, Some(sl)) => f * (1.25 * sc + 0.25 * sh) + (sh - sl).max(0.0),
+            _ => allowable_range(f, sc, sh, liberal),
         }
     }
 }
@@ -324,5 +346,11 @@ mod tests {
         // A welding tee: the single factor is the out-of-plane one.
         let w = tee(crate::model::TeeKind::Welding, t, od, 0.0);
         assert_eq!(single_i(w), w.io);
+        // The European wall equation e = p Do / (2 f z + p) is Y = 0.5 in t = P D / 2(S E + P Y).
+        let e = pressure_thickness(10e6, od, 138e6, 1.0, 1.0, PipingCode::European.wall_y(0.4));
+        assert!((e - 10e6 * od / (2.0 * 138e6 + 10e6)).abs() < 1e-15);
+        // Its alternative range: fa + fh − σ1, against the ASME liberal f [1.25 (Sc + Sh) − SL].
+        let fa = PipingCode::European.range_allow(1.0, 138e6, 120e6, Some(50e6));
+        assert!((fa - (1.25 * 138e6 + 0.25 * 120e6 + 70e6)).abs() < 1.0);
     }
 }

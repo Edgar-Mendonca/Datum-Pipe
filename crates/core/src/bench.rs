@@ -911,6 +911,26 @@ pub fn run() -> Vec<Check> {
         let want = 2e6 * p.od / (4.0 * p.wall) + 10e3 * 10f64.sqrt() / crate::code::z(p.od, p.wall);
         out.push(row(37, "Power piping code: sustained stress with torsion", "Sustained stress at the root", "stress", want, sl, TOL, "P Do / 4t + 0.75 i M / Z with M = √(Mb² + Mt²), 0.75 i held at 1"));
     }
+    // 38. European piping standard: a heated L-bend at 10 MPa. The wall equation e = p Do / (2 f z + p),
+    //     and with the alternative allowable the range limit at each point is fa + fh − σ1.
+    {
+        let mut m = heated("European", &[(4.0, 0.0), (0.0, 3.0)], 200.0);
+        m.settings.code = crate::code::PipingCode::European;
+        m.settings.liberal = true;
+        m.settings.g = 9.806_65;
+        m.conds[0].p[0] = 10e6;
+        let r = analyze(&m).unwrap();
+        let (p, mat) = (&m.pipes[0], &m.materials[0]);
+        let f = crate::library::interp(&mat.allow, m.conds[0].t[0]);
+        let fc = crate::library::interp(&mat.allow, m.settings.ambient);
+        let w = r.walls.iter().find(|w| w.case == 1 && w.at == "pipe").unwrap();
+        let name = "European piping standard: wall and range allowable";
+        out.push(row(38, name, "Design thickness", "len", 10e6 * p.od / (2.0 * f * mat.quality * mat.weld + 10e6), w.t_design, TOL, "e = p Do / (2 f z + p)"));
+        let pt = r.geom.node_point[&10];
+        let s1 = case(&r, "SUS").stresses.iter().filter(|x| x.point == pt).map(|x| x.stress).fold(0.0, f64::max);
+        let a = case(&r, "EXP1").stresses.iter().filter(|x| x.point == pt).map(|x| x.allow).fold(f64::INFINITY, f64::min);
+        out.push(row(38, name, "Range allowable at the anchor, fa + fh − σ1", "stress", 1.25 * fc + 0.25 * f + f - s1, a, TOL, "σ1 + σ3 ≤ fh + fa, fa = U (1.25 fc + 0.25 fh), U = 1 to 7000 cycles"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -935,7 +955,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=37 {
+        for b in 1..=38 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

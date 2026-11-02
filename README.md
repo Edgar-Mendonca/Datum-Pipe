@@ -53,7 +53,7 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 
 ## About the code checks
 
-Datum Pipe calculates stresses using the published equations of ASME B31.3 (Process Piping) or, when chosen, ASME B31.1 (Power Piping). It does not contain the text, tables or figures of the standard. It is not affiliated with or endorsed by ASME.
+Datum Pipe calculates stresses using the published equations of ASME B31.3 (Process Piping) or, when chosen, ASME B31.1 (Power Piping) or EN 13480-3 (Metallic industrial piping). It does not contain the text, tables or figures of the standard. It is not affiliated with or endorsed by ASME or CEN.
 
 The equations come from openly published engineering work: Barlow's thin-wall pressure formula and Lamé's thick-cylinder solution, the membrane theory of a torus for the wall of a bend, von Kármán's and Clark and Reissner's theory of curved tubes, A. R. C. Markl's fatigue tests of piping components (1952), Rodabaugh and George's work on pressure in bends (1957), and standard beam theory. Help › Sources in the app lists each equation with its reference.
 

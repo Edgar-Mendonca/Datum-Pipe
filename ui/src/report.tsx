@@ -2,7 +2,7 @@
 // supports, nozzles), the load cases, and once analysed the results sections. Each block is a
 // function so the print page can lay the report out on as many pages as it needs.
 import { For, Show, JSX, onMount } from "solid-js";
-import { Model, num, codeName } from "./api";
+import { Model, num, codeName, codeBody } from "./api";
 import { checkText } from "./results";
 import { call, setBackstage, model } from "./store";
 import { Help } from "./help";
@@ -28,7 +28,7 @@ export const ReportBody = (p: { m: Model }): Block[] => {
   const name = (l: { id: number; name: string }[], id: number) => l.find(x => x.id === id)?.name ?? "?";
   return [
     () => <div><h2>{m.project.project || m.name}</h2><TitleBlock m={m} /><Show when={m.notes}><p>{m.notes}</p></Show>
-      <p class="muted small">Calculated using the published equations of {codeName(m.settings.code)}; not affiliated with or endorsed by ASME. Allowable stresses are the user's inputs. Results must be checked by a qualified engineer against the code edition that applies to the project.</p></div>,
+      <p class="muted small">Calculated using the published equations of {codeName(m.settings.code)}; not affiliated with or endorsed by {codeBody(m.settings.code)}. Allowable stresses are the user's inputs. Results must be checked by a qualified engineer against the code edition that applies to the project.</p></div>,
     () => <div><h3>1. Input</h3><h4>Pipes</h4>
       <table class="tbl"><thead><tr><th>Pipe</th><th class="r">OD ({unit("len")})</th><th class="r">Wall</th><th class="r">Corrosion</th><th class="r">Mill tol.</th><th class="r">Insulation</th><th class="r">Ins. density ({unit("density")})</th><th class="r">Contents ({unit("density")})</th></tr></thead><tbody>
         <For each={m.pipes}>{x => <tr><td>{x.name}</td><td class="r">{v("len", x.od)}</td><td class="r">{v("len", x.wall)}</td><td class="r">{v("len", x.corrosion)}</td><td class="r">{num(x.mill * 100, 3)} %</td><td class="r">{v("len", x.ins_t)}</td><td class="r">{v("density", x.ins_rho)}</td><td class="r">{v("density", x.fluid_rho)}</td></tr>}</For></tbody></table></div>,

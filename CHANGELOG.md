@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3 — 2026-11-02
+
+European piping standard.
+
+**A third piping code.** Analysis settings › Piping code now also offers the European piping standard (EN 13480-3). With it the stresses are calculated using its equations: the sustained stress σ1 = p Do / 4en + 0.75 i MA / Z (0.75 i at least 1), the sustained plus occasional stress against k fh (k your input, 1.2 filled in), and the displacement stress range σ3 = i MC / Z against fa = U (1.25 fc + 0.25 fh); with the liberal option, its alternative σ1 + σ3 ≤ fh + fa. The minimum wall uses its equation e = p Do / (2 f z + p). The material's allowable table is the design stress f, your input from the standard's rules for the material; check every factor against the edition you work to.
+
+**Verification.** A new benchmark: a heated L-bend at 10 MPa with the European standard, its design thickness and the alternative range allowable at the anchor by hand (102 checks).
+
 ## 0.5.2 — 2026-11-02
 
 Power piping code.

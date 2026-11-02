@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.2 — 2026-11-02
+
+Power piping code.
+
+**A second piping code.** Analysis settings has a Piping code choice: the process piping code (ASME B31.3, as before and the default) or the power piping code (ASME B31.1). With the power piping code the stresses are calculated using its equations: the sustained stress P Do / 4t + 0.75 i M / Z (0.75 i at least 1, M the resultant moment with torsion; Datum Pipe also adds the axial force over the area, which the equation's older form leaves out), the occasional stress as the sustained stress plus that of the occasional loads, and the displacement stress range i Mc / Z, with one stress intensification factor at each point (the larger of the in- and out-of-plane values from the same flexibility characteristic). The minimum wall, hoop stress, allowable range and liberal allowance use the same forms in both codes. Allowables stay your inputs.
+
+**Occasional factor.** The factor on the hot allowable for occasional loads is now an input next to the code: 1.33 is usual for process piping, 1.15 or 1.2 for power piping by how long the load acts. Choosing a code fills in its usual value; check it against your code edition. The results, help and report show the factor and name the code in use.
+
+**Example.** Boiler steam to a header: 6" Sch 80 at 300 °C and 40 bar with wind, checked with the power piping code (sustained 0.42, range 0.33, wind 0.44 of their allowables).
+
+**Verification.** A new benchmark: a cantilever with an arm, so the root carries both bending and torsion, under pressure, against the power piping sustained equation by hand, and the new example's equilibrium (100 checks).
+
 ## 0.5.1 — 2026-11-02
 
 Cold spring.

@@ -337,6 +337,20 @@ const shots = process.env.SHOTS;
   check("load cases have a cold spring column", ((await p.textContent(".dlg .tbl.cases thead")) ?? "").includes("Cold spring") && (await p.$$(".dlg .tbl.cases input.cs")).length >= 2);
   await p.keyboard.press("Escape"); await p.waitForTimeout(100);
 
+  // Power piping: the example uses the power piping code, its factor shows in the checks, and the code can be changed.
+  await open("power");
+  check("Analysis settings show the power piping code and k 1.2", (await p.inputValue("#pcode")) === "b31.1" && (await p.inputValue("#occk")) === "1.2");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.side button[title="Results"]'); await p.waitForTimeout(200);
+  await p.click('.rtabs button:text-is("Summary")'); await p.waitForTimeout(200);
+  check("the occasional check reads ≤ 1.2 Sh", ((await p.textContent('.rtable tr:has(b:text-is("OCC WIN"))')) ?? "").includes("≤ 1.2 Sh"));
+  await p.click('.side button[title="Report"]'); await p.waitForTimeout(300);
+  check("the report names the power piping code", ((await p.textContent(".preport")) ?? "").includes("the power piping code (ASME B31.1)"));
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+  await open("power");
+  await p.selectOption("#pcode", "b31.3"); await p.waitForTimeout(200);
+  { const op = await lastOp(); check("choosing the process piping code sends it with k 1.33", op?.SetSettings?.s?.code === "b31.3" && op?.SetSettings?.s?.occ_k === 1.33, JSON.stringify(op?.SetSettings?.s?.code)); }
+
   // 17. Expansion joints: the example's joint in the Inspector, analysed, and on the isometric.
   await open("bellows");
   await p.click('.egrid tbody tr:nth-child(3) td.rn'); await p.waitForTimeout(150);

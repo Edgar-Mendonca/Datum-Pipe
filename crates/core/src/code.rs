@@ -7,7 +7,30 @@
 //! Stress intensification and flexibility factors for bends and tees are expressions in the
 //! flexibility characteristic h, from Markl's fatigue tests and the theory of curved tubes.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+/// The piping code whose equations the stresses are calculated with (0.5.2).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PipingCode {
+    /// The process piping code (ASME B31.3).
+    #[default]
+    #[serde(rename = "b31.3")]
+    Process,
+    /// The power piping code (ASME B31.1).
+    #[serde(rename = "b31.1")]
+    Power,
+}
+
+impl PipingCode {
+    /// The factor on the hot allowable for occasional loads that the code's equations commonly use
+    /// (an input in the settings: check it against your code edition).
+    pub fn occ_factor(self) -> f64 {
+        match self {
+            PipingCode::Process => 1.33,
+            PipingCode::Power => 1.2,
+        }
+    }
+}
 
 /// Section modulus and areas of a pipe of outside diameter `od` and wall `t` (m³, m²).
 pub fn z(od: f64, t: f64) -> f64 {
@@ -211,6 +234,34 @@ pub fn expansion(l: Loads, sif: Sif, od: f64, t: f64, ze: Option<f64>) -> f64 {
     ((l.fa.abs() / ap + sb).powi(2) + (2.0 * st).powi(2)).sqrt()
 }
 
+/// The resultant moment of the section with torsion, M = √(Mi² + Mo² + Mt²), as the power piping
+/// code takes it.
+fn resultant(l: Loads) -> f64 {
+    (l.mi * l.mi + l.mo * l.mo + l.mt * l.mt).sqrt()
+}
+
+/// The single stress intensification factor of the power piping code at a point: its in-plane
+/// value for bends, its out-of-plane value for branches (the larger of the two either way).
+pub fn single_i(sif: Sif) -> f64 {
+    sif.ii.max(sif.io)
+}
+
+/// Power piping code, sustained (and with occasional loads) longitudinal stress (eq. 15, 16 form):
+/// SL = P Do / (4 tn) + 0.75 i M / Z, with 0.75 i at least 1 and M the resultant moment with
+/// torsion; |Fa| / A is added (the equation's older form leaves axial force out: conservative).
+/// tn, Z and A on the wall less the corrosion allowance; `ze` replaces Z at a tee's branch.
+pub fn sustained_power(l: Loads, sif: Sif, p: f64, od: f64, t_corroded: f64, ze: Option<f64>) -> f64 {
+    let zz = ze.unwrap_or_else(|| z(od, t_corroded));
+    let sp = if p > 0.0 && t_corroded > 0.0 { p * od / (4.0 * t_corroded) } else { 0.0 };
+    l.fa.abs() / area(od, t_corroded) + sp + (0.75 * single_i(sif)).max(1.0) * resultant(l) / zz
+}
+
+/// Power piping code, displacement stress range (eq. 17 form): SE = i Mc / Z, Mc the resultant
+/// moment range with torsion, on the nominal wall.
+pub fn expansion_power(l: Loads, sif: Sif, od: f64, t: f64, ze: Option<f64>) -> f64 {
+    single_i(sif) * resultant(l) / ze.unwrap_or_else(|| z(od, t))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,5 +305,24 @@ mod tests {
         let di = od - 2.0 * t;
         let want = (p * di * di / (od * od - di * di) - 0.3 * p * (od - t) / (2.0 * t)) / 2.0e11;
         assert!((pressure_strain(p, od, t, 2.0e11, 0.3) - want).abs() < 1e-18);
+    }
+
+    #[test]
+    fn power_piping_equations_by_hand() {
+        // 6" Sch 40, 2 MPa, 10 kN·m bending and 4 kN·m torsion at a long-radius elbow (ii = 2.266):
+        // SL = P Do / 4t + 0.75 × 2.266 × √(10² + 4²) kN·m / Z; SE = 2.266 × √116 kN·m / Z.
+        let (od, t) = (0.168_275, 0.007_112);
+        let b = bend(t, od, 0.2286, 0.0, 0.0);
+        let l = Loads { fa: 0.0, mt: 4000.0, mi: 10_000.0, mo: 0.0 };
+        let m = 116e6f64.sqrt();
+        let zz = z(od, t);
+        let sl = sustained_power(l, b, 2e6, od, t, None);
+        assert!((sl - (2e6 * od / (4.0 * t) + 0.75 * b.ii * m / zz)).abs() < 1e-3, "{sl}");
+        assert!((expansion_power(l, b, od, t, None) - b.ii * m / zz).abs() < 1e-3);
+        // On straight pipe 0.75 i is held at 1.
+        assert!((sustained_power(l, Sif::ONE, 0.0, od, t, None) - m / zz).abs() < 1e-3);
+        // A welding tee: the single factor is the out-of-plane one.
+        let w = tee(crate::model::TeeKind::Welding, t, od, 0.0);
+        assert_eq!(single_i(w), w.io);
     }
 }

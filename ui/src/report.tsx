@@ -2,7 +2,8 @@
 // supports, nozzles), the load cases, and once analysed the results sections. Each block is a
 // function so the print page can lay the report out on as many pages as it needs.
 import { For, Show, JSX, onMount } from "solid-js";
-import { Model, num } from "./api";
+import { Model, num, codeName } from "./api";
+import { checkText } from "./results";
 import { call, setBackstage, model } from "./store";
 import { Help } from "./help";
 import { TitleBlock, version, setVersion } from "./print";
@@ -27,7 +28,7 @@ export const ReportBody = (p: { m: Model }): Block[] => {
   const name = (l: { id: number; name: string }[], id: number) => l.find(x => x.id === id)?.name ?? "?";
   return [
     () => <div><h2>{m.project.project || m.name}</h2><TitleBlock m={m} /><Show when={m.notes}><p>{m.notes}</p></Show>
-      <p class="muted small">Calculated using the published equations of the process piping code (ASME B31.3); not affiliated with or endorsed by ASME. Allowable stresses are the user's inputs. Results must be checked by a qualified engineer against the code edition that applies to the project.</p></div>,
+      <p class="muted small">Calculated using the published equations of {codeName(m.settings.code)}; not affiliated with or endorsed by ASME. Allowable stresses are the user's inputs. Results must be checked by a qualified engineer against the code edition that applies to the project.</p></div>,
     () => <div><h3>1. Input</h3><h4>Pipes</h4>
       <table class="tbl"><thead><tr><th>Pipe</th><th class="r">OD ({unit("len")})</th><th class="r">Wall</th><th class="r">Corrosion</th><th class="r">Mill tol.</th><th class="r">Insulation</th><th class="r">Ins. density ({unit("density")})</th><th class="r">Contents ({unit("density")})</th></tr></thead><tbody>
         <For each={m.pipes}>{x => <tr><td>{x.name}</td><td class="r">{v("len", x.od)}</td><td class="r">{v("len", x.wall)}</td><td class="r">{v("len", x.corrosion)}</td><td class="r">{num(x.mill * 100, 3)} %</td><td class="r">{v("len", x.ins_t)}</td><td class="r">{v("density", x.ins_rho)}</td><td class="r">{v("density", x.fluid_rho)}</td></tr>}</For></tbody></table></div>,
@@ -55,7 +56,7 @@ export const ReportBody = (p: { m: Model }): Block[] => {
         <For each={m.loads}>{l => <tr><td>{l.node}</td><td>Force {l.f.map(x => v("force", x)).join(", ")} {unit("force")}; moment {l.m.map(x => v("moment", x)).join(", ")} {unit("moment")}</td><td /></tr>}</For></tbody></table></div>,
     () => <div><h3>2. Load cases</h3>
       <table class="tbl"><thead><tr><th>Case</th><th>Kind</th><th>Made of</th><th>Check</th></tr></thead><tbody>
-        <For each={m.cases}>{c => <tr><td>{c.name}</td><td>{c.kind.toUpperCase()}</td><td>{recipeText(c, m.cases)}</td><td>{({ sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" } as Record<string, string>)[c.kind]}</td></tr>}</For></tbody></table>
+        <For each={m.cases}>{c => <tr><td>{c.name}</td><td>{c.kind.toUpperCase()}</td><td>{recipeText(c, m.cases)}</td><td>{checkText(c.kind)}</td></tr>}</For></tbody></table>
       <p class="muted small">W weight (pipe, contents, insulation, cladding, components, extra loads); T thermal; D imposed displacements; P pressure; HP hydrotest pressure; CS cold spring.</p></div>,
     ...(m.elements.length ? resultBlocks(m) : []),
     ...vesselBlocks(),

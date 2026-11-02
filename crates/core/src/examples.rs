@@ -22,6 +22,7 @@ pub fn list() -> Vec<Example> {
         Example { id: "bellows", name: "Expansion joint between anchors", what: "8\" steam in a straight run with an untied bellows: guides each side, and main anchors that take the pressure thrust." },
         Example { id: "separator", name: "Vertical separator V-101", what: "A pressure vessel: 1.8 m two-phase separator with 2:1 heads at 16 bar and 200 °C; shell and head thickness, MAWP, test pressure and weights." },
         Example { id: "drum", name: "Horizontal drum D-201 on saddles", what: "A pressure vessel: 2.4 m horizontal drum on two 120° saddles; shell and heads, nozzles, and the saddle stresses by Zick's method." },
+        Example { id: "power", name: "Boiler steam to a header (power piping)", what: "6\" Sch 80 steam at 300 °C and 40 bar, checked with the power piping code's equations: two bends, a rest and a spring hanger between the boiler outlet and a header." },
         Example { id: "lbend", name: "A simple L-bend", what: "6\" carbon steel at 200 °C between two anchors, with a long-radius bend. Check it by hand." },
         Example { id: "zbend", name: "A Z-bend", what: "6\" carbon steel at 250 °C: two bends between two anchors, the classic hand-check case." },
     ]
@@ -40,6 +41,7 @@ pub fn get(id: &str) -> Option<Model> {
         "drum" => Some(drum()),
         "lbend" => Some(lbend()),
         "zbend" => Some(zbend()),
+        "power" => Some(power()),
         _ => None,
     }
 }
@@ -232,6 +234,28 @@ fn lbend() -> Model {
     support(&mut d, 10, SupKind::Anchor, "A-10");
     support(&mut d, 30, SupKind::Anchor, "A-30");
     meta(&mut d, "A simple L-bend", "L-BEND", "6\" Sch 40 carbon steel, 6 m east then 4 m north with a long-radius bend, anchored at both ends; 200 °C and 10 bar. The thermal end forces can be checked by hand with the guided-cantilever or elastic centre method.");
+    d.m
+}
+
+/// Power piping: boiler steam up from an outlet and along to a header, checked with the power
+/// piping code's equations (occasional factor 1.2 for the wind).
+fn power() -> Model {
+    let mut d = table("Boiler steam to a header", &[
+        (10, 20, 0.0, 4.0, 0.0), (20, 30, 5.0, 0.0, 0.0), (30, 40, 5.0, 0.0, 0.0), (40, 50, 0.0, 0.0, -4.0), (50, 60, 3.0, 0.0, 0.0),
+    ]);
+    pipe(&mut d, "6", "80", 0.08, 15.0);
+    bends(&mut d, &[20, 40, 50]);
+    conditions(&mut d, "Steam 300 °C", [300.0, 21.0, 21.0], [40.0, 0.0, 0.0], 60.0);
+    support(&mut d, 10, SupKind::Anchor, "Boiler outlet");
+    support(&mut d, 30, SupKind::Rest, "S-30");
+    support(&mut d, 60, SupKind::Anchor, "Header");
+    let mut st = d.m.settings.clone();
+    st.code = crate::code::PipingCode::Power;
+    st.occ_k = 1.2;
+    st.wind_q = 700.0;
+    st.wind_dir = [0.0, 0.0, -1.0];
+    d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("power piping settings");
+    meta(&mut d, "Boiler steam to a header", "6\"-MS-101", "6\" Sch 80 carbon steel steam at 300 °C and 40 bar with 80 mm of insulation, from a boiler outlet (anchor) up 4 m and along to a header (anchor), with a rest at 30 and a design wind of 0.7 kPa. Checked with the power piping code's equations: sustained P Do/4t + 0.75 i M/Z, occasional against 1.2 Sh, range i Mc/Z.");
     d.m
 }
 

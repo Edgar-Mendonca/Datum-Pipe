@@ -100,6 +100,7 @@ Units: the engine and the file use SI base units (m, kg, N, Pa, K). The engine's
 | 0.4.3 | `Settings.spectrum` [(Hz, g)], `rs_dir`, `damping` (0.05); in `solve_model` after the cases: per mode and direction u = φ Γ Sa / ω² (Sa linear in f, held beyond the ends), section forces from `end_force` with no loads, reactions from `dyn_sys` (K with touching conds) at held dofs, springs and conds; CQC (Der Kiureghian) across modes, SRSS across directions, per component; a synthetic `LoadCase` OCC SPEC (Occ, Range{OPE1, OPE1} so it takes OPE1's temperature) in a local `cases` list for the stress loop; `CaseResult.spectrum` = true, imbalance not computed | Reuses the occasional check unchanged; no missing-mass correction yet |
 | 0.4.4 | `Settings.harmonic: Option<Harmonic{node, f, m, freq}>`; after the spectrum: u = K⁻¹F (on `dyn_sys`) + Σ φ(φᵀF)[1/(ω²−Ω²+2iζωΩ) − 1/ω²] (mode acceleration, so the static part is exact with few modes); section forces and reactions of the real and imaginary parts, combined as amplitudes; synthetic case HARM (Ope, so not stress-checked; `spectrum` = true). A warning if it is set with no modes; `doc::finish` drops it when its node goes | Force excitation only (no imposed displacement at a frequency), one load at one frequency (no sweep) |
 | 0.5.1 | `Element.cold` (m, straight pipe only, < L/10) as an initial strain −c/L on its segments (`Part.cs`, `cs_rhs`); `Recipe::Sum.cs`; with any cold spring the cases get COLD (Ope: W + P1 + CS), OPE/OCC/HYD have CS, SUS does not, EXP = OPE − COLD | The range is unchanged (no credit, as the codes say); full cold spring in hot reactions (no 2/3 factor: the analysis gives the real loads); the hanger sizing runs leave it out |
+| 0.5.2 | `Settings.code: PipingCode` (serde "b31.3"/"b31.1", default process) and `Settings.occ_k` (1–2, default 1.33; choosing a code in the UI fills its usual value: 1.33 process, 1.2 power). Power: `sustained_power` = |Fa|/A + P Do/4t + max(0.75 i, 1) M/Z, `expansion_power` = i Mc/Z, M with torsion, i = max(ii, io); same wall, hoop, SA and liberal forms | Classic published form; |Fa|/A added (conservative); one i per point as the code's appendix gives (in-plane for bends, out-of-plane for tees); sustained on the corroded wall (conservative, like the process code) |
 | 0.4.2 | `rstate.modeNo` (cleared on load); the 3D view takes the mode's shape in place of the case's displacements, 8 % of the model's size, animated sin(t) about still; stress colours and legend off while a mode shows | A mode's amplitude is arbitrary |
 | 0.4.1 | `Settings.modes` (0 = off); `System::modes` subspace iteration (q = min(2p, p + 8) vectors, K factorised once, M-orthonormal Gram–Schmidt applied to X̄ and K X̄ together, Jacobi on the projected Kr), `jacobi()`; lumped translational masses from `Part.mass_len` (weight arithmetic with g = 1, so g = 0 models still have mass); one-way/gap supports as touching (k or RIGID), friction out; `Results.modes` (freq, period, mass-normalised shapes, Γ, Γ²/M) and `Results.mass` (moving mass, unheld points only) | No new dependency; the static solve untouched; modes off by default |
 | 0.3.8 | `Vessel.pe`, `ext_fs` (3), `ring_spacing`, `ring_i`; `cylinder_collapse` (von Mises short tube in closed form, floored by Bryan's long tube), L = tangent length + a third of each head's depth or the ring spacing; heads as spheres R = 0.9 D (2:1), crown (torispherical), D/2 (hemi), 0.1875 E (t/R)²; each min with hoop yield 2 Sy t/D, ÷ factor; ring I ≥ F pe R³ Ls / (3E) | Classical theory only, per the owner's rule: no material charts |
@@ -261,8 +262,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.4.4 | Dynamics: harmonic response (force and moment at a node at a frequency, damping) | ✅ |
 | 0.5.0 | Milestone: dynamics reviewed; benchmarks by closed-form theory (not the regulator's problem set: government publication) | ✅ |
 | 0.5.1 | More codes: cold spring | ✅ |
-| 0.5.2 | More codes: power piping code (B31.1) equations, code chosen per model | 🔜 |
-| 0.5.3 | More codes: European piping standard (EN 13480-3) equations | ⬜ |
+| 0.5.2 | More codes: power piping code (B31.1) equations, code chosen per model | ✅ |
+| 0.5.3 | More codes: European piping standard (EN 13480-3) equations | 🔜 |
 | 0.5.4 | More codes: buried pipe (soil springs from first-principles soil mechanics) | ⬜ |
 | 0.5.5 | More codes: European vessel standard (EN 13445-3) shells, heads, cones, test pressure | ⬜ |
 | 0.6.0 | Milestone: more codes reviewed | ⬜ |
@@ -492,6 +493,10 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 - Owner: "go with the 0.6, complete all the things": cold spring, power piping, European piping, buried pipe, European vessels. Split into 0.5.1–0.5.5 and 0.6.0.
 - Engine: `Element.cold`, `Recipe::Sum.cs`, case COLD, benchmark 36 (98 checks), worked test on an L-bend (superposition, range unchanged).
 - UI: Cold spring in the Inspector for straight pipe, a Cold spring column in Load Cases, CS in recipes and the report; four UI checks.
+
+### 2026-11-02: Session 2, continued (0.5.2: power piping code)
+- Engine: `PipingCode`, `occ_k`, power piping sustained and range, benchmark 37 (100 checks with the example's equilibrium row: bending plus torsion under pressure), unit test by hand; example "power" (boiler steam to a header).
+- UI: Piping code and occasional factor in Analysis settings; `codeName`, `checkText` (≤ k Sh) in results and report; help and Sources; README/NOTICE trademarks; five UI checks.
 
 ## 5. Known limits (0.2.0)
 

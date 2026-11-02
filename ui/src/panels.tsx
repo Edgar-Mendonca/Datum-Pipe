@@ -1,7 +1,7 @@
 // The Inspector: the selected element, node, support, nozzle or load, in display units; with
 // nothing selected, the model's name, title block and analysis settings.
 import { For, Show, Switch, Match, JSX } from "solid-js";
-import { Element, Support, Nozzle, Load, SupKind, V3, HarmonicLoad, num } from "./api";
+import { Element, Support, Nozzle, Load, SupKind, V3, HarmonicLoad, CODES, num } from "./api";
 import { model, sel, setSel, act, toast } from "./store";
 import { C, SUPPORTS } from "./cmds";
 import { Help } from "./help";
@@ -207,6 +207,8 @@ const ModelPanel = () => {
       <div class="two"><T l="By" v={m().project.by} set={v => proj("by", v)} /><T l="Checked" v={m().project.checked} set={v => proj("checked", v)} /></div>
     </Sec>
     <Sec t="Analysis" h="settings">
+      <div class="iprow"><label>Piping code</label><select id="pcode" onChange={e => { const c = CODES.find(x => x[0] === e.currentTarget.value)!; C.settings({ code: c[0], occ_k: c[3] }); }}><For each={CODES}>{c => <option value={c[0]} selected={c[0] === (m().settings.code ?? "b31.3")}>{c[1]}</option>}</For></select></div>
+      <div class="iprow"><label>Occasional loads: factor k on Sh</label><input class="mono" id="occk" value={m().settings.occ_k ?? 1.33} onChange={numIn(v => v >= 1 && v <= 2 && C.settings({ occ_k: v }), () => m().settings.occ_k ?? 1.33)} /><span class="hint">Sustained plus occasional stress against k Sh. Usual values: 1.33 (process piping); 1.15 or 1.2 (power piping, by how long the load lasts). Check against your code edition.</span></div>
       <F l="Installed temperature" q="temp" v={m().settings.ambient} set={ambient => C.settings({ ambient })} />
       <div class="iprow"><label>Displacement cycles over the plant's life</label><input class="mono" value={m().settings.cycles} onChange={numIn(v => C.settings({ cycles: v }), () => m().settings.cycles)} /><span class="hint">Up to 7000 cycles the allowable range factor f is 1.0.</span></div>
       <label class="chk"><input type="checkbox" checked={m().settings.liberal} onChange={e => C.settings({ liberal: e.currentTarget.checked })} />Liberal allowable stress range</label>
@@ -229,7 +231,7 @@ const ModelPanel = () => {
       <div class="iprow"><label>Damping ratio </label><input class="mono" id="damping" value={model()!.settings.damping ?? 0.05} onChange={e => { const x = +e.currentTarget.value; if (x > 0 && x < 1) C.settings({ damping: x }); else toast("The damping ratio is between 0 and 1."); }} /></div>
       <Spectrum />
       <Harmonic />
-      <p class="muted small">Your inputs: take the wind pressure and seismic factors from the standard for the site. With either, OPE1 is solved with it added and an occasional case checks the sustained stress plus its own stress against 1.33 Sh.</p>
+      <p class="muted small">Your inputs: take the wind pressure and seismic factors from the standard for the site. With either, OPE1 is solved with it added and an occasional case checks the sustained stress plus its own stress against k Sh (Analysis, above).</p>
     </Sec>
   </>;
 };

@@ -7,7 +7,7 @@
   "for": "Piping, stress, mechanical, process and plant engineers, consultants and students.",
   "about": [
     "Datum Pipe works out how a piping system moves and what it pushes on when it heats up, carries its weight, holds its pressure and meets wind or an earthquake. You type the piping as a table of elements, the way a stress engineer marks up an isometric (or import a piping component file from a design tool), and it appears in 3D as you type: pipes at their true diameter, bends, tees, reducers, valves, flanges and supports.",
-    "Put on the supports (one-way rests, gaps, friction and spring hangers it sizes for you), the temperatures, pressures and equipment movements; the load cases are built for you. Analyze solves every case with Datum Pipe's own 3D pipe element solver, checks the stresses using the published equations of the process piping code (ASME B31.3), and shows the results on the model, in tables of displacements, support loads and nozzle loads, on an automatic isometric drawing and in a printed stress report. Allowable stresses are your inputs, Help › Verification solves benchmark problems with known answers in front of you, and Help › Sources says where every equation is published."
+    "Put on the supports (one-way rests, gaps, friction and spring hangers it sizes for you), the temperatures, pressures and equipment movements; the load cases are built for you. Analyze solves every case with Datum Pipe's own 3D pipe element solver, checks the stresses using the published equations of the process piping code (ASME B31.3) or the power piping code (ASME B31.1), and shows the results on the model, in tables of displacements, support loads and nozzle loads, on an automatic isometric drawing and in a printed stress report. Allowable stresses are your inputs, Help › Verification solves benchmark problems with known answers in front of you, and Help › Sources says where every equation is published."
   ],
   "steps": [
     {
@@ -327,7 +327,7 @@
     {
       "v": "0.5.2",
       "title": "Power piping code",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Stresses calculated using the equations of the power piping code (ASME B31.1), chosen per model"
       ]
@@ -335,7 +335,7 @@
     {
       "v": "0.5.3",
       "title": "European piping code",
-      "when": "Later",
+      "when": "Next",
       "items": [
         "Stresses calculated using the equations of the European piping standard (EN 13480-3)"
       ]

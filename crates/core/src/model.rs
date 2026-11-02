@@ -495,6 +495,10 @@ pub struct Settings {
     pub hydro: bool,
     /// Use the liberal allowable stress range (adds the unused part of the sustained allowable).
     pub liberal: bool,
+    /// The piping code the stresses are calculated with (0.5.2), and the factor on the hot
+    /// allowable for occasional loads (an input; each code's usual value is offered).
+    pub code: crate::code::PipingCode,
+    pub occ_k: f64,
     /// Equivalent full displacement cycles over the plant's life (sets the range factor f).
     pub cycles: f64,
     /// Correct bends' flexibility and intensification for pressure.
@@ -576,7 +580,7 @@ impl Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3], wind_profile: vec![], occ_both: false, modes: 0, spectrum: vec![], rs_dir: [0.0; 3], damping: 0.05, harmonic: None, springs: typical_springs(), variability: 0.25 }
+        Settings { ambient: K0 + 21.0, g: 9.806_65, hydro: false, liberal: false, code: crate::code::PipingCode::Process, occ_k: 1.33, cycles: 7000.0, bend_pressure: true, auto_cases: true, pressure_elongation: false, branch_ze: true, step: 10, wind_q: 0.0, wind_cd: 0.7, wind_dir: [1.0, 0.0, 0.0], seis: [0.0; 3], wind_profile: vec![], occ_both: false, modes: 0, spectrum: vec![], rs_dir: [0.0; 3], damping: 0.05, harmonic: None, springs: typical_springs(), variability: 0.25 }
     }
 }
 
@@ -768,6 +772,9 @@ impl Model {
             if !(h.freq >= 0.0 && fin(h.freq)) || !h.f.iter().chain(&h.m).all(|v| fin(*v)) || !self.nodes.iter().any(|n| n.num == h.node) {
                 return Err("The harmonic load needs a node of the model, a frequency of 0 or more and finite amplitudes.".into());
             }
+        }
+        if !(s.occ_k >= 1.0 && s.occ_k <= 2.0) {
+            return Err("The occasional load factor on the hot allowable is between 1 and 2.".into());
         }
         if !s.spectrum.iter().all(|r| fin(r[0]) && fin(r[1]) && r[0] > 0.0 && r[1] >= 0.0) || s.spectrum.windows(2).any(|w| w[1][0] <= w[0][0]) || !s.rs_dir.iter().all(|v| fin(*v) && *v >= 0.0) || !(s.damping > 0.0 && s.damping < 1.0) {
             return Err("The response spectrum needs frequencies above 0 in rising order with accelerations of 0 or more, direction factors of 0 or more, and a damping ratio between 0 and 1.".into());
@@ -1223,6 +1230,9 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     }
     if !m.settings.spectrum.iter().all(|r| fin(r[0]) && fin(r[1]) && r[0] > 0.0 && r[1] >= 0.0) || m.settings.spectrum.windows(2).any(|w| w[1][0] <= w[0][0]) {
         m.settings.spectrum = vec![];
+    }
+    if !(m.settings.occ_k >= 1.0 && m.settings.occ_k <= 2.0) {
+        m.settings.occ_k = m.settings.code.occ_factor();
     }
     if !(m.settings.damping > 0.0 && m.settings.damping < 1.0) {
         m.settings.damping = 0.05;

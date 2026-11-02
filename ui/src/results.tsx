@@ -2,7 +2,7 @@
 // the engine computed: summary, displacements, forces and moments, support loads, nozzle loads,
 // code stresses, minimum wall and the equilibrium check.
 import { For, Show, createSignal, createMemo, JSX } from "solid-js";
-import { CaseResult, Results, num } from "./api";
+import { CaseResult, Results, num, codeName } from "./api";
 import { model, setSel, setView, openMenu } from "./store";
 import { C } from "./cmds";
 import { G, S, B } from "./ribbon";
@@ -15,7 +15,9 @@ import { Icon } from "./ui";
 export const [tableKind, setTableKind] = createSignal("summary");
 const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["flanges", "Flanges"], ["relief", "Relief"], ["modes", "Modes"], ["equilibrium", "Equilibrium"]];
 const KIND: Record<string, string> = { sus: "Sustained", ope: "Operating", exp: "Expansion range", hyd: "Hydrotest", occ: "Occasional" };
-const CHECK: Record<string, string> = { sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" };
+const CHECK0: Record<string, string> = { sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only" };
+/** What each kind of case is checked against; the occasional factor is the model's. */
+export const checkText = (kind: string) => kind === "occ" ? `≤ ${model()?.settings.occ_k ?? 1.33} Sh` : CHECK0[kind];
 const openTable = (k: string) => { setTableKind(k); setView("results"); };
 
 export const Badge = (p: { pass: boolean | null | undefined }) => p.pass === null || p.pass === undefined ? <span class="muted">—</span> : <span class={p.pass ? "pass" : "fail"}>{p.pass ? "PASS" : "FAIL"}</span>;
@@ -88,7 +90,7 @@ export const ResultsPage = () => {
 export const Summary = (p: { r: Results }) => (
   <table class="tbl"><thead><tr><Th>Case</Th><Th>Kind</Th><Th>Check</Th><Th r>Highest ratio</Th><Th>At</Th><Th r>Stress {u("stress")}</Th><Th r>Allowable</Th><Th>Result</Th><Th r>Equilibrium</Th></tr></thead><tbody>
     <For each={p.r.cases}>{c => { const w = c.worst !== null ? c.stresses[c.worst] : null; return <tr class="f" onClick={() => { setCaseId(c.id); setTableKind(c.stresses.length ? "stress" : "supports"); }}>
-      <td><b>{c.name}</b></td><td>{KIND[c.kind]}</td><td>{c.spectrum && c.kind === "ope" ? "Amplitudes, not checked" : CHECK[c.kind]}</td>
+      <td><b>{c.name}</b></td><td>{KIND[c.kind]}</td><td>{c.spectrum && c.kind === "ope" ? "Amplitudes, not checked" : checkText(c.kind)}</td>
       <td class="r">{w ? num(w.ratio, 3) : "—"}</td><td>{w ? p.r.geom.points[w.point]?.label : ""}</td><td class="r">{w ? v("stress", w.stress) : ""}</td><td class="r">{w ? v("stress", w.allow) : ""}</td>
       <td><Badge pass={casePass(c)} /></td><td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.spectrum ? "not applicable" : c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)}</td></tr>; }}</For>
     <Show when={p.r.walls.length}><tr class="f" onClick={() => setTableKind("wall")}><td><b>Pressure</b></td><td>Minimum wall</td><td>Nominal wall ≥ needed</td><td class="r">{num(Math.max(...p.r.walls.map(w => w.ratio)), 3)}</td><td /><td /><td /><td><Badge pass={p.r.walls.every(w => w.pass)} /></td><td /></tr></Show>
@@ -102,7 +104,7 @@ const Stresses = (p: { r: Results; c: CaseResult }) => {
   const rows = createMemo(() => { const s = [...p.c.stresses]; return worst() ? s.sort((a, b) => b.ratio - a.ratio) : s.sort((a, b) => order()(a.seg) - order()(b.seg)); });
   const el = (si: number) => { const e = model()?.elements.find(x => x.id === p.r.geom.segs[si]?.element); return e ? `${e.from}–${e.to}` : ""; };
   return <Show when={p.c.stresses.length} fallback={<p class="muted">{KIND[p.c.kind]} cases have no code stress check: see the support and nozzle loads.</p>}>
-    <p class="ibtns"><label class="chk"><input type="checkbox" checked={worst()} onChange={e => setWorst(e.currentTarget.checked)} />Worst first</label><span class="muted small">{p.c.kind === "sus" ? "Sustained longitudinal stress SL (pressure and weight, wall less corrosion) against the hot allowable Sh." : p.c.kind === "exp" ? "Displacement stress range SE (nominal wall, in- and out-of-plane SIFs) against the allowable range SA." : "Sustained plus occasional stress against 1.33 Sh."}</span></p>
+    <p class="ibtns"><label class="chk"><input type="checkbox" checked={worst()} onChange={e => setWorst(e.currentTarget.checked)} />Worst first</label><span class="muted small">{p.c.kind === "sus" ? "Sustained longitudinal stress SL (pressure and weight, wall less corrosion) against the hot allowable Sh." : p.c.kind === "exp" ? "Displacement stress range SE (nominal wall, in- and out-of-plane SIFs) against the allowable range SA." : `Sustained plus occasional stress against ${model()?.settings.occ_k ?? 1.33} Sh.`}</span></p>
     <table class="tbl"><thead><tr><Th>Point</Th><Th>Element</Th><Th r>Stress {u("stress")}</Th><Th r>Allowable</Th><Th r>Ratio</Th><Th r>SIF in / out</Th><Th>Result</Th></tr></thead><tbody>
       <For each={rows()}>{s => <tr class="f" onClick={() => jump(nodeOf(p.r, s.point))}><td>{p.r.geom.points[s.point]?.label}</td><td>{el(s.seg)}</td><td class="r">{v("stress", s.stress)}</td><td class="r">{v("stress", s.allow)}</td><td class="r"><b>{num(s.ratio, 3)}</b></td><td class="r">{num(s.ii, 3)} / {num(s.io, 3)}</td><td><Badge pass={s.pass} /></td></tr>}</For></tbody></table>
   </Show>;
@@ -223,7 +225,7 @@ setResultBlocks(m => {
   const ope = r.cases.find(c => c.kind === "ope") ?? r.cases[0];
   const blocks = [
     () => <div><h3>3. Stress summary</h3><Summary r={r} />
-      <p class="muted small">Calculated using the equations of the process piping code: sustained stress SL against Sh, displacement stress range SE against SA = f (1.25 Sc + 0.25 Sh){m.settings.liberal ? " with the liberal allowance" : ""}, f = {num(Math.min(1, 6 * Math.pow(Math.max(1, m.settings.cycles), -0.2)), 3)} for {m.settings.cycles} cycles.</p></div>,
+      <p class="muted small">Calculated using the equations of {codeName(m.settings.code)}: sustained stress SL against Sh, displacement stress range SE against SA = f (1.25 Sc + 0.25 Sh){m.settings.liberal ? " with the liberal allowance" : ""}, f = {num(Math.min(1, 6 * Math.pow(Math.max(1, m.settings.cycles), -0.2)), 3)} for {m.settings.cycles} cycles.</p></div>,
     ...(sus ? [() => <div><h4>Highest sustained stresses ({sus.name})</h4><TopStresses r={r} c={sus} /></div>] : []),
     ...(exp && exp.stresses.length ? [() => <div><h4>Highest expansion stress ranges ({exp.name})</h4><TopStresses r={r} c={exp} /></div>] : []),
     () => <div><h3>4. Support loads ({ope.name})</h3><Supports r={r} c={ope} /></div>,

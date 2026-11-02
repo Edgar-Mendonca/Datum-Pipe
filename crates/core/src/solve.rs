@@ -1752,19 +1752,28 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                     let loads = Loads { fa: dot(f, t), mt, mi, mo };
                     let sec = if end == 0 { p.sec.0 } else { p.sec.1 };
                     let sif = p.sif[end];
+                    // The code's sustained and range expressions.
+                    let sus = |pr: f64| match m.settings.code {
+                        code::PipingCode::Process => code::sustained(loads, sif, pr, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1)),
+                        code::PipingCode::Power => code::sustained_power(loads, sif, pr, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1)),
+                    };
+                    let occ_allow = m.settings.occ_k * sh;
                     let (stress, allow) = if occ_range {
-                        // Para. 302.3.6: the sustained stress plus the stress of the occasional loads
-                        // (the same expression without pressure), against 1.33 Sh.
-                        let so = code::sustained(loads, sif, 0.0, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1));
-                        (sl_max[i][end] + so, 1.33 * sh)
+                        // The sustained stress plus the stress of the occasional loads (the same
+                        // expression without pressure), against k Sh (k 1.33 in the process piping
+                        // code, 1.15 or 1.2 in the power piping code: an input).
+                        (sl_max[i][end] + sus(0.0), occ_allow)
                     } else if is_sus {
-                        let sl = code::sustained(loads, sif, pressure, sec.od, sec.wall - p.corrosion[end], p.ze[end].map(|z| z.1));
+                        let sl = sus(pressure);
                         if c.kind == CaseKind::Sus {
                             sl_max[i][end] = sl_max[i][end].max(sl);
                         }
-                        (sl, if c.kind == CaseKind::Occ { 1.33 * sh } else { sh })
+                        (sl, if c.kind == CaseKind::Occ { occ_allow } else { sh })
                     } else {
-                        let se = code::expansion(loads, sif, sec.od, sec.wall, p.ze[end].map(|z| z.0));
+                        let se = match m.settings.code {
+                            code::PipingCode::Process => code::expansion(loads, sif, sec.od, sec.wall, p.ze[end].map(|z| z.0)),
+                            code::PipingCode::Power => code::expansion_power(loads, sif, sec.od, sec.wall, p.ze[end].map(|z| z.0)),
+                        };
                         (se, code::allowable_range(f_range, sc, sh, m.settings.liberal.then_some(sl_max[i][end])))
                     };
                     let ratio = if allow > 0.0 { stress / allow } else { f64::INFINITY };

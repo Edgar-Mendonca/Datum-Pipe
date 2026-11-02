@@ -886,6 +886,31 @@ pub fn run() -> Vec<Check> {
         out.push(row(36, name, "Installed axial force (COLD)", "force", -h.e * h.a * 0.003 / 6.0, reaction(&r, "COLD", 10)[0], TOL, "Hooke's law: EA c / L"));
         out.push(row(36, name, "Hot axial force (OPE1)", "force", h.e * h.a * (STRAIN_200 * 6.0 - 0.003) / 6.0, reaction(&r, "OPE1", 10)[0], TOL, "Hooke's law: EA (ε L − c) / L"));
     }
+    // 37. Power piping code: a 6" Sch 40 cantilever 3 m along X with a 1 m arm along Z, 10 kN down
+    //     at the arm's end, 2 MPa inside, no corrosion allowance. At the root the moment is
+    //     r × F = (P, 0, −3P): torsion P·1 m and bending 3P·1 m, so SL = P Do / 4t + √10 P / Z.
+    {
+        let rows: Vec<(u32, u32, f64, f64, f64)> = (0..5u32).map(|k| (10 * (k + 1), 10 * (k + 2), 0.6, 0.0, 0.0)).chain([(60, 70, 0.0, 0.0, 1.0)]).collect();
+        let mut d = table("Power piping", &rows);
+        let mut s = d.m.settings.clone();
+        s.g = 0.0;
+        s.code = crate::code::PipingCode::Power;
+        s.occ_k = 1.2;
+        d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+        let mut p = d.m.pipes[0].clone();
+        p.corrosion = 0.0;
+        d.apply(Op::Set { item: Item::Pipe(p.clone()) }).unwrap();
+        let mut c = d.m.conds[0].clone();
+        c.p[0] = 2e6;
+        d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+        anchor(&mut d, 10);
+        add(&mut d, Item::Load(Load { node: 70, f: [0.0, -10e3, 0.0], m: [0.0; 3], ..Default::default() }));
+        let r = analyze(&d.m).unwrap();
+        let pt = r.geom.node_point[&10];
+        let sl = case(&r, "SUS").stresses.iter().filter(|x| x.point == pt).map(|x| x.stress).fold(0.0, f64::max);
+        let want = 2e6 * p.od / (4.0 * p.wall) + 10e3 * 10f64.sqrt() / crate::code::z(p.od, p.wall);
+        out.push(row(37, "Power piping code: sustained stress with torsion", "Sustained stress at the root", "stress", want, sl, TOL, "P Do / 4t + 0.75 i M / Z with M = √(Mb² + Mt²), 0.75 i held at 1"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -910,7 +935,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=36 {
+        for b in 1..=37 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

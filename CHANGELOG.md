@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.4 — 2026-11-02
+
+Buried pipe.
+
+**Pipe in the ground.** Loads › Soils keeps the soils of the model: the depth to the pipe's centre line, unit weight, friction angle, cohesion, the pipe surface's friction and adhesion factors, and the movements at which the soil yields. Choose a soil for any element under Buried in in its Inspector. The analysis then puts soil springs at both ends of every buried segment for half its length: along the pipe, across it, and up and down. Each is elastic up to the soil's ultimate resistance and then yields at it, so a long hot line slides through the soil near its bends and ends and is held fully further in. The resistances come from classical soil mechanics: along, the friction of the earth pressure at rest; across, the Rankine passive and active pressures; up, the soil block above the pipe and the shear on its sides; down, the bearing capacity. You can give your own instead. The soil's force at every buried point, and where it has yielded, is in Results › Soil and counts in the equilibrium check; the soil's stiffness is in the natural modes; buried pipe has no wind; and the 3D view draws buried pipe earth-coloured. Take every soil value from the site's soil report.
+
+**Example.** Buried hot water line: 8" at 90 °C, 60 m in sand rising at a bend to a pump-house wall; the soil yields at 21 of its 30 points when hot.
+
+**Verification.** A new benchmark with two checks: a long buried pipe pushed sideways at its end against Hetényi's beam on an elastic foundation, and a long heated pipe's free end against the classical sliding-friction result F² / (2 EA f) (105 checks). The random-model test now also buries every other element on some models, and every case must still balance.
+
 ## 0.5.3 — 2026-11-02
 
 European piping standard.

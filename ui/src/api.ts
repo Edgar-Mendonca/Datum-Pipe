@@ -16,7 +16,7 @@ export type Comp =
   | { kind: "pipe" } | { kind: "bend"; bend: BendKind; r: number } | { kind: "tee"; tee: TeeKind; pad: number }
   | { kind: "reducer"; to: number } | { kind: "rigid"; rigid: RigidKind; mass: number } | ({ kind: "bellows" } & Bellows);
 export interface Bellows { axial: number; lateral: number; angular: number; torsion: number; area: number; tied: boolean; mass: number }
-export interface Element { id: number; from: number; to: number; d: V3; pipe: number; material: number; cond: number; comp: Comp; extra: number; cold?: number }
+export interface Element { id: number; from: number; to: number; d: V3; pipe: number; material: number; cond: number; comp: Comp; extra: number; cold?: number; soil?: number }
 export interface Pipe { id: number; name: string; nps: string; sched: string; od: number; wall: number; corrosion: number; mill: number; ins_t: number; ins_rho: number; clad_t: number; clad_rho: number; fluid_rho: number }
 export interface Material { id: number; name: string; rho: number; nu: number; e: [number, number][]; alpha: [number, number][]; allow: [number, number][]; quality: number; weld: number; y: number; source: string }
 export interface Cond { id: number; name: string; t: V3; p: V3; hydro: number }
@@ -35,7 +35,7 @@ export type PipingCode = "b31.3" | "b31.1" | "en13480";
 export interface Settings { ambient: number; g: number; hydro: boolean; liberal: boolean; code?: PipingCode; occ_k?: number; cycles: number; bend_pressure: boolean; auto_cases: boolean; pressure_elongation: boolean; branch_ze: boolean; step: number; wind_q: number; wind_cd: number; wind_dir: V3; seis: V3; wind_profile?: [number, number][]; occ_both?: boolean; modes?: number; spectrum?: [number, number][]; rs_dir?: V3; damping?: number; harmonic?: HarmonicLoad | null; springs: SpringSize[]; variability: number }
 export interface Model {
   format: number; name: string; notes: string; units: "SI" | "US"; project: Project; settings: Settings;
-  nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number; equipment?: Equipment[]; flanges?: FlangeSpec[]; reliefs?: Relief[]; vessels?: Vessel[];
+  nodes: Node[]; elements: Element[]; pipes: Pipe[]; materials: Material[]; conds: Cond[]; supports: Support[]; nozzles: Nozzle[]; loads: Load[]; cases: LoadCase[]; next: number; equipment?: Equipment[]; flanges?: FlangeSpec[]; reliefs?: Relief[]; vessels?: Vessel[]; soils?: Soil[];
 }
 export interface Out { m: Model; path: string | null; dirty: boolean; undo: boolean; redo: boolean; created: number[]; warnings: string[]; geom: Geom | null; geom_error: string | null }
 
@@ -49,7 +49,7 @@ export type Six = [number, number, number, number, number, number];
 export interface Reaction { support: number; node: number; f: Six }
 export interface NozzleLoad { nozzle: number; node: number; local: Six; shear: number; bending: number; ratios: [number, number, number, number]; pass: boolean | null }
 export interface Stress { seg: number; end: number; point: number; stress: number; allow: number; ratio: number; pass: boolean; ii: number; io: number }
-export interface CaseResult { id: number; name: string; kind: CaseKind; disp: Six[]; forces: [Six, Six][]; reactions: Reaction[]; nozzles: NozzleLoad[]; stresses: Stress[]; applied: Six; reacted: Six; imbalance: number; worst: number | null; contacts: Contact[]; iterations: number; friction: Friction[]; equipment?: EquipCheck[]; flanges?: FlangeCheck[]; spectrum?: boolean }
+export interface CaseResult { id: number; name: string; kind: CaseKind; disp: Six[]; forces: [Six, Six][]; reactions: Reaction[]; nozzles: NozzleLoad[]; stresses: Stress[]; applied: Six; reacted: Six; imbalance: number; worst: number | null; contacts: Contact[]; iterations: number; friction: Friction[]; equipment?: EquipCheck[]; flanges?: FlangeCheck[]; spectrum?: boolean; soil?: SoilLoad[] }
 export interface Friction { support: number; node: number; state: "sticking" | "sliding" | "free"; force: V3; normal: number; mu: number }
 export interface Contact { support: number; node: number; dir: V3; state: "touching" | "open" | "lifted off"; movement: number; gap: number }
 export interface Wall { element: number; case: number; p: number; t: number; s: number; t_design: number; t_min: number; t_nominal_needed: number; t_nominal: number; hoop: number; ratio: number; pass: boolean; at: string; i: number; od: number; thick: boolean }
@@ -130,3 +130,10 @@ export const CODES: [PipingCode, string, string, number][] = [["b31.3", "Process
 /** Who publishes the chosen code, for "not affiliated with or endorsed by". */
 export const codeBody = (c?: PipingCode) => c === "en13480" ? "CEN" : "ASME";
 export const codeName = (c?: PipingCode) => (CODES.find(x => x[0] === (c ?? "b31.3")) ?? CODES[0])[2];
+
+/** A soil for buried pipe: depth to the pipe's centre line (m), unit weight (N/m³), friction angle
+ *  (degrees), cohesion (Pa), interface and adhesion factors, yield movements (m) along, across, up,
+ *  down, and your own ultimate loads per length (N/m; 0 = calculated). */
+export interface Soil { id: number; name: string; depth: number; gamma: number; phi: number; c: number; f: number; alpha: number; y_axial: number; y_lateral: number; y_up: number; y_down: number; ult: [number, number, number, number] }
+export interface SoilLoad { element: number; node: number | null; point: number; force: V3; yielded: boolean }
+export const SAND: Omit<Soil, "id"> = { name: "Sand", depth: 1.5, gamma: 18000, phi: 30, c: 0, f: 0.8, alpha: 0.5, y_axial: 0.005, y_lateral: 0.04, y_up: 0.015, y_down: 0.02, ult: [0, 0, 0, 0] };

@@ -129,6 +129,9 @@ pub struct CaseResult {
     pub flanges: Vec<crate::flange::FlangeCheck>,
     /// The response spectrum's combined case (equilibrium does not apply to it).
     pub spectrum: bool,
+    /// The soil's loads on buried pipe (0.5.4), point by point.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub soil: Vec<crate::soil::SoilLoad>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -436,6 +439,33 @@ struct Cond {
     u0: [f64; 3],
 }
 
+/// A soil spring at a buried point (0.5.4): along `dir`, elastic with stiffness k up to the ultimate
+/// load fu, then yielding at fu; the plus and minus sides may differ (uplift and bearing).
+struct SoilSp {
+    element: u32,
+    pt: usize,
+    dir: V,
+    k: [f64; 2],
+    fu: [f64; 2],
+}
+
+impl SoilSp {
+    /// The state for a movement v along dir: ±1 elastic on that side, ±2 yielded.
+    fn classify(&self, v: f64) -> i8 {
+        let (side, s) = if v >= 0.0 { (0, 1) } else { (1, -1) };
+        if self.k[side] * v.abs() > self.fu[side] * (1.0 + 1e-9) { 2 * s } else { s }
+    }
+    /// The force on the pipe along dir in a state, at movement v.
+    fn force(&self, state: i8, v: f64) -> f64 {
+        match state {
+            2 => -self.fu[0],
+            -2 => self.fu[1],
+            1 => -self.k[0] * v,
+            _ => -self.k[1] * v,
+        }
+    }
+}
+
 /// A support with friction: its own directions (the load that presses it) and the directions across
 /// them, along which the pipe can stick or slide.
 struct Fric {
@@ -535,6 +565,8 @@ struct CondSolve {
     soft: bool,
     /// Per support with friction: the force on the pipe, the support's load, and its state.
     friction: Vec<(V, f64, &'static str)>,
+    /// Per soil spring: the force on the pipe and whether it has yielded.
+    soil: Vec<(V, bool)>,
 }
 
 /// Solve one case with its one-way and gapped supports and its friction: start touching (a one-way
@@ -542,8 +574,10 @@ struct CondSolve {
 /// is wrong (and every sliding force that moved), until none changes. If the open supports leave the
 /// piping free to move, they keep a light stiffness (K_OPEN).
 #[allow(clippy::too_many_arguments)]
-fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], conds: &[Cond], frics: &[Fric], lin: &Linear, dcase: u8) -> Result<CondSolve, String> {
+fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], conds: &[Cond], frics: &[Fric], soils: &[SoilSp], lin: &Linear, dcase: u8) -> Result<CondSolve, String> {
     let mut state: Vec<i8> = conds.iter().map(|c| if c.gap == 0.0 { -1 } else { 0 }).collect();
+    // Soil springs start elastic on their minus side (the pipe's weight presses down on the soil).
+    let mut sstate: Vec<i8> = vec![-1; soils.len()];
     let mut fstate: Vec<FState> = vec![FState::Stick; frics.len()];
     let u0 = |c: &Cond| if dcase > 0 { c.u0[dcase as usize - 1] } else { 0.0 };
     let fscale = f.iter().map(|v| v.abs()).fold(0.0, f64::max).max(1.0);
@@ -578,6 +612,21 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
                         }
                         f2[6 * c.pt + a] += kk * target * c.dir[a];
                     }
+                }
+            }
+        }
+        // Soil: elastic springs, or the ultimate load where it has yielded.
+        for (i, sp) in soils.iter().enumerate() {
+            let s = sstate[i];
+            let kk = if s.abs() == 1 { sp.k[if s > 0 { 0 } else { 1 }] } else if soft { K_OPEN } else { 0.0 };
+            for a in 0..3 {
+                for b in 0..3 {
+                    if kk > 0.0 {
+                        s2.add(6 * sp.pt + a, 6 * sp.pt + b, kk * sp.dir[a] * sp.dir[b]);
+                    }
+                }
+                if s.abs() == 2 {
+                    f2[6 * sp.pt + a] += sp.force(s, 0.0) * sp.dir[a];
                 }
             }
         }
@@ -653,7 +702,7 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
         }
         let (sol, stats) = match s2.solve_many(&h2, &cases) {
             Ok(x) => x,
-            Err(e) if !soft && e.contains("without resistance") && (state.contains(&0) || fstate.iter().any(|f| matches!(f, FState::Slide(_)))) => {
+            Err(e) if !soft && e.contains("without resistance") && (state.contains(&0) || fstate.iter().any(|f| matches!(f, FState::Slide(_))) || sstate.iter().any(|s| s.abs() == 2)) => {
                 soft = true;
                 iter -= 1;
                 continue;
@@ -665,6 +714,19 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
         let ku = s2.mul(&u);
         let used = state.clone();
         let mut changed = false;
+        // Soil: the force each spring put on the pipe in this solve, and its state for the next.
+        let mut sout = Vec::with_capacity(soils.len());
+        for (i, sp) in soils.iter().enumerate() {
+            let v = dot(sp.dir, disp(&u, sp.pt));
+            let s = sstate[i];
+            let fv = sp.force(s, v) - if soft && s.abs() == 2 { K_OPEN * v } else { 0.0 };
+            sout.push((scale(sp.dir, fv), s.abs() == 2));
+            let next = sp.classify(v);
+            if next != s {
+                sstate[i] = next;
+                changed = true;
+            }
+        }
         for (i, c) in conds.iter().enumerate() {
             let v = dot(c.dir, disp(&u, c.pt)) - u0(c);
             let r = conds_reaction(c, state[i], spring_k[i], share[i], &u, &ku, &f2, u0(c));
@@ -781,7 +843,7 @@ fn solve_conditional(sys: &System, held: &[bool], f: &[f64], fixed: &[f64], cond
         }
         if !changed || iter >= MAX_ITER {
             // The states this solve used, so the loads always match it (also when it did not settle).
-            return Ok(CondSolve { u, ku, f: f2, state: used, spring_k, share, iterations: iter, stats, settled: !changed, soft, friction: fout });
+            return Ok(CondSolve { u, ku, f: f2, state: used, spring_k, share, iterations: iter, stats, settled: !changed, soft, friction: fout, soil: sout });
         }
     }
 }
@@ -1048,7 +1110,8 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         let dia = m.pipe(s.pipe).map_or(0.0, |p| p.od + 2.0 * (p.ins_t + p.clad_t));
         // The design pressure averaged along the segment (it changes with elevation with a profile).
         let qw = (0..9).map(|k| m.settings.wind_at(parts[i].el.line.at(parts[i].el.line.length() * (k as f64 + 0.5) / 9.0).0[1])).sum::<f64>() / 9.0;
-        q_occ[0][i] = scale(sub(wd, scale(chord, dot(wd, chord))), qw * m.settings.wind_cd * dia);
+        let buried = m.elements.iter().any(|e| e.id == s.element && e.soil != 0);
+        q_occ[0][i] = if buried { [0.0; 3] } else { scale(sub(wd, scale(chord, dot(wd, chord))), qw * m.settings.wind_cd * dia) };
         q_occ[1][i] = scale(m.settings.seis, parts[i].w);
         let (pa, pb, k, rigid) = props_of(i);
         let secf = |x: f64| sec_at(m, pa, pb, x);
@@ -1170,6 +1233,35 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             }
         }
     }
+    // ---------------------------------------------------------------- buried pipe
+    // Soil springs at both ends of every buried segment, each for half its length: along the pipe,
+    // across it horizontally, and up/down (uplift and bearing); a vertical pipe has two across.
+    let mut soils: Vec<SoilSp> = vec![];
+    for (i, s) in g.segs.iter().enumerate() {
+        let Some(soil) = m.elements.iter().find(|e| e.id == s.element).filter(|e| e.soil != 0).and_then(|e| m.soils.iter().find(|x| x.id == e.soil)) else { continue };
+        let Some(pipe) = m.pipe(s.pipe) else { continue };
+        let d = pipe.od + 2.0 * (pipe.ins_t + pipe.clad_t);
+        let (ult, y) = (soil.ultimate(d), soil.yields());
+        let half = parts[i].el.line.length() / 2.0;
+        let t = unit(sub(parts[i].el.line.end(), parts[i].el.line.start()));
+        let mut dirs: Vec<(V, [f64; 2], [f64; 2])> = vec![(t, [ult[0]; 2], [y[0]; 2])];
+        if t[1].abs() < 0.9 {
+            let lat = unit(cross(t, [0.0, 1.0, 0.0]));
+            dirs.push((lat, [ult[1]; 2], [y[1]; 2]));
+            dirs.push((unit(cross(lat, t)), [ult[2], ult[3]], [y[2], y[3]]));
+        } else {
+            let a = unit(sub([1.0, 0.0, 0.0], scale(t, t[0])));
+            dirs.push((a, [ult[1]; 2], [y[1]; 2]));
+            dirs.push((unit(cross(t, a)), [ult[1]; 2], [y[1]; 2]));
+        }
+        for pt in [s.a, s.b] {
+            for &(dir, fu, yy) in &dirs {
+                // The up/down direction points up, so its plus side is uplift.
+                let dir = if dir[1] < -1e-9 { scale(dir, -1.0) } else { dir };
+                soils.push(SoilSp { element: s.element, pt, dir, k: [fu[0] / yy[0] * half, fu[1] / yy[1] * half], fu: [fu[0] * half, fu[1] * half] });
+            }
+        }
+    }
     // ---------------------------------------------------------------- the load cases
     let sums: Vec<&LoadCase> = m.cases.iter().filter(|c| matches!(c.recipe, Recipe::Sum { .. })).collect();
     let mut rhs = vec![];
@@ -1222,17 +1314,17 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     // Linear supports only: every case with one factorisation. With one-way or gapped supports,
     // each case is solved by iteration with its own support states.
     let dcases: Vec<u8> = sums.iter().map(|c| match c.recipe { Recipe::Sum { d, .. } => d, _ => 0 }).collect();
-    let (sols, ku, rhs_f, states, springs_k, shares, iters, frout, stats) = if conds.is_empty() && frics.is_empty() {
+    let (sols, ku, rhs_f, states, springs_k, shares, iters, frout, soilout, stats) = if conds.is_empty() && frics.is_empty() && soils.is_empty() {
         let (sols, stats) = sys.solve_many(&held, &rhs).map_err(|e| locate_free(e, &g))?;
         let ku: Vec<Vec<f64>> = sols.iter().map(|u| sys.mul(u)).collect();
         let n_c = sols.len();
-        (sols, ku, rhs.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![vec![]; n_c], vec![vec![]; n_c], vec![vec![]; n_c], vec![1u32; n_c], vec![vec![]; n_c], stats)
+        (sols, ku, rhs.iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec![vec![]; n_c], vec![vec![]; n_c], vec![vec![]; n_c], vec![1u32; n_c], vec![vec![]; n_c], vec![vec![]; n_c], stats)
     } else {
-        let (mut sols, mut kus, mut fs, mut sts, mut sks, mut shs, mut its, mut frs) = (vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
+        let (mut sols, mut kus, mut fs, mut sts, mut sks, mut shs, mut its, mut frs, mut sos) = (vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
         let lin = Linear { owners: &hold_owner, springs: &springs };
         let mut stats = Stats::default();
         for (k, (f, fixed)) in rhs.iter().enumerate() {
-            let cs = solve_conditional(&sys, &held, f, fixed, &conds, &frics, &lin, dcases[k]).map_err(|e| {
+            let cs = solve_conditional(&sys, &held, f, fixed, &conds, &frics, &soils, &lin, dcases[k]).map_err(|e| {
                 let e = locate_free(e, &g);
                 if e.contains("without resistance") && !e.contains(" at node ") {
                     format!("In case {}, with the one-way rests that lift off, the gaps that stay open and the supports that slide, the piping can move without resistance. Add a support that holds it both ways, such as a guide or an anchor.", sums[k].name)
@@ -1257,8 +1349,9 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             shs.push(cs.share);
             its.push(cs.iterations);
             frs.push(cs.friction);
+            sos.push(cs.soil);
         }
-        (sols, kus, fs, sts, sks, shs, its, frs, stats)
+        (sols, kus, fs, sts, sks, shs, its, frs, sos, stats)
     };
     // ---------------------------------------------------------------- natural modes
     // Lumped masses: each segment's mass split between its ends (translations only); one-way rests
@@ -1276,6 +1369,15 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             }
         }
         dyn_sys.k = sys.k.clone();
+        // Soil: its elastic stiffness (the stiffer side for up and down).
+        for sp in &soils {
+            let kk = sp.k[0].max(sp.k[1]);
+            for i in 0..3 {
+                for j in 0..3 {
+                    dyn_sys.add(6 * sp.pt + i, 6 * sp.pt + j, kk * sp.dir[i] * sp.dir[j]);
+                }
+            }
+        }
         for cd in &conds {
             let kk = if cd.k == 0.0 { RIGID } else { cd.k };
             for i in 0..3 {
@@ -1436,8 +1538,20 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                         }
                     }
                 }
-                let reacted = sum_reactions(&g, &reactions);
-                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction, equipment: vec![], flanges: vec![], spectrum: false });
+                // The soil's loads, gathered point by point (each element's own), part of the reactions.
+                let mut soil: Vec<crate::soil::SoilLoad> = vec![];
+                for (j, sp) in soils.iter().enumerate() {
+                    let (fv, y) = soilout[k][j];
+                    match soil.iter_mut().find(|x| x.point == sp.pt && x.element == sp.element) {
+                        Some(x) => {
+                            x.force = add(x.force, fv);
+                            x.yielded |= y;
+                        }
+                        None => soil.push(crate::soil::SoilLoad { element: sp.element, node: g.points[sp.pt].node, point: sp.pt, force: fv, yielded: y }),
+                    }
+                }
+                let reacted = add6(sum_reactions(&g, &reactions), soil_sum(&g, &soil));
+                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction, equipment: vec![], flanges: vec![], spectrum: false, soil });
                 raw.insert(c.id, std::mem::take(&mut raw_glob));
                 cr
             }
@@ -1451,9 +1565,10 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                     Reaction { support: x.support, node: x.node, f: std::array::from_fn(|d| x.f[d] - y[d]) }
                 }).collect();
                 let applied: [f64; 6] = std::array::from_fn(|d| ra.applied[d] - rb.applied[d]);
-                let reacted = sum_reactions(&g, &reactions);
+                let soil: Vec<crate::soil::SoilLoad> = ra.soil.iter().zip(&rb.soil).map(|(x, y)| crate::soil::SoilLoad { force: sub(x.force, y.force), yielded: x.yielded || y.yielded, ..x.clone() }).collect();
+                let reacted = add6(sum_reactions(&g, &reactions), soil_sum(&g, &soil));
                 raw.insert(c.id, glob);
-                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: false }
+                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: false, soil }
             }
         };
         by_id.insert(c.id, r.clone());
@@ -1585,7 +1700,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         let spec_id = m.max_id() + 1_000_000;
         cases.push(LoadCase { id: spec_id, name: "OCC SPEC".into(), kind: CaseKind::Occ, recipe: Recipe::Range { a: o1, b: o1 } });
         raw.insert(spec_id, glob);
-        results.push(CaseResult { id: spec_id, name: "OCC SPEC".into(), kind: CaseKind::Occ, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true });
+        results.push(CaseResult { id: spec_id, name: "OCC SPEC".into(), kind: CaseKind::Occ, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true, soil: vec![] });
     }
     // ---------------------------------------------------------------- harmonic response
     // A force at frequency Ω by the modes, with the static part exact (the mode-acceleration form):
@@ -1666,7 +1781,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             let hid = m.max_id() + 1_000_001;
             cases.push(LoadCase { id: hid, name: "HARM".into(), kind: CaseKind::Ope, recipe: Recipe::Range { a: o1, b: o1 } });
             raw.insert(hid, glob);
-            results.push(CaseResult { id: hid, name: "HARM".into(), kind: CaseKind::Ope, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true });
+            results.push(CaseResult { id: hid, name: "HARM".into(), kind: CaseKind::Ope, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true, soil: vec![] });
         } else {
             warnings.push(format!("The harmonic load's node {} is not on the piping.", h.node));
         }
@@ -1897,6 +2012,23 @@ fn solve_model(m: &Model) -> Result<Results, String> {
 }
 
 /// The reactions' total force and moment about the origin.
+/// The soil's loads summed as forces and moments about the origin.
+fn soil_sum(g: &Geom, soil: &[crate::soil::SoilLoad]) -> [f64; 6] {
+    let mut s = [0.0; 6];
+    for x in soil {
+        let mo = cross(g.points[x.point].p, x.force);
+        for d in 0..3 {
+            s[d] += x.force[d];
+            s[3 + d] += mo[d];
+        }
+    }
+    s
+}
+
+fn add6(a: [f64; 6], b: [f64; 6]) -> [f64; 6] {
+    std::array::from_fn(|i| a[i] + b[i])
+}
+
 fn sum_reactions(g: &Geom, r: &[Reaction]) -> [f64; 6] {
     let mut s = [0.0; 6];
     for x in r {

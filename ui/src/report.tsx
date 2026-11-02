@@ -54,6 +54,10 @@ export const ReportBody = (p: { m: Model }): Block[] => {
         <For each={m.supports} fallback={<tr><td colSpan={3}>No supports.</td></tr>}>{s => <tr><td>{s.node}</td><td>{supName(s.kind)}{s.k ? ` (${fmt("tstiff", s.k)})` : ""}</td><td>{s.tag}</td></tr>}</For>
         <For each={m.nozzles}>{z => <tr><td>{z.node}</td><td>Nozzle point</td><td>{z.name}</td></tr>}</For>
         <For each={m.loads}>{l => <tr><td>{l.node}</td><td>Force {l.f.map(x => v("force", x)).join(", ")} {unit("force")}; moment {l.m.map(x => v("moment", x)).join(", ")} {unit("moment")}</td><td /></tr>}</For></tbody></table></div>,
+    ...((m.soils ?? []).length ? [() => <div><h4>Soils (buried pipe)</h4>
+      <table class="tbl"><thead><tr><th>Soil</th><th class="r">Depth ({unit("coord")})</th><th class="r">γ ({unit("uweight")})</th><th class="r">φ (°)</th><th class="r">c ({unit("wpress")})</th><th class="r">f</th><th class="r">α</th><th>Elements</th></tr></thead><tbody>
+        <For each={m.soils}>{s => <tr><td>{s.name}</td><td class="r">{v("coord", s.depth)}</td><td class="r">{v("uweight", s.gamma)}</td><td class="r">{s.phi}</td><td class="r">{v("wpress", s.c)}</td><td class="r">{s.f}</td><td class="r">{s.alpha}</td><td>{m.elements.filter(e => e.soil === s.id).map(e => `${e.from}–${e.to}`).join(", ")}</td></tr>}</For></tbody></table>
+      <p class="muted small">The soil's resistances along, across, up and down are worked out from these by classical soil mechanics (Help › Sources), elastic up to the ultimate and then yielding; values given by the user replace them.</p></div>] : []),
     () => <div><h3>2. Load cases</h3>
       <table class="tbl"><thead><tr><th>Case</th><th>Kind</th><th>Made of</th><th>Check</th></tr></thead><tbody>
         <For each={m.cases}>{c => <tr><td>{c.name}</td><td>{c.kind.toUpperCase()}</td><td>{recipeText(c, m.cases)}</td><td>{checkText(c.kind)}</td></tr>}</For></tbody></table>

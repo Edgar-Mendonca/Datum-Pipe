@@ -51,6 +51,7 @@ pub enum Op {
     SetFlanges { list: Vec<crate::flange::Flange> },
     /// Replace the relief valves.
     SetReliefs { list: Vec<crate::relief::Relief> },
+    SetSoils { list: Vec<crate::soil::Soil> },
     /// Replace the pressure vessels.
     SetVessels { list: Vec<crate::vessel::Vessel> },
     /// Build the recommended load cases again (turns automatic cases on).
@@ -461,6 +462,16 @@ fn exec(m: &mut Model, op: Op, created: &mut Vec<u32>) -> Result<(), String> {
         }
         Op::SetReliefs { list } => {
             m.reliefs = list;
+        }
+        Op::SetSoils { list } => {
+            m.soils = list;
+            // Elements in a soil that went are above ground again.
+            let ids: Vec<u32> = m.soils.iter().map(|s| s.id).collect();
+            for e in &mut m.elements {
+                if !ids.contains(&e.soil) {
+                    e.soil = 0;
+                }
+            }
         }
         Op::SetVessels { list } => {
             m.vessels = list;

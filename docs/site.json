@@ -343,7 +343,7 @@
     {
       "v": "0.5.4",
       "title": "Buried pipe",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Soil springs along buried pipe from the soil's properties and the cover depth"
       ]
@@ -351,7 +351,7 @@
     {
       "v": "0.5.5",
       "title": "European vessel rules",
-      "when": "Later",
+      "when": "Next",
       "items": [
         "Vessel shells, heads and cones by the equations of the European pressure vessel standard (EN 13445-3)"
       ]

@@ -354,6 +354,26 @@ const shots = process.env.SHOTS;
   await p.selectOption("#pcode", "b31.3"); await p.waitForTimeout(200);
   { const op = await lastOp(); check("choosing the process piping code sends it with k 1.33", op?.SetSettings?.s?.code === "b31.3" && op?.SetSettings?.s?.occ_k === 1.33, JSON.stringify(op?.SetSettings?.s?.code)); }
 
+  // Buried pipe: the element's soil, the Soils dialog, Results › Soil and the report.
+  await open("buried");
+  await p.click('.egrid tbody tr:nth-child(1) td.rn'); await p.waitForTimeout(150);
+  check("a buried element shows its soil", (await p.inputValue("#soilsel")) === "1");
+  await p.click('.insp button:text-is("Soils")'); await p.waitForTimeout(300);
+  { const vals = await p.$$eval(".dlg .tbl input", xs => xs.map(x => x.value));
+    check("the Soils dialog lists the sand at 1500 mm, 18 kN/m³, 32°", vals.includes("Medium dense sand") && vals.includes("1500") && vals.includes("18") && vals.includes("32"), vals.slice(0, 8).join(",")); }
+  await p.click('.dlg button:text-is("Add a soil")'); await p.waitForTimeout(200);
+  { const op = await lastOp(); check("adding a soil sends a second soil with its own number", op?.SetSoils?.list?.length === 2 && op.SetSoils.list[1].id === 2); }
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+  await open("buried");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.side button[title="Results"]'); await p.waitForTimeout(200);
+  await p.click('.rtabs button:text-is("Soil")'); await p.waitForTimeout(200);
+  check("Results › Soil lists the buried points and where the soil yielded", (await p.$$(".rtable tbody tr")).length >= 20 && ((await p.textContent(".rtable")) ?? "").includes("yielded"));
+  await p.click('.side button[title="Report"]'); await p.waitForTimeout(300);
+  { const rep = (await p.textContent(".preport")) ?? "";
+    check("the report has the soils and the soil loads", rep.includes("Soils (buried pipe)") && rep.includes("Soil loads on buried pipe")); }
+  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+
   // 17. Expansion joints: the example's joint in the Inspector, analysed, and on the isometric.
   await open("bellows");
   await p.click('.egrid tbody tr:nth-child(3) td.rn'); await p.waitForTimeout(150);

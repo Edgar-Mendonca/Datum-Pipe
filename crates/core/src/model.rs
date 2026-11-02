@@ -133,6 +133,8 @@ pub struct Element {
     /// Cold spring (0.5.1): the straight pipe is made this much short (m) and pulled together at
     /// installation, so it is stretched in every case but the sustained one.
     pub cold: f64,
+    /// Buried in this soil (0.5.4): the id of one of the model's soils, or 0 above ground.
+    pub soil: u32,
 }
 
 impl Element {
@@ -144,7 +146,7 @@ impl Element {
 
 impl Default for Element {
     fn default() -> Self {
-        Element { id: 0, from: 10, to: 20, d: [1.0, 0.0, 0.0], pipe: 0, material: 0, cond: 0, comp: Comp::Pipe, extra: 0.0, cold: 0.0 }
+        Element { id: 0, from: 10, to: 20, d: [1.0, 0.0, 0.0], pipe: 0, material: 0, cond: 0, comp: Comp::Pipe, extra: 0.0, cold: 0.0, soil: 0 }
     }
 }
 
@@ -606,6 +608,8 @@ pub struct Model {
     /// Flanged joints checked for leakage (equivalent pressure).
     pub flanges: Vec<crate::flange::Flange>,
     /// Relief valves discharging to the open air (thrust as an occasional load).
+    /// Soils for buried pipe (0.5.4).
+    pub soils: Vec<crate::soil::Soil>,
     pub reliefs: Vec<crate::relief::Relief>,
     /// Pressure vessels (0.3.1), checked on their own.
     pub vessels: Vec<crate::vessel::Vessel>,
@@ -634,6 +638,7 @@ impl Default for Model {
             equipment: vec![],
             flanges: vec![],
             reliefs: vec![],
+            soils: vec![],
             vessels: vec![],
             loads: vec![],
             cases: vec![],
@@ -885,6 +890,15 @@ impl Model {
         for v in &self.vessels {
             v.check_data()?;
         }
+        let mut soil_ids = HashSet::new();
+        for s in &self.soils {
+            if s.id == 0 || !soil_ids.insert(s.id) || !s.valid() {
+                return Err(format!("The soil {} needs its own number, a depth, unit weight and yield movements above 0, a friction angle from 0 to 60°, factors from 0 to 1, and a friction angle or cohesion.", s.name));
+            }
+        }
+        if let Some(e) = self.elements.iter().find(|e| e.soil != 0 && !soil_ids.contains(&e.soil)) {
+            return Err(format!("Element {}–{} is buried in a soil that does not exist.", e.from, e.to));
+        }
         for r in &self.reliefs {
             if !self.nodes.iter().any(|n| n.num == r.node) || !r.valid() {
                 return Err(format!("The relief valve {} needs a node of the model, a flow above 0, k between 1 and 2, a temperature and molar mass above 0, and a dynamic load factor between 0 and 10.", r.name));
@@ -967,7 +981,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
     }
     let mut v = migrate(v)?;
     let mut warn = vec![];
-    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases", "equipment", "flanges", "reliefs", "vessels"];
+    let lists = ["nodes", "elements", "pipes", "materials", "conds", "supports", "nozzles", "loads", "cases", "equipment", "flanges", "reliefs", "vessels", "soils"];
     let mut keep: Vec<(String, Vec<Value>)> = vec![];
     if let Some(o) = v.as_object_mut() {
         for k in lists {
@@ -1021,6 +1035,7 @@ pub fn from_json(text: &str) -> Result<(Model, Vec<String>), String> {
             "equipment" => m.equipment = read(a, "equipment", &mut warn),
             "flanges" => m.flanges = read(a, "flange checks", &mut warn),
             "reliefs" => m.reliefs = read(a, "relief valves", &mut warn),
+            "soils" => m.soils = read(a, "soils", &mut warn),
             "vessels" => m.vessels = read(a, "vessels", &mut warn),
             _ => {}
         }
@@ -1175,7 +1190,18 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
     if m.elements.len() < n {
         warn.push(format!("{} elements without a length, or repeating another, were left out.", n - m.elements.len()));
     }
+    let ns = m.soils.len();
+    let mut seen = HashSet::new();
+    m.soils.retain(|s| s.id != 0 && s.valid() && seen.insert(s.id));
+    if m.soils.len() < ns {
+        warn.push("Soils with damaged values were left out.".into());
+    }
+    let soil_ids: HashSet<u32> = m.soils.iter().map(|s| s.id).collect();
     for e in &mut m.elements {
+        if e.soil != 0 && !soil_ids.contains(&e.soil) {
+            e.soil = 0;
+            warn.push(format!("Element {}–{}: its soil was missing, so it is above ground.", e.from, e.to));
+        }
         if !pipes.contains(&e.pipe) {
             e.pipe = renumbered.get(&e.pipe).copied().filter(|p| pipes.contains(p)).unwrap_or(p0);
         }

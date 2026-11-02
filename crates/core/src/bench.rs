@@ -931,6 +931,43 @@ pub fn run() -> Vec<Check> {
         let a = case(&r, "EXP1").stresses.iter().filter(|x| x.point == pt).map(|x| x.allow).fold(f64::INFINITY, f64::min);
         out.push(row(38, name, "Range allowable at the anchor, fa + fh − σ1", "stress", 1.25 * fc + 0.25 * f + f - s1, a, TOL, "σ1 + σ3 ≤ fh + fa, fa = U (1.25 fc + 0.25 fh), U = 1 to 7000 cycles"));
     }
+    // 39. Buried pipe. (a) Sideways: 40 m of 6" Sch 40 in 0.25 m elements in soil with an elastic
+    //     sideways stiffness k = 1 MN/m², 10 kN across at its free end, anchored 40 m away: Hetényi's
+    //     beam on an elastic foundation, y0 = 2 P β / k, β = (k / 4EI)^¼. (b) Along: 100 m in 1 m
+    //     elements heated to 200 °C, free at one end, anchored at the other, the soil's friction
+    //     20 kN/m reached at 0.1 mm: the end moves F² / (2 EA f), F = EA ε (fully held beyond F / f).
+    {
+        let buried = |n: usize, dx: f64, ult: [f64; 4], y: [f64; 4]| {
+            let rows: Vec<(u32, u32, f64, f64, f64)> = (0..n as u32).map(|k| (10 * (k + 1), 10 * (k + 2), dx, 0.0, 0.0)).collect();
+            let mut d = table("Buried", &rows);
+            let mut s = d.m.settings.clone();
+            s.g = 0.0;
+            d.apply(Op::SetSettings { s, units: "SI".into() }).unwrap();
+            let soil = crate::soil::Soil { id: 1, ult, y_axial: y[0], y_lateral: y[1], y_up: y[2], y_down: y[3], ..Default::default() };
+            d.apply(Op::SetSoils { list: vec![soil] }).unwrap();
+            for e in d.m.elements.clone() {
+                d.apply(Op::Set { item: Item::Element(crate::model::Element { soil: 1, ..e }) }).unwrap();
+            }
+            anchor(&mut d, 10 * (n as u32 + 1));
+            d
+        };
+        let mut d = buried(160, 0.25, [1e9, 4e4, 1e9, 1e9], [0.01, 0.04, 0.01, 0.01]);
+        add(&mut d, Item::Load(Load { node: 10, f: [0.0, 0.0, 10e3], m: [0.0; 3], ..Default::default() }));
+        let h = hand(&d.m);
+        let r = analyze(&d.m).unwrap();
+        let k = 4e4 / 0.04;
+        let beta = (k / (4.0 * h.e * h.i)).powf(0.25);
+        let name = "Buried pipe: beam on an elastic foundation, and soil friction";
+        out.push(row(39, name, "Sideways movement at the loaded end", "disp", 2.0 * 10e3 * beta / k, disp(&r, "OPE1", 10)[2], 2e-2, "Hetényi: y0 = 2 P β / k (an Euler beam; shear and the springs at the nodes give the rest)"));
+        let mut d = buried(100, 1.0, [2e4, 1e9, 1e9, 1e9], [1e-4, 0.01, 0.01, 0.01]);
+        let mut c = d.m.conds[0].clone();
+        c.t[0] = K0 + 200.0;
+        d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+        let h = hand(&d.m);
+        let r = analyze(&d.m).unwrap();
+        let f = h.e * h.a * STRAIN_200;
+        out.push(row(39, name, "Free end movement of a long heated pipe", "disp", -f * f / (2.0 * h.e * h.a * 2e4), disp(&r, "OPE1", 10)[0], 2e-2, "Statics with friction f per length: δ = F² / (2 EA f), F = EA ε"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -955,7 +992,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=38 {
+        for b in 1..=39 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

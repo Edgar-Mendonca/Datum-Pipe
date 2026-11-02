@@ -2,7 +2,7 @@
 // against temperature and allowables, with sources), line conditions (T1–T3, P1–P3, hydrotest)
 // and the load cases. Each edit goes to the engine as one operation.
 import { For, Show, createSignal, createResource, JSX } from "solid-js";
-import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, Equipment, EquipKind, FlangeSpec, Relief, V3, num, parseNum } from "./api";
+import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, Equipment, EquipKind, FlangeSpec, Relief, Soil, SAND, V3, num, parseNum } from "./api";
 import { openDialog, act, call, model, toast } from "./store";
 import { C } from "./cmds";
 import { Dialog, Icon } from "./ui";
@@ -238,6 +238,40 @@ export const reliefDialog = () => openDialog(() => {
         <p class="muted small">M is the molar mass. Steam: k ≈ 1.3, M 18.015 kg/kmol; air: k 1.4, 28.96 kg/kmol. An empty exit area takes the bore of the pipe at the node.</p>
       </Show>
       <p class="ibtns"><button class="btn sm" onClick={add}>Add a relief valve</button></p>
+    </Dialog>
+  );
+});
+
+/** Soils for buried pipe: the properties the engine works the soil's resistances out from. */
+export const soilDialog = () => openDialog(() => {
+  const m = () => model()!;
+  const list = () => m().soils ?? [];
+  const set = (l: Soil[]) => act({ SetSoils: { list: l } });
+  const put = (i: number, x: Partial<Soil>) => set(list().map((r, k) => k === i ? { ...r, ...x } : r));
+  const qIn = (q: Q, val: number, f: (v: number) => void, placeholder = "") => <input class="mono" style={{ width: "62px" }} value={placeholder && !val ? "" : num(toU(q, val), 6)} placeholder={placeholder} onChange={e => { const v = parseQ(e.currentTarget.value || "0", q); if (typeof v === "string") { e.currentTarget.value = placeholder && !val ? "" : num(toU(q, val), 6); return toast(v); } f(fromU(q, v)); }} />;
+  const nIn = (val: number, f: (v: number) => void) => <input class="mono" style={{ width: "48px" }} value={num(val, 6)} onChange={e => { const v = parseNum(e.currentTarget.value); if (v !== null) f(v); else e.currentTarget.value = num(val, 6); }} />;
+  const pos = (v: number) => v > 0 || (toast("The value must be above 0."), false);
+  const add = () => set([...list(), { ...SAND, id: Math.max(0, ...list().map(s => s.id)) + 1, name: `Soil ${list().length + 1}` }]);
+  return (
+    <Dialog title="Soils" wide help="buried">
+      <p class="muted">Buried pipe is held by the soil along its length: springs along the pipe, across it and up and down, each elastic up to the soil's ultimate resistance and then yielding at it. The resistances are worked out from the soil's properties by classical soil mechanics (shown in Help); give your own where you have them. Take every property from the site's soil report. Choose the soil for each buried element in its Inspector.</p>
+      <Show when={list().length} fallback={<p class="warnline">No soils yet.</p>}>
+        <table class="tbl"><thead><tr><th>Name</th><th>Depth to centre ({unit("coord")})</th><th>γ ({unit("uweight")})</th><th>φ (°)</th><th>c ({unit("wpress")})</th><th>f</th><th>α</th><th>Yield along, across, up, down ({unit("disp")})</th><th>Own ultimates along, across, up, down ({unit("wlen")})</th><th /></tr></thead><tbody>
+          <For each={list()}>{(s, i) => <tr>
+            <td><input style={{ width: "70px" }} value={s.name} onChange={e => put(i(), { name: e.currentTarget.value })} /></td>
+            <td>{qIn("coord", s.depth, depth => pos(depth) && put(i(), { depth }))}</td>
+            <td>{qIn("uweight", s.gamma, gamma => pos(gamma) && put(i(), { gamma }))}</td>
+            <td>{nIn(s.phi, phi => phi >= 0 && phi < 60 ? put(i(), { phi }) : toast("The friction angle is from 0 to 60°."))}</td>
+            <td>{qIn("wpress", s.c, c => c >= 0 && put(i(), { c }))}</td>
+            <td>{nIn(s.f, f => f >= 0 && f <= 1 ? put(i(), { f }) : toast("The factor is from 0 to 1."))}</td>
+            <td>{nIn(s.alpha, alpha => alpha >= 0 && alpha <= 1 ? put(i(), { alpha }) : toast("The factor is from 0 to 1."))}</td>
+            <td><span class="inline">{qIn("disp", s.y_axial, y_axial => pos(y_axial) && put(i(), { y_axial }))}{qIn("disp", s.y_lateral, y_lateral => pos(y_lateral) && put(i(), { y_lateral }))}{qIn("disp", s.y_up, y_up => pos(y_up) && put(i(), { y_up }))}{qIn("disp", s.y_down, y_down => pos(y_down) && put(i(), { y_down }))}</span></td>
+            <td><span class="inline"><For each={[0, 1, 2, 3]}>{k => qIn("wlen", s.ult[k], v => v >= 0 && put(i(), { ult: s.ult.map((x, j) => j === k ? v : x) as Soil["ult"] }), "calc")}</For></span></td>
+            <td><button class="x" title="Remove this soil (its elements are above ground again)" onClick={() => set(list().filter((_, k) => k !== i()))}>×</button></td></tr>}</For>
+        </tbody></table>
+        <p class="muted small">γ unit weight, φ friction angle, c cohesion (clay), f the pipe surface's friction as a share of φ (about 0.6 to 1 by coating), α adhesion in clay. Typical yield movements: along 3–8 mm; across a few percent of the depth; up about 1 % of the depth; down about 10 % of the diameter. Check every value against the soil report.</p>
+      </Show>
+      <p class="ibtns"><button class="btn sm" onClick={add}>Add a soil</button></p>
     </Dialog>
   );
 });

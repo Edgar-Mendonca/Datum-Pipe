@@ -23,6 +23,7 @@ pub mod mat;
 pub mod relief;
 pub mod model;
 pub mod solve;
+pub mod soil;
 pub mod sparse;
 pub mod vessel;
 pub mod units;

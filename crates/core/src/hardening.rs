@@ -163,6 +163,7 @@ fn speed_gate_on_a_large_model() {
 #[test]
 fn random_models_solve_or_explain_and_always_balance() {
     let mut dynamic = 0;
+    let mut buried = 0;
     for seed in 0..80 {
         let mut r = Rng::new(1000 + seed);
         let mut m = random_model(&mut r, 2 + seed as usize % 30);
@@ -181,6 +182,13 @@ fn random_models_solve_or_explain_and_always_balance() {
                 e.comp = Comp::Bend { bend: model::BendKind::Short, r: 0.0 };
             }
         }
+        // Buried pipe on some: a soil under every other element.
+        if seed % 7 == 3 {
+            m.soils = vec![crate::soil::Soil { id: 1, phi: 25.0 + seed as f64 % 10.0, c: if seed % 2 == 0 { 0.0 } else { 20e3 }, ..Default::default() }];
+            for e in m.elements.iter_mut().step_by(2) {
+                e.soil = 1;
+            }
+        }
         // And dynamics on some: modes, a spectrum and a harmonic load at a random node.
         if seed % 4 == 1 {
             m.settings.modes = 1 + seed as u32 % 8;
@@ -194,6 +202,7 @@ fn random_models_solve_or_explain_and_always_balance() {
             Ok(res) => {
                 assert!(res.modes.iter().all(|x| x.freq.is_finite() && x.freq >= 0.0), "seed {seed}");
                 dynamic += res.cases.iter().filter(|c| c.name == "HARM" || c.name == "OCC SPEC").count();
+                buried += res.cases.iter().filter(|c| !c.soil.is_empty()).count();
                 for c in &res.cases {
                     assert!(c.imbalance < 1e-6, "seed {seed}, case {}: imbalance {:e} {:?}", c.name, c.imbalance, res.warnings);
                     assert!(c.disp.iter().flatten().all(|v| v.is_finite()), "seed {seed}");
@@ -204,6 +213,7 @@ fn random_models_solve_or_explain_and_always_balance() {
         }
     }
     assert!(dynamic >= 10, "only {dynamic} dynamic cases came out of the random models");
+    assert!(buried >= 10, "only {buried} solved cases with soil came out of the random models");
 }
 
 #[test]

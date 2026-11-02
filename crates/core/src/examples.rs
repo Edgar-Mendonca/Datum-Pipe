@@ -22,7 +22,8 @@ pub fn list() -> Vec<Example> {
         Example { id: "bellows", name: "Expansion joint between anchors", what: "8\" steam in a straight run with an untied bellows: guides each side, and main anchors that take the pressure thrust." },
         Example { id: "separator", name: "Vertical separator V-101", what: "A pressure vessel: 1.8 m two-phase separator with 2:1 heads at 16 bar and 200 °C; shell and head thickness, MAWP, test pressure and weights." },
         Example { id: "drum", name: "Horizontal drum D-201 on saddles", what: "A pressure vessel: 2.4 m horizontal drum on two 120° saddles; shell and heads, nozzles, and the saddle stresses by Zick's method." },
-        Example { id: "power", name: "Boiler steam to a header (power piping)", what: "6\" Sch 80 steam at 300 °C and 40 bar, checked with the power piping code's equations: two bends, a rest and a spring hanger between the boiler outlet and a header." },
+        Example { id: "power", name: "Boiler steam to a header (power piping)", what: "6\" Sch 80 steam at 300 °C and 40 bar, checked with the power piping code's equations: three bends and a rest between the boiler outlet and a header, and wind." },
+        Example { id: "buried", name: "Buried hot water line", what: "8\" hot water at 90 °C buried 1.5 m deep in sand for 60 m, rising at a bend to an anchored pump-house wall: the soil holds it, and it slides at the bend." },
         Example { id: "lbend", name: "A simple L-bend", what: "6\" carbon steel at 200 °C between two anchors, with a long-radius bend. Check it by hand." },
         Example { id: "zbend", name: "A Z-bend", what: "6\" carbon steel at 250 °C: two bends between two anchors, the classic hand-check case." },
     ]
@@ -42,6 +43,7 @@ pub fn get(id: &str) -> Option<Model> {
         "lbend" => Some(lbend()),
         "zbend" => Some(zbend()),
         "power" => Some(power()),
+        "buried" => Some(buried()),
         _ => None,
     }
 }
@@ -256,6 +258,27 @@ fn power() -> Model {
     st.wind_dir = [0.0, 0.0, -1.0];
     d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("power piping settings");
     meta(&mut d, "Boiler steam to a header", "6\"-MS-101", "6\" Sch 80 carbon steel steam at 300 °C and 40 bar with 80 mm of insulation, from a boiler outlet (anchor) up 4 m and along to a header (anchor), with a rest at 30 and a design wind of 0.7 kPa. Checked with the power piping code's equations: sustained P Do/4t + 0.75 i M/Z, occasional against 1.2 Sh, range i Mc/Z.");
+    d.m
+}
+
+/// Buried pipe: a hot water line in sand, rising at a bend to an anchor in a pump-house wall.
+fn buried() -> Model {
+    let mut rows: Vec<(u32, u32, f64, f64, f64)> = (0..12u32).map(|k| (10 * (k + 1), 10 * (k + 2), 5.0, 0.0, 0.0)).collect();
+    rows.push((130, 140, 0.0, 0.0, 6.0));
+    rows.push((140, 150, 0.0, 1.5, 0.0));
+    let mut d = table("Buried hot water line", &rows);
+    pipe(&mut d, "8", "40", 0.0, 1000.0);
+    bends(&mut d, &[130, 140]);
+    conditions(&mut d, "Hot water 90 °C", [90.0, 21.0, 21.0], [10.0, 0.0, 0.0], 15.0);
+    support(&mut d, 10, SupKind::Anchor, "Buried anchor block");
+    support(&mut d, 150, SupKind::Anchor, "Pump-house wall");
+    d.apply(Op::SetSoils { list: vec![crate::soil::Soil { id: 1, name: "Medium dense sand".into(), depth: 1.5, gamma: 18_000.0, phi: 32.0, ..Default::default() }] }).expect("soil");
+    for e in d.m.elements.clone() {
+        if e.to <= 140 {
+            d.apply(Op::Set { item: Item::Element(Element { soil: 1, ..e }) }).expect("buried");
+        }
+    }
+    meta(&mut d, "Buried hot water line", "8\"-HW-501", "8\" Sch 40 carbon steel hot water at 90 °C and 10 bar, buried 1.5 m deep (to the centre line) in medium dense sand (γ 18 kN/m³, φ 32°) for 60 m east from an anchor block, then a bend and 6 m south to a bend that rises 1.5 m out of the ground to an anchor in the pump-house wall. The soil holds the line along its length; near the bends it yields and the pipe slides through it. Soil values are examples: take yours from the soil report.");
     d.m
 }
 

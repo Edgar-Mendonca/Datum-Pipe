@@ -13,7 +13,7 @@ import { supName } from "./panels";
 import { Icon } from "./ui";
 
 export const [tableKind, setTableKind] = createSignal("summary");
-const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["flanges", "Flanges"], ["relief", "Relief"], ["modes", "Modes"], ["equilibrium", "Equilibrium"]];
+const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["flanges", "Flanges"], ["relief", "Relief"], ["soil", "Soil"], ["modes", "Modes"], ["equilibrium", "Equilibrium"]];
 const KIND: Record<string, string> = { sus: "Sustained", ope: "Operating", exp: "Expansion range", hyd: "Hydrotest", occ: "Occasional" };
 const CHECK0: Record<string, string> = { sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only" };
 /** What each kind of case is checked against; the occasional factor is the model's. */
@@ -79,6 +79,7 @@ export const ResultsPage = () => {
           <Show when={tableKind() === "equip" && c()}><EquipTable c={c()!} /></Show>
           <Show when={tableKind() === "flanges" && c()}><FlangeTable c={c()!} /></Show>
           <Show when={tableKind() === "relief"}><ReliefTable r={r()!} /></Show>
+          <Show when={tableKind() === "soil" && c()}><SoilTable r={r()!} c={c()!} /></Show>
           <Show when={tableKind() === "modes"}><ModesTable r={r()!} /></Show>
           <Show when={tableKind() === "equilibrium"}><Equilibrium r={r()!} /></Show>
         </div>
@@ -96,6 +97,16 @@ export const Summary = (p: { r: Results }) => (
     <Show when={p.r.walls.length}><tr class="f" onClick={() => setTableKind("wall")}><td><b>Pressure</b></td><td>Minimum wall</td><td>Nominal wall ≥ needed</td><td class="r">{num(Math.max(...p.r.walls.map(w => w.ratio)), 3)}</td><td /><td /><td /><td><Badge pass={p.r.walls.every(w => w.pass)} /></td><td /></tr></Show>
   </tbody></table>
 );
+
+/** The soil's loads on buried pipe in one case, point by point, and where it has yielded. */
+export const SoilTable = (p: { r: Results; c: CaseResult }) => {
+  const el = (id: number) => model()?.elements.find(e => e.id === id);
+  return <Show when={(p.c.soil ?? []).length} fallback={<p class="muted">No buried pipe{p.c.kind === "exp" || p.c.kind === "occ" ? " loads in this case" : ""}. Put elements in a soil in their Inspector (Buried in), with the soils under Loads › Soils.</p>}>
+    <p class="muted small">The force the soil puts on the pipe at each buried point (half of each buried segment's length on either side). Yielded: the soil has reached its ultimate resistance there in some direction, so the pipe slides through it.</p>
+    <table class="tbl rtable"><thead><tr><Th>Point</Th><Th>Element</Th><Th r>FX {u("force")}</Th><Th r>FY</Th><Th r>FZ</Th><Th>Soil</Th></tr></thead><tbody>
+      <For each={p.c.soil}>{x => { const e = el(x.element); return <tr><td>{p.r.geom.points[x.point]?.label ?? ""}</td><td>{e ? `${e.from}–${e.to}` : ""}</td><For each={[0, 1, 2]}>{k => <td class="r">{v("force", x.force[k])}</td>}</For><td>{x.yielded ? <span class="fail">yielded</span> : "elastic"}</td></tr>; }}</For></tbody></table>
+  </Show>;
+};
 
 const Stresses = (p: { r: Results; c: CaseResult }) => {
   const [worst, setWorst] = createSignal(false);
@@ -233,6 +244,7 @@ setResultBlocks(m => {
     ...(ope.equipment?.length ? [() => <div><h4>Rotating equipment ({ope.name})</h4><EquipTable c={ope} /></div>] : []),
     ...(ope.flanges?.length ? [() => <div><h4>Flange leakage ({ope.name})</h4><FlangeTable c={ope} /></div>] : []),
     ...(r.reliefs?.length ? [() => <div><h4>Relief valve thrust</h4><ReliefTable r={r} /></div>] : []),
+    ...((ope.soil ?? []).length ? [() => <div><h4>Soil loads on buried pipe ({ope.name})</h4><SoilTable r={r} c={ope} /></div>] : []),
     ...r.cases.filter(c => (c.kind !== "ope" || c.spectrum) && c.id !== ope.id && c.kind !== "exp").map(c => () => <div><h4>Support loads ({c.name}{c.spectrum && c.kind === "ope" ? ", amplitudes" : ""})</h4><Supports r={r} c={c} /></div>),
     ...(r.modes?.length ? [() => <div><h4>Natural modes</h4><ModesTable r={r} print /></div>] : []),
     ...(m.nozzles.length ? r.cases.filter(c => c.kind !== "exp").map(c => () => <div><h3>{c === r.cases.find(x => x.kind !== "exp") ? "5. Nozzle loads" : ""}</h3><h4>{c.name}</h4><Nozzles r={r} c={c} /></div>) : []),

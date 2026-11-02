@@ -304,6 +304,7 @@ pub const QUANTITIES: &[(&str, &str, &str, &str)] = &[
     ("area", "flow areas", "mm^2", "in^2"),
     ("speed", "velocities", "m/s", "ft/s"),
     ("vol", "volumes", "m^3", "ft^3"),
+    ("uweight", "soil unit weights", "kN/m^3", "lbf/ft^3"),
 ];
 
 /// The display table for SI (`us` false) or US units, built from the unit table above.
@@ -343,6 +344,9 @@ mod tests {
         let si = shown(false);
         let p = si.iter().find(|s| s.q == "press").unwrap();
         assert!(p.label == "bar" && (p.factor - 1e5).abs() < 1e-9);
+        // Soil unit weight: 1 kN/m³, and 1 lbf/ft³ = 157.087 N/m³.
+        assert!((si.iter().find(|s| s.q == "uweight").unwrap().factor - 1e3).abs() < 1e-9);
+        assert!((get("uweight").factor - 157.087_5).abs() < 1e-3, "{}", get("uweight").factor);
         assert_eq!(si.iter().find(|s| s.q == "moment").unwrap().label, "N·m");
         // 1 lb/h, 1 in², 1 ft/s.
         assert!((get("mflow").factor - 0.453_592_37 / 3600.0).abs() < 1e-12 && same(&get("mflow").dim, &MFLOW));

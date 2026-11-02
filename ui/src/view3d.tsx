@@ -120,10 +120,13 @@ export const View3D = () => {
     const supMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(css("--green")), roughness: 0.6 });
     const nozMat = new THREE.MeshStandardMaterial({ color: 0xb7791f, roughness: 0.6 });
     const colourMats = new Map<string, THREE.Material>();
+    // Buried pipe is drawn earth-coloured (when the stresses are not shown).
+    const soilMat = new THREE.MeshStandardMaterial({ color: 0x9c7a4f, roughness: 0.8 });
+    const buried = new Set((model()?.elements ?? []).filter(e => e.soil).map(e => e.id));
     const matFor = (si: number, sg: Seg) => {
       if (sg.element === selEl) return selMat;
       if (ratios) { const col = ratioColour(ratios[si]); if (!colourMats.has(col)) colourMats.set(col, new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 })); return colourMats.get(col)!; }
-      return sg.rigid ? darkMat : steel;
+      return sg.rigid ? darkMat : buried.has(sg.element) ? soilMat : steel;
     };
     const dispAt = (sg: Seg, f: number): Vec => {
       if (!dsrc) return [0, 0, 0];

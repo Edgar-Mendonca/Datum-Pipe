@@ -1055,3 +1055,37 @@ fn cold_spring_changes_the_reactions_but_not_the_stress_range() {
     assert!(close(worst(&a, "EXP1"), worst(&b, "EXP1"), 1e-9), "{} {}", worst(&a, "EXP1"), worst(&b, "EXP1"));
     assert!(close(worst(&a, "SUS"), worst(&b, "SUS"), 1e-9));
 }
+
+#[test]
+fn inserting_a_node_keeps_a_cold_spring_the_same() {
+    // A straight pipe between anchors made 3 mm short: splitting it shares the cut in proportion
+    // (the 0.6.0 review found both parts kept all of it), so the installed force is unchanged.
+    let mut d = table("cs split", &[(10, 20, 6.0, 0.0, 0.0)]);
+    no_g(&mut d);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup(&mut d, 20, SupKind::Anchor);
+    let mut e = d.m.elements[0].clone();
+    e.cold = 0.003;
+    d.apply(Op::Set { item: Item::Element(e.clone()) }).unwrap();
+    let force = |d: &Doc| analyze(&d.m).unwrap().cases.iter().find(|c| c.name == "COLD").unwrap().reactions.iter().find(|r| r.node == 10).unwrap().f[0];
+    let before = force(&d);
+    d.apply(Op::Split { id: e.id, at: 0.4 }).unwrap();
+    let total: f64 = d.m.elements.iter().map(|e| e.cold).sum();
+    assert!((total - 0.003).abs() < 1e-15, "{total}");
+    assert!(close(force(&d), before, 1e-9), "{} {}", force(&d), before);
+}
+
+#[test]
+fn an_expansion_loop_on_a_cold_sprung_pipe_keeps_it_on_a_straight() {
+    let mut d = table("cs loop", &[(10, 20, 20.0, 0.0, 0.0)]);
+    sup(&mut d, 10, SupKind::Anchor);
+    sup(&mut d, 20, SupKind::Anchor);
+    let mut e = d.m.elements[0].clone();
+    e.cold = 0.004;
+    d.apply(Op::Set { item: Item::Element(e.clone()) }).unwrap();
+    d.apply(Op::Loop { id: e.id, width: 4.0, height: 3.0, up: false }).unwrap();
+    assert!(d.m.check().is_ok(), "{:?}", d.m.check());
+    let with: Vec<&crate::model::Element> = d.m.elements.iter().filter(|e| e.cold > 0.0).collect();
+    assert_eq!(with.len(), 1);
+    assert!(matches!(with[0].comp, Comp::Pipe) && (with[0].cold - 0.004).abs() < 1e-15);
+}

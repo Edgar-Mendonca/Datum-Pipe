@@ -182,6 +182,13 @@ fn random_models_solve_or_explain_and_always_balance() {
                 e.comp = Comp::Bend { bend: model::BendKind::Short, r: 0.0 };
             }
         }
+        // Every piping code, and a cold spring on some straight pipe.
+        m.settings.code = [crate::code::PipingCode::Process, crate::code::PipingCode::Power, crate::code::PipingCode::European][seed as usize % 3];
+        if seed % 4 == 2 {
+            if let Some(e) = m.elements.iter_mut().find(|e| matches!(e.comp, Comp::Pipe) && e.length() > 0.1) {
+                e.cold = 0.02 * e.length();
+            }
+        }
         // Buried pipe on some: a soil under every other element.
         if seed % 7 == 3 {
             m.soils = vec![crate::soil::Soil { id: 1, phi: 25.0 + seed as f64 % 10.0, c: if seed % 2 == 0 { 0.0 } else { 20e3 }, ..Default::default() }];

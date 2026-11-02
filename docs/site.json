@@ -359,7 +359,7 @@
     {
       "v": "0.6.0",
       "title": "More codes, complete",
-      "when": "Next",
+      "when": "Done",
       "items": [
         "Everything in 0.5.1–0.5.5 reviewed"
       ]
@@ -367,7 +367,7 @@
     {
       "v": "0.7",
       "title": "More options",
-      "when": "Later",
+      "when": "Next",
       "items": [
         "Load combinations",
         "A sustained case with the operating support states",

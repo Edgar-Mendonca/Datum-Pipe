@@ -269,8 +269,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.5.3 | More codes: European piping standard (EN 13480-3) equations | ✅ |
 | 0.5.4 | More codes: buried pipe (soil springs from first-principles soil mechanics) | ✅ |
 | 0.5.5 | More codes: European vessel standard (EN 13445-3) cylinders, spheres, cones, test pressure (dished heads: default rules) | ✅ |
-| 0.6.0 | 🔜 Milestone: more codes reviewed | ⬜ |
-| 0.7 | Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
+| 0.6.0 | Milestone: more codes reviewed | ✅ |
+| 0.7 | 🔜 Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
 
 **Backlog: owner said "we should not miss out anything"** (each becomes small steps when its stage starts; every item from free public sources only):
@@ -515,6 +515,10 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 - UI: Rules select on the Vessels page, the rules in the report line, help and Sources; two UI checks.
 - Not done: the European torispherical rule (its β function could not be read from an open source here); told the owner.
 - 0.5.4 has no release of its own: GitHub returned 502/500 to both triggers and no run was created; the workflow builds the branch head, so 0.5.5 carries it (said in the 0.5.5 notes).
+
+### 2026-11-02: Session 2, continued (0.6.0: more codes milestone)
+- Review of 0.5.1–0.5.5. Found and fixed: `Op::Split` copied a cold spring to both halves (now shared in proportion); `Op::Loop` copied it to bends (now on the last straight). Worked tests for both; hardening runs every piping code and cold springs, random vessels both rules.
+- 0.5.4 shipped inside 0.5.5 (release service errors); said in the notes.
 
 ## 5. Known limits (0.2.0)
 

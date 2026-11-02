@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0 — 2026-11-02
+
+More codes, complete.
+
+**The stage.** Since 0.5.1: cold spring with its installed case; a choice of piping code (the process piping code, the power piping code or the European piping standard) with the occasional factor as an input; buried pipe on soil springs that yield at the soil's ultimate resistance; and the European rules for vessel cylinders, spheres, hemispherical heads and cones, with its test pressure. Two new examples show them: boiler steam to a header on the power piping code, and a buried hot water line.
+
+**Reviewed.** Every step with the full checks: 108 benchmark checks, the unit tests by hand, the UI checks and the real app. The random-model test now also runs every piping code and cold springs, and the random vessels both sets of vessel rules.
+
+**Fixed.** Insert Node on a pipe with a cold spring gave both new parts all of it, doubling the cut; it is now shared in proportion. The expansion loop wizard put the cold spring on its bends, which cannot have one, so the edit was refused; it now goes to the loop's last straight. Each has a test.
+
+**Not yet.** The European rules for torispherical and ellipsoidal heads (they keep the default rules, and the results say so).
+
 ## 0.5.5 — 2026-11-02
 
 European vessel rules.

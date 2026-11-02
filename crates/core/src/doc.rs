@@ -321,9 +321,11 @@ fn exec(m: &mut Model, op: Op, created: &mut Vec<u32>) -> Result<(), String> {
             let i = m.elements.iter().position(|e| e.id == id).ok_or("That element is no longer in the model.")?;
             let e = m.elements[i].clone();
             let num = free_num(m, (e.from + (e.to.max(e.from) - e.to.min(e.from)) / 2).max(e.from.min(e.to) + 1));
-            let a = Element { d: e.d.map(|v| v * at), to: num, comp: crate::model::Comp::Pipe, ..e.clone() };
+            // A cold spring is shared in proportion, so the cut stays the same in total (found by the
+            // 0.6.0 review: both parts kept all of it).
+            let a = Element { d: e.d.map(|v| v * at), to: num, comp: crate::model::Comp::Pipe, cold: e.cold * at, ..e.clone() };
             // The component at the To end stays with the second part.
-            let b = Element { id: fresh(m), from: num, d: e.d.map(|v| v * (1.0 - at)), ..e };
+            let b = Element { id: fresh(m), from: num, d: e.d.map(|v| v * (1.0 - at)), cold: e.cold * (1.0 - at), ..e };
             created.push(b.id);
             m.elements[i] = a;
             m.elements.insert(i + 1, b);
@@ -393,7 +395,8 @@ fn exec(m: &mut Model, op: Op, created: &mut Vec<u32>) -> Result<(), String> {
                 if k > 0 {
                     created.push(id);
                 }
-                new.push(Element { id, from: ends[k], to: ends[k + 1], d, comp, ..e.clone() });
+                // A cold spring goes to the loop's last straight (bends cannot have one).
+                new.push(Element { id, from: ends[k], to: ends[k + 1], d, comp, cold: if k == 4 { e.cold } else { 0.0 }, ..e.clone() });
             }
             m.elements.splice(i..=i, new);
         }

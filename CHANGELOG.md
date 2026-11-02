@@ -8,6 +8,8 @@ European vessel rules.
 
 **Verification.** A new benchmark: the vertical separator V-101 by the European rules, its shell thickness, MAWP and test pressure by hand (108 checks), and a unit test of each equation.
 
+**Also in this release: buried pipe (0.5.4).** Its own installer could not be published (the release service was down), so it comes with this one: soils for buried pipe under Loads › Soils, Buried in on each element, soil springs that yield at the soil's ultimate resistance, Results › Soil, and the example Buried hot water line. The notes are under 0.5.4 below.
+
 ## 0.5.4 — 2026-11-02
 
 Buried pipe.

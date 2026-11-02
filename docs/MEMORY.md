@@ -514,6 +514,7 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 - Engine: `Rules`, `pressure_by`, European test pressure and test limit; benchmark 40 (108 checks); unit test by hand.
 - UI: Rules select on the Vessels page, the rules in the report line, help and Sources; two UI checks.
 - Not done: the European torispherical rule (its β function could not be read from an open source here); told the owner.
+- 0.5.4 has no release of its own: GitHub returned 502/500 to both triggers and no run was created; the workflow builds the branch head, so 0.5.5 carries it (said in the 0.5.5 notes).
 
 ## 5. Known limits (0.2.0)
 

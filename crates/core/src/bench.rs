@@ -873,6 +873,19 @@ pub fn run() -> Vec<Check> {
         let amp = 1000.0 / k / ((1.0f64 - 0.25).powi(2) + (2.0 * 0.05 * 0.5f64).powi(2)).sqrt();
         out.push(row(35, "A heavy tip mass driven at half its natural frequency", "Tip amplitude", "disp", amp, tip, 1e-2, "One degree of freedom: (F/k) / √((1 − r²)² + (2ζr)²)"));
     }
+    // 36. Cold spring: 6 m of 6" Sch 40 between two anchors, made 3 mm short and heated to 200 °C.
+    //     Installed, the anchors pull it in by the cut: F = EA c / L in tension. Hot, the growth less
+    //     the cut is held: F = EA (ε L − c) / L in compression.
+    {
+        let mut m = heated("Cold spring", &[(6.0, 0.0)], 200.0);
+        m.elements[0].cold = 0.003;
+        crate::cases::rebuild(&mut m);
+        let h = hand(&m);
+        let r = analyze(&m).unwrap();
+        let name = "A straight pipe between anchors made 3 mm short";
+        out.push(row(36, name, "Installed axial force (COLD)", "force", -h.e * h.a * 0.003 / 6.0, reaction(&r, "COLD", 10)[0], TOL, "Hooke's law: EA c / L"));
+        out.push(row(36, name, "Hot axial force (OPE1)", "force", h.e * h.a * (STRAIN_200 * 6.0 - 0.003) / 6.0, reaction(&r, "OPE1", 10)[0], TOL, "Hooke's law: EA (ε L − c) / L"));
+    }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {
         let Some(m) = crate::examples::get(e.id) else { continue };
@@ -897,7 +910,7 @@ mod tests {
         let rows = super::run();
         let bad: Vec<String> = rows.iter().filter(|r| !r.pass).map(|r| format!("{} {} {}: {:e} vs {:e} ({:e})", r.bench, r.name, r.quantity, r.result, r.reference, r.error)).collect();
         assert!(bad.is_empty(), "{}", bad.join("\n"));
-        for b in 1..=35 {
+        for b in 1..=36 {
             assert!(rows.iter().any(|r| r.bench == b), "benchmark {b} is missing");
         }
     }

@@ -16,7 +16,7 @@ export type Comp =
   | { kind: "pipe" } | { kind: "bend"; bend: BendKind; r: number } | { kind: "tee"; tee: TeeKind; pad: number }
   | { kind: "reducer"; to: number } | { kind: "rigid"; rigid: RigidKind; mass: number } | ({ kind: "bellows" } & Bellows);
 export interface Bellows { axial: number; lateral: number; angular: number; torsion: number; area: number; tied: boolean; mass: number }
-export interface Element { id: number; from: number; to: number; d: V3; pipe: number; material: number; cond: number; comp: Comp; extra: number }
+export interface Element { id: number; from: number; to: number; d: V3; pipe: number; material: number; cond: number; comp: Comp; extra: number; cold?: number }
 export interface Pipe { id: number; name: string; nps: string; sched: string; od: number; wall: number; corrosion: number; mill: number; ins_t: number; ins_rho: number; clad_t: number; clad_rho: number; fluid_rho: number }
 export interface Material { id: number; name: string; rho: number; nu: number; e: [number, number][]; alpha: [number, number][]; allow: [number, number][]; quality: number; weld: number; y: number; source: string }
 export interface Cond { id: number; name: string; t: V3; p: V3; hydro: number }
@@ -27,7 +27,7 @@ export interface Support { id: number; node: number; kind: SupKind; k: number; d
 export interface Nozzle { id: number; node: number; name: string; axis: V3; allow: [number, number, number, number]; stiff?: [number, number, number, number, number]; vessel?: V3 }
 export interface Load { id: number; node: number; f: V3; m: V3 }
 export type CaseKind = "sus" | "ope" | "exp" | "hyd" | "occ";
-export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean; relief?: boolean; neg?: boolean } | { kind: "range"; a: number; b: number };
+export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean; relief?: boolean; neg?: boolean; cs?: boolean } | { kind: "range"; a: number; b: number };
 export interface LoadCase { id: number; name: string; kind: CaseKind; recipe: Recipe }
 export interface Project { project: string; line: string; calc: string; by: string; checked: string; rev: string; client: string }
 export interface HarmonicLoad { node: number; f: V3; m: V3; freq: number }

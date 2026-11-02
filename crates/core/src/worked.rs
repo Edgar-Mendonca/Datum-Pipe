@@ -259,7 +259,7 @@ fn an_occasional_case_is_checked_against_a_third_more() {
     // 1.33 Sh and its stress the sustained stress.
     let mut m = crate::examples::get("lbend").unwrap();
     let mut cs = m.cases.clone();
-    cs.push(crate::model::LoadCase { id: 0, name: "OCC".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false, neg: false } });
+    cs.push(crate::model::LoadCase { id: 0, name: "OCC".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false, neg: false, cs: false } });
     let mut d = Doc::new(m.clone());
     d.apply(Op::SetCases { cases: cs }).unwrap();
     m = d.m;
@@ -1022,4 +1022,36 @@ fn harmonic_response_is_static_at_zero_frequency_linear_and_finite_at_resonance(
     assert!(close(d2, 2.0 * s2, 1e-9));
     let (res, _) = tip_at(f1, 1000.0, 6);
     assert!(res.is_finite() && res > 5.0 * s2 && res < 12.0 * s2, "at resonance {res} vs static {s2}");
+}
+
+#[test]
+fn cold_spring_changes_the_reactions_but_not_the_stress_range() {
+    // An L-bend between anchors, heated; half the X leg's growth taken out by a cold spring. The
+    // hot reactions are those without it plus the installed ones (superposition, weight off), the
+    // expansion stress range is the same, and SUS has no cold spring in it.
+    let build = |cold: f64| {
+        let mut d = table("cs", &[(10, 20, 4.0, 0.0, 0.0), (20, 30, 0.0, 3.0, 0.0)]);
+        no_g(&mut d);
+        let mut c = d.m.conds[0].clone();
+        c.t[0] = K0 + 200.0;
+        d.apply(Op::Set { item: Item::Cond(c) }).unwrap();
+        sup(&mut d, 10, SupKind::Anchor);
+        sup(&mut d, 30, SupKind::Anchor);
+        let mut e = d.m.elements[0].clone();
+        e.cold = cold;
+        d.apply(Op::Set { item: Item::Element(e) }).unwrap();
+        analyze(&d.m).unwrap()
+    };
+    let (a, b) = (build(0.0), build(0.0045));
+    let case = |r: &Results, n: &str| r.cases.iter().find(|c| c.name == n).unwrap_or_else(|| panic!("no case {n}")).clone();
+    assert!(a.cases.iter().all(|c| c.name != "COLD") && b.cases.iter().any(|c| c.name == "COLD"));
+    let r = |r: &Results, n: &str| case(r, n).reactions.iter().find(|x| x.node == 30).unwrap().f;
+    let (ra, rb, rc) = (r(&a, "OPE1"), r(&b, "OPE1"), r(&b, "COLD"));
+    for k in 0..6 {
+        assert!((rb[k] - (ra[k] + rc[k])).abs() <= 1e-6 * ra[k].abs().max(1.0), "{k}: {} vs {} + {}", rb[k], ra[k], rc[k]);
+    }
+    assert!(rb[0].abs() < 0.8 * ra[0].abs(), "the cold spring lowers the hot X load");
+    let worst = |r: &Results, n: &str| case(r, n).stresses.iter().map(|s| s.stress).fold(0.0, f64::max);
+    assert!(close(worst(&a, "EXP1"), worst(&b, "EXP1"), 1e-9), "{} {}", worst(&a, "EXP1"), worst(&b, "EXP1"));
+    assert!(close(worst(&a, "SUS"), worst(&b, "SUS"), 1e-9));
 }

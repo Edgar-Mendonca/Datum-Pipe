@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 — 2026-11-02
+
+Cold spring.
+
+**A pipe made short on purpose.** Straight pipe has a new input in the Inspector, Cold spring: the length it is made short by and pulled together at installation. It acts as an imposed shortening of that element. The load cases follow it: a new case COLD is the installed state with the cold spring pulled in (weight, pressure and the cold spring), so its support and nozzle loads are the cold loads; the operating, occasional and hydrotest cases include it; the sustained case does not (its stress is weight and pressure only); and the expansion range is taken from COLD, so the stress range is the same as without it, as the piping codes give no credit for cold spring in the range. The hot loads on anchors and nozzles go down, the cold ones up. Load Cases has a Cold spring column for your own cases; the report lists each element's cold spring.
+
+**Verification.** A new benchmark: a straight pipe between anchors made 3 mm short, installed and hot, against Hooke's law (98 checks). A worked test checks on an L-bend that the hot reactions are those without the cold spring plus the installed ones, and that the stress range does not change.
+
 ## 0.5.0 — 2026-11-01
 
 The dynamics stage, complete.

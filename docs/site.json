@@ -317,14 +317,51 @@
       ]
     },
     {
-      "v": "0.6",
-      "title": "More codes",
+      "v": "0.5.1",
+      "title": "Cold spring",
+      "when": "Done",
+      "items": [
+        "Straight pipe made short and pulled together at installation: the installed case COLD, the stress range unchanged"
+      ]
+    },
+    {
+      "v": "0.5.2",
+      "title": "Power piping code",
       "when": "Next",
       "items": [
-        "Power piping and European piping and vessel code equations",
-        "Buried pipe",
-        "Cold spring",
-        "Broken into small 0.x.y steps before it starts"
+        "Stresses calculated using the equations of the power piping code (ASME B31.1), chosen per model"
+      ]
+    },
+    {
+      "v": "0.5.3",
+      "title": "European piping code",
+      "when": "Later",
+      "items": [
+        "Stresses calculated using the equations of the European piping standard (EN 13480-3)"
+      ]
+    },
+    {
+      "v": "0.5.4",
+      "title": "Buried pipe",
+      "when": "Later",
+      "items": [
+        "Soil springs along buried pipe from the soil's properties and the cover depth"
+      ]
+    },
+    {
+      "v": "0.5.5",
+      "title": "European vessel rules",
+      "when": "Later",
+      "items": [
+        "Vessel shells, heads and cones by the equations of the European pressure vessel standard (EN 13445-3)"
+      ]
+    },
+    {
+      "v": "0.6.0",
+      "title": "More codes, complete",
+      "when": "Milestone",
+      "items": [
+        "Everything in 0.5.1–0.5.5 reviewed"
       ]
     },
     {

@@ -4,6 +4,8 @@
 //! - OPE1–3: weight, temperature, pressure and imposed displacements of each operating case.
 //! - EXP1–3: the range between each operating case and the installed state (OPE − SUS), checked
 //!   against the allowable stress range; with more than one operating case, also the range between them.
+//! - With a cold spring: COLD (W + P1 with the cold spring pulled in, the installed state's loads);
+//!   the operating, occasional and hydrotest cases have it too, SUS does not, and EXP is OPE − COLD.
 //! - HYD: weight full of water and the hydrotest pressure, when the settings ask for it.
 //! - With wind or static seismic in the settings: OPE1+WIN (OPE1 with the wind) and OCC WIN, the
 //!   range OPE1+WIN − OPE1 (the wind's own effect), checked as occasional; the same for seismic,
@@ -34,24 +36,28 @@ pub fn recommend(m: &Model) -> Vec<LoadCase> {
         out.push(LoadCase { id, name, kind, recipe });
         id
     };
+    // With a cold spring it is pulled in for every case but the sustained ones (their stress is
+    // weight and pressure only), and the expansion ranges start from COLD, the installed state with it.
+    let cs = m.elements.iter().any(|e| e.cold > 0.0);
     let mut ope = [0u32; 3];
     for i in 0..3 {
         if u[i] {
             let n = i as u8 + 1;
-            ope[i] = push(&mut out, format!("OPE{n}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: n, d: n, p: n, wind: false, seis: false, relief: false, neg: false });
+            ope[i] = push(&mut out, format!("OPE{n}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: n, d: n, p: n, wind: false, seis: false, relief: false, neg: false, cs });
         }
     }
-    let sus = push(&mut out, "SUS".into(), CaseKind::Sus, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false, neg: false });
+    let sus = push(&mut out, "SUS".into(), CaseKind::Sus, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false, neg: false, cs: false });
     // A second or third sustained case where those cases' pressures differ from case 1's.
     for i in 1..3 {
         if u[i] && m.conds.iter().any(|c| c.p[i] != c.p[0]) {
             let n = i as u8 + 1;
-            push(&mut out, format!("SUS{n}"), CaseKind::Sus, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: n, wind: false, seis: false, relief: false, neg: false });
+            push(&mut out, format!("SUS{n}"), CaseKind::Sus, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: n, wind: false, seis: false, relief: false, neg: false, cs: false });
         }
     }
+    let base = if cs { push(&mut out, "COLD".into(), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false, neg: false, cs: true }) } else { sus };
     for i in 0..3 {
         if u[i] {
-            push(&mut out, format!("EXP{}", i + 1), CaseKind::Exp, Recipe::Range { a: ope[i], b: sus });
+            push(&mut out, format!("EXP{}", i + 1), CaseKind::Exp, Recipe::Range { a: ope[i], b: base });
         }
     }
     for i in 0..3 {
@@ -65,17 +71,17 @@ pub fn recommend(m: &Model) -> Vec<LoadCase> {
     let s = &m.settings;
     for (on, tag, wind, seis, relief) in [(s.has_wind(), "WIN", true, false, false), (s.seis.iter().any(|v| *v != 0.0), "SEIS", false, true, false), (!m.reliefs.is_empty(), "RV", false, false, true)] {
         if on {
-            let with = push(&mut out, format!("OPE1+{tag}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind, seis, relief, neg: false });
+            let with = push(&mut out, format!("OPE1+{tag}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind, seis, relief, neg: false, cs });
             push(&mut out, format!("OCC {tag}"), CaseKind::Occ, Recipe::Range { a: with, b: ope[0] });
             // Wind and seismic the other way too, when asked (one-way supports and friction make it differ).
             if s.occ_both && !relief {
-                let with = push(&mut out, format!("OPE1−{tag}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind, seis, relief, neg: true });
+                let with = push(&mut out, format!("OPE1−{tag}"), CaseKind::Ope, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind, seis, relief, neg: true, cs });
                 push(&mut out, format!("OCC −{tag}"), CaseKind::Occ, Recipe::Range { a: with, b: ope[0] });
             }
         }
     }
     if m.settings.hydro {
-        push(&mut out, "HYD".into(), CaseKind::Hyd, Recipe::Sum { w: true, water: true, t: 0, d: 0, p: 4, wind: false, seis: false, relief: false, neg: false });
+        push(&mut out, "HYD".into(), CaseKind::Hyd, Recipe::Sum { w: true, water: true, t: 0, d: 0, p: 4, wind: false, seis: false, relief: false, neg: false, cs });
     }
     out
 }

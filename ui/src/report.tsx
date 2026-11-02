@@ -47,7 +47,7 @@ export const ReportBody = (p: { m: Model }): Block[] => {
       <Show when={(m.settings.modes ?? 0) > 0}><p class="muted small">Dynamics: {m.settings.modes} natural modes; damping ratio {m.settings.damping ?? 0.05}{(m.settings.spectrum ?? []).length ? `; response spectrum ${(m.settings.spectrum ?? []).map(r => `${num(r[0], 4)} Hz ${num(r[1], 4)} g`).join(", ")} with factors (${(m.settings.rs_dir ?? [0, 0, 0]).join(", ")}) in X, Y, Z` : ""}{m.settings.harmonic ? `; harmonic load at node ${m.settings.harmonic.node}: force ${m.settings.harmonic.f.map(x => v("force", x)).join(", ")} ${unit("force")}, moment ${m.settings.harmonic.m.map(x => v("moment", x)).join(", ")} ${unit("moment")} at ${num(m.settings.harmonic.freq, 4)} Hz` : ""}.</p></Show></div>,
     () => <div><h4>Elements</h4>
       <table class="tbl small"><thead><tr><th>From</th><th>To</th><th class="r">DX ({unit("coord")})</th><th class="r">DY</th><th class="r">DZ</th><th>Pipe</th><th>Material</th><th>Conditions</th><th>Component</th></tr></thead><tbody>
-        <For each={m.elements}>{e => <tr><td>{e.from}</td><td>{e.to}</td><For each={e.d}>{d => <td class="r">{d ? v("coord", d) : ""}</td>}</For><td>{name(m.pipes, e.pipe)}</td><td>{name(m.materials, e.material).split(",")[0]}</td><td>{name(m.conds, e.cond)}</td><td>{compName(e.comp)}</td></tr>}</For></tbody></table></div>,
+        <For each={m.elements}>{e => <tr><td>{e.from}</td><td>{e.to}</td><For each={e.d}>{d => <td class="r">{d ? v("coord", d) : ""}</td>}</For><td>{name(m.pipes, e.pipe)}</td><td>{name(m.materials, e.material).split(",")[0]}</td><td>{name(m.conds, e.cond)}</td><td>{compName(e.comp)}{e.cold ? ` (cold spring ${v("len", e.cold)} ${unit("len")})` : ""}</td></tr>}</For></tbody></table></div>,
     () => <div><h4>Supports, nozzles and loads</h4>
       <table class="tbl"><thead><tr><th>Node</th><th>Kind</th><th>Tag</th></tr></thead><tbody>
         <For each={m.supports} fallback={<tr><td colSpan={3}>No supports.</td></tr>}>{s => <tr><td>{s.node}</td><td>{supName(s.kind)}{s.k ? ` (${fmt("tstiff", s.k)})` : ""}</td><td>{s.tag}</td></tr>}</For>
@@ -56,7 +56,7 @@ export const ReportBody = (p: { m: Model }): Block[] => {
     () => <div><h3>2. Load cases</h3>
       <table class="tbl"><thead><tr><th>Case</th><th>Kind</th><th>Made of</th><th>Check</th></tr></thead><tbody>
         <For each={m.cases}>{c => <tr><td>{c.name}</td><td>{c.kind.toUpperCase()}</td><td>{recipeText(c, m.cases)}</td><td>{({ sus: "Sustained stress ≤ Sh", exp: "Stress range ≤ SA", ope: "Loads only", hyd: "Loads only", occ: "≤ 1.33 Sh" } as Record<string, string>)[c.kind]}</td></tr>}</For></tbody></table>
-      <p class="muted small">W weight (pipe, contents, insulation, cladding, components, extra loads); T thermal; D imposed displacements; P pressure; HP hydrotest pressure.</p></div>,
+      <p class="muted small">W weight (pipe, contents, insulation, cladding, components, extra loads); T thermal; D imposed displacements; P pressure; HP hydrotest pressure; CS cold spring.</p></div>,
     ...(m.elements.length ? resultBlocks(m) : []),
     ...vesselBlocks(),
     () => <p class="muted small">Datum Pipe {version()} · free and open source (MIT) · https://github.com/Edgar-Mendonca/Datum-Pipe</p>,

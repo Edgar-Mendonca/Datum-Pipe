@@ -223,10 +223,10 @@ pub fn analyze(m: &Model) -> Result<Results, String> {
         solve_model(&mm).map_err(|e| format!("Sizing the spring hangers: {e}"))
     };
     // 1. The hot loads: the operating weight with each hanger held rigidly (contents, no heat).
-    let r1 = run(&|_| SupKind::Restraint { dir: [0.0, 1.0, 0.0] }, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 0, wind: false, seis: false, relief: false, neg: false })?;
+    let r1 = run(&|_| SupKind::Restraint { dir: [0.0, 1.0, 0.0] }, Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 0, wind: false, seis: false, relief: false, neg: false, cs: false })?;
     let hot: HashMap<u32, f64> = hangers.iter().map(|&id| (id, r1.cases[0].reactions.iter().find(|x| x.support == id).map_or(0.0, |x| x.f[1]))).collect();
     // 2. The travels: operating case 1 with each hanger carrying its hot load as a constant force.
-    let r2 = run(&|id| SupKind::Constant { load: hot[&id].max(0.0) }, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false, relief: false, neg: false })?;
+    let r2 = run(&|id| SupKind::Constant { load: hot[&id].max(0.0) }, Recipe::Sum { w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false, relief: false, neg: false, cs: false })?;
     // 3. The springs.
     let mut warnings = vec![];
     let mut designs = vec![];
@@ -273,6 +273,8 @@ struct Part {
     w_water: f64,
     /// Thermal strain in cases 1–3.
     strain: [f64; 3],
+    /// The cold spring's strain (negative: the pipe is made short), in the cases that pull it in.
+    cs: f64,
     e_cold: f64,
     mat: u32,
     /// Corrosion allowance at the start and the end (a reducer's ends may differ).
@@ -907,7 +909,8 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             }
         }
         let _ = si;
-        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, e_cold, mat: mat.id, corrosion: [pipe.corrosion, m.pipe(s.pipe_b).map_or(pipe.corrosion, |q| q.corrosion)], p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane, ze: [None; 2], over, mass_len });
+        let cs = m.elements.iter().find(|e| e.id == s.element).filter(|e| e.cold > 0.0).map_or(0.0, |e| -e.cold / e.length());
+        parts.push(Part { el, sec: (secf(0.0), secf(1.0)), w, w_water: ww, strain: strain3, cs, e_cold, mat: mat.id, corrosion: [pipe.corrosion, m.pipe(s.pipe_b).map_or(pipe.corrosion, |q| q.corrosion)], p: [cond.p[0], cond.p[1], cond.p[2], cond.hydro], t: cond.t, sif, plane, ze: [None; 2], over, mass_len });
     }
     // Tees: their SIF at every segment end on the tee's point.
     for t in &g.tees {
@@ -1142,6 +1145,22 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             }
         }
     }
+    // The cold spring: as a thermal strain, pulled in by the cases that have it.
+    let mut cs_rhs = vec![0.0; n];
+    for (i, s) in g.segs.iter().enumerate() {
+        let st = parts[i].cs;
+        if st == 0.0 {
+            continue;
+        }
+        let chord = sub(parts[i].el.line.end(), parts[i].el.line.start());
+        let d = [chord[0] * st, chord[1] * st, chord[2] * st, 0.0, 0.0, 0.0];
+        let kd = mv6(&parts[i].el.k, &d);
+        let hkd = mv6(&parts[i].el.ht, &kd);
+        for k in 0..6 {
+            cs_rhs[6 * s.a + k] -= hkd[k];
+            cs_rhs[6 * s.b + k] += kd[k];
+        }
+    }
     let mut d_rhs = [vec![0.0; n], vec![0.0; n], vec![0.0; n]];
     for sp in &springs {
         let off = if sp.rot { 3 } else { 0 };
@@ -1155,7 +1174,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let sums: Vec<&LoadCase> = m.cases.iter().filter(|c| matches!(c.recipe, Recipe::Sum { .. })).collect();
     let mut rhs = vec![];
     for c in &sums {
-        let Recipe::Sum { w, water, t, d, p, wind, seis, relief, neg } = c.recipe else { unreachable!() };
+        let Recipe::Sum { w, water, t, d, p, wind, seis, relief, neg, cs } = c.recipe else { unreachable!() };
         let sg = if neg { -1.0 } else { 1.0 };
         let mut f = vec![0.0; n];
         if (1..=4).contains(&p) {
@@ -1183,6 +1202,11 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         if t > 0 {
             for i in 0..n {
                 f[i] += t_rhs[t as usize - 1][i];
+            }
+        }
+        if cs {
+            for i in 0..n {
+                f[i] += cs_rhs[i];
             }
         }
         let fixed = if d > 0 {
@@ -1285,7 +1309,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
     let mut results: Vec<CaseResult> = vec![];
     for c in &m.cases {
         let r = match c.recipe {
-            Recipe::Sum { w, water, t, wind, seis, relief, p: pcase, neg, .. } => {
+            Recipe::Sum { w, water, t, wind, seis, relief, p: pcase, neg, cs, .. } => {
                 let sg = if neg { -1.0 } else { 1.0 };
                 let k = sums.iter().position(|x| x.id == c.id).unwrap();
                 // The distributed load on each segment in this case, and its fixed-end part.
@@ -1307,7 +1331,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                 let mut glob = vec![[[0.0; 6]; 2]; parts.len()];
                 for (i, s) in g.segs.iter().enumerate() {
                     let (q, rbq) = q_of(i);
-                    let st = if t > 0 { parts[i].strain[t as usize - 1] } else { 0.0 };
+                    let st = if t > 0 { parts[i].strain[t as usize - 1] } else { 0.0 } + if cs { parts[i].cs } else { 0.0 };
                     let pe = parts[i].el.end_force(&disp[s.a], &disp[s.b], st, &rbq);
                     let l = parts[i].el.line.length();
                     for (end, at) in [(0usize, 0.0), (1, l)] {

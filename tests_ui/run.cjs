@@ -323,6 +323,20 @@ const shots = process.env.SHOTS;
   const vals = await p.$$eval(".insp input", xs => xs.map(x => x.value));
   check("the nozzle Inspector has the wall flexibility with the example's stiffness", insp.includes("Wall flexibility") && insp.includes("Bending, circ.") && vals.includes("35000"), vals.join(","));
 
+  // Cold spring: a field on straight pipe (not on bends), sent as the element's cut, and a column in Load Cases.
+  await open("lbend");
+  await p.click('.egrid tbody tr:nth-child(2) td.rn'); await p.waitForTimeout(150);
+  check("straight pipe offers a cold spring", ((await p.textContent(".insp")) ?? "").includes("Cold spring"));
+  await p.fill('.insp .iprow:has(label:has-text("Cold spring")) input', "3"); await p.press('.insp .iprow:has(label:has-text("Cold spring")) input', "Tab"); await p.waitForTimeout(200);
+  { const op = await lastOp(); const el = op?.Set?.item?.Element;
+    check("the cold spring is sent in metres", !!el && Math.abs(el.cold - 0.003) < 1e-9, JSON.stringify(op)); }
+  await p.click('.egrid tbody tr:nth-child(1) td.rn'); await p.waitForTimeout(150);
+  check("a bend does not offer a cold spring", !((await p.textContent(".insp")) ?? "").includes("Cold spring"));
+  await p.click('.tabs > button:text-is("Loads")');
+  await p.click('.ribbon button[title="Load Cases"]'); await p.waitForTimeout(300);
+  check("load cases have a cold spring column", ((await p.textContent(".dlg .tbl.cases thead")) ?? "").includes("Cold spring") && (await p.$$(".dlg .tbl.cases input.cs")).length >= 2);
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+
   // 17. Expansion joints: the example's joint in the Inspector, analysed, and on the isometric.
   await open("bellows");
   await p.click('.egrid tbody tr:nth-child(3) td.rn'); await p.waitForTimeout(150);

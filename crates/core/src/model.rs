@@ -130,11 +130,21 @@ pub struct Element {
     pub comp: Comp,
     /// An extra uniform load along the element, downwards (N/m): a walkway, ice, a cable tray.
     pub extra: f64,
+    /// Cold spring (0.5.1): the straight pipe is made this much short (m) and pulled together at
+    /// installation, so it is stretched in every case but the sustained one.
+    pub cold: f64,
+}
+
+impl Element {
+    /// A cold spring is on straight pipe, 0 or more and under a tenth of the element's length.
+    pub fn cold_ok(&self) -> bool {
+        self.cold == 0.0 || (self.cold > 0.0 && self.cold.is_finite() && matches!(self.comp, Comp::Pipe) && self.cold < 0.1 * self.length())
+    }
 }
 
 impl Default for Element {
     fn default() -> Self {
-        Element { id: 0, from: 10, to: 20, d: [1.0, 0.0, 0.0], pipe: 0, material: 0, cond: 0, comp: Comp::Pipe, extra: 0.0 }
+        Element { id: 0, from: 10, to: 20, d: [1.0, 0.0, 0.0], pipe: 0, material: 0, cond: 0, comp: Comp::Pipe, extra: 0.0, cold: 0.0 }
     }
 }
 
@@ -438,6 +448,9 @@ pub enum Recipe {
         /// The wind and seismic loads act the other way (0.2.8).
         #[serde(default)]
         neg: bool,
+        /// The cold spring is pulled in (0.5.1).
+        #[serde(default)]
+        cs: bool,
     },
     /// The results of case `a` minus case `b` (the expansion range).
     Range { a: u32, b: u32 },
@@ -454,7 +467,7 @@ pub struct LoadCase {
 
 impl Default for LoadCase {
     fn default() -> Self {
-        LoadCase { id: 0, name: "SUS".into(), kind: CaseKind::Sus, recipe: Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false, neg: false } }
+        LoadCase { id: 0, name: "SUS".into(), kind: CaseKind::Sus, recipe: Recipe::Sum { w: true, water: false, t: 0, d: 0, p: 1, wind: false, seis: false, relief: false, neg: false, cs: false } }
     }
 }
 
@@ -816,6 +829,9 @@ impl Model {
             if !(e.extra >= 0.0 && fin(e.extra)) {
                 return Err(format!("Element {}–{}: the extra load must be 0 or more.", e.from, e.to));
             }
+            if !e.cold_ok() {
+                return Err(format!("Element {}–{}: a cold spring is on straight pipe, 0 or more and less than a tenth of its length.", e.from, e.to));
+            }
             match &e.comp {
                 Comp::Bend { bend: BendKind::Custom, r } if !(*r > 0.0 && fin(*r)) => return Err(format!("The bend at node {} needs a radius.", e.to)),
                 // A bend's radius must be more than half its pipe's diameter (found by the 0.2.0
@@ -1164,6 +1180,10 @@ fn repair(m: &mut Model, warn: &mut Vec<String>) {
         }
         if !(e.extra >= 0.0 && fin(e.extra)) {
             e.extra = 0.0;
+        }
+        if !e.cold_ok() {
+            e.cold = 0.0;
+            warn.push(format!("Element {}–{}: its cold spring was damaged and was left out.", e.from, e.to));
         }
         let bad = match &e.comp {
             Comp::Bend { bend: BendKind::Custom, r } => !(*r > 0.0 && fin(*r)) || m.pipes.iter().find(|p| p.id == e.pipe).is_some_and(|p| *r <= p.od / 2.0),

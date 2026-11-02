@@ -273,6 +273,17 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 - Dynamics, later: missing-mass correction for the spectrum, a frequency sweep and imposed motion for harmonic loads, time history (relief valve opening, water hammer forces), separate spectra per direction, rotary inertia.
 - Not planned: thermal design of heat exchangers (proprietary correlations); plant 3D layout (we exchange .pcf files instead).
 
+**Held for later: the family plant-design workflow** (owner, 2026-11-02: "keep this in memory; put it in the roadmap later; finish piping and vessels first"). Datum Schema (P&IDs, line list, specs, DEXPI) → a separate 3D layout app (working name Datum Layout: routing, equipment, its own library, construction isometrics) → Datum Pipe (stress, stress isometrics) → results back. Datum Pipe does no 3D modelling. Files only, never linked code. What Datum Pipe would need:
+1. Source IDs and tags kept on elements, supports and nozzles; a line number per element (now one per model). Small.
+2. Plant coordinates: a model origin, East/North/Elevation shown in tables and the iso. Small.
+3. Richer .pcf import: line number, spec, schedule, material, insulation, temperatures and pressures, support tags and types from the attributes (today geometry only). Medium.
+4. A published open JSON interchange file for the family: several lines per system, three operating conditions and hydrotest, density, equipment nozzles with growth, support types, IDs. Medium.
+5. Re-import with merge: new geometry from Layout keeps the stress engineer's supports, springs, cases and settings; shows what changed upstream. Large, the most important.
+6. Systems of several lines joined at shared points. Medium.
+7. Results out (CSV/Excel and the interchange file): support loads and movements by tag, spring data, nozzle loads by equipment nozzle, support changes, stress status per line for Schema's line list. Medium.
+8. Read Schema's pipe-spec file (spec → material, schedule, corrosion). 9. Equipment nozzle positions and growth from Layout, allowables from Schema's datasheets.
+Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4, 5, 6 with Layout's first export (write the Layout brief in the hub with the interchange format as the contract); 8, 9 later. Schema already has `links.rs::to_pipe` (a straight run between anchors, for an early check); keep it.
+
 ## 4. Session log
 
 ### 2026-10-28: Session 1 (overnight run, 0.1.0)
@@ -467,6 +478,9 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 
 ### 2026-11-02: Session 2, continued (cleanup, no functional change)
 - A CSS comment in `ui/src/styles.css` named another product; it now describes the styles only (ribbon.tsx had no such comment). README and NOTICE gain: "Product and file-format names are trademarks of their owners and are used only to describe file compatibility."
+
+### 2026-11-02: Session 2, continued (brainstorm: the plant-design workflow)
+- Owner asked what Datum Pipe needs if Schema (P&ID) → a new layout app → Pipe (stress). Read Datum Schema (read-only clone): it has DEXPI, pipe specs, the line list and `to_pipe`. The answer is held in the roadmap backlog ("Held for later"); no code changed. Owner: finish piping and vessels first.
 
 ## 5. Known limits (0.2.0)
 

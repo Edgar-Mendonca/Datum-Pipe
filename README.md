@@ -73,6 +73,11 @@ cargo build -p datum-pipe --release
 
 Checks: `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, `npm run check:ui`, `npm run test:ui`, `cargo deny check`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Part of the Datum family
+
+Free, open-source desktop tools for engineers, scientists, researchers and analysts: [edgar-mendonca.github.io/Datum](https://edgar-mendonca.github.io/Datum). MIT licence; see [NOTICE](NOTICE) for third-party code and data.
+
+
 ## The apps
 
 | | App | What it is for | Latest | |
@@ -85,6 +90,4 @@ Checks: `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --w
 | <img src="brand/datum-mesh-icon.svg" width="56" alt=""> | **[Datum Mesh](https://edgar-mendonca.github.io/Datum/apps/mesh)** | Finite-element analysis: stresses, deflections and temperatures in parts and frames, with a verification report. For mechanical, structural and process engineers. | [![release](https://img.shields.io/github/v/release/Edgar-Mendonca/Datum-Mesh?label=&color=B83250)](https://github.com/Edgar-Mendonca/Datum-Mesh/releases/latest) | [Download](https://github.com/Edgar-Mendonca/Datum-Mesh/releases/latest) · [Repo](https://github.com/Edgar-Mendonca/Datum-Mesh) |
 | <img src="brand/datum-pipe-icon.svg" width="56" alt=""> | **[Datum Pipe](https://edgar-mendonca.github.io/Datum/apps/pipe)** | Pipe stress analysis: displacements, support and nozzle loads, code stresses and an automatic isometric. For piping, stress and plant engineers. | [![release](https://img.shields.io/github/v/release/Edgar-Mendonca/Datum-Pipe?label=&color=4D7C0F)](https://github.com/Edgar-Mendonca/Datum-Pipe/releases/latest) | [Download](https://github.com/Edgar-Mendonca/Datum-Pipe/releases/latest) · [Repo](https://github.com/Edgar-Mendonca/Datum-Pipe) |
 | <img src="brand/datum-schema-icon.svg" width="56" alt=""> | **[Datum Schema](https://edgar-mendonca.github.io/Datum/apps/schema)** | Intelligent P&IDs and process flow diagrams: draw, check and list. For process, piping and instrument engineers. | [![release](https://img.shields.io/github/v/release/Edgar-Mendonca/Datum-Schema?label=&color=9C1F84)](https://github.com/Edgar-Mendonca/Datum-Schema/releases/latest) | [Download](https://github.com/Edgar-Mendonca/Datum-Schema/releases/latest) · [Repo](https://github.com/Edgar-Mendonca/Datum-Schema) |
-## Part of the Datum family
 
-Free, open-source desktop tools for engineers, scientists, researchers and analysts: [edgar-mendonca.github.io/Datum](https://edgar-mendonca.github.io/Datum). MIT licence; see [NOTICE](NOTICE) for third-party code and data.

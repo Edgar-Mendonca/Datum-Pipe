@@ -3,6 +3,7 @@
 import { For, Show, Switch, Match, JSX } from "solid-js";
 import { Element, Support, Nozzle, Load, SupKind, V3, HarmonicLoad, CODES, num } from "./api";
 import { model, sel, setSel, act, toast } from "./store";
+import { setCardOpen } from "./tree";
 import { C, SUPPORTS } from "./cmds";
 import { Help } from "./help";
 import { F, T, numIn, numInQ } from "./props";
@@ -243,7 +244,7 @@ export const Inspector = () => {
   const title = () => { const x = s(); return !x ? "Model" : x.kind === "element" ? "Element" : x.kind === "node" ? "Node" : x.kind === "support" ? "Support" : x.kind === "nozzle" ? "Nozzle" : "Load"; };
   return (
     <aside class="insp">
-      <header>Inspector<Help k="inspector" /><span class="grow" /><b>{title()}</b></header>
+      <header>Inspector<Help k="inspector" /><span class="grow" /><b>{title()}</b><button class="x" title="Close (Esc)" onClick={() => { setSel(null); setCardOpen(false); }}>×</button></header>
       <div class="ibody">
         <Show when={m()}>
           <Switch fallback={<ModelPanel />}>

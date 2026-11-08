@@ -528,6 +528,9 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 - Owner approved the redone mock-ups (only change: no numbers on the left bar). Building 0.6.1–0.6.9 then 0.7.0.
 - UI: `Flow` in main.tsx (steps with `done`/`on`, green icon when done, class `flow side` so old `.side` checks still find it); `log`/`note`/`describeOp`/`ptab`/`unread` in store.ts (toast notes unless `keep` false; every `act` notes its edit); `solverLog` in rstate.ts (a line per solve; Messages note a quiet solve only when its findings change); `console.tsx` (PanelTabs, Messages, SolverLog) in the element table's header; ribbon tabs Route and Properties; title bar facts (`docFacts`). Six UI checks; tests updated for the renamed tabs and the Route step.
 
+### 2026-11-09: Session 2, continued (0.6.2: tree and card)
+- UI: `tree.tsx` (`Tree`: Model/Results tabs, filter, groups with counts, rows for elements/supports/nozzles/loads, groups open their dialogs; `cardOpen`); main.tsx puts the tree before `.center`, the Inspector inside `.vwrap` as `.ipop` (shown when `cardOpen()` or something is selected; Esc closes; a selection opens it); × in the Inspector header. Eight UI checks. Kept the card open with the model's settings at start so the old checks (and new users) find them.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.

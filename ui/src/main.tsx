@@ -1,6 +1,6 @@
 // Datum Pipe window: layout, sidebar, status bar, keyboard shortcuts, start-up and recovery.
 import { render } from "solid-js/web";
-import { For, Show, Switch, Match, onMount } from "solid-js";
+import { For, Show, Switch, Match, onMount, createEffect, on } from "solid-js";
 import "@fontsource/ibm-plex-sans/latin-400.css";
 import "@fontsource/ibm-plex-sans/latin-500.css";
 import "@fontsource/ibm-plex-sans/latin-600.css";
@@ -10,7 +10,7 @@ import "@fontsource/ibm-plex-mono/latin-500.css";
 import "@fontsource/ibm-plex-mono/latin-600.css";
 import "./styles.css";
 import { invoke, listen, Out, Options, Shown, Typed } from "./api";
-import { out, setOut, view, setView, View, backstage, setBackstage, setOpts, opts, dialogs, toast, loadOut, setThemeRaw, applyTheme, sel, model, tab, setTab } from "./store";
+import { out, setOut, view, setView, View, backstage, setBackstage, setOpts, opts, dialogs, toast, loadOut, setThemeRaw, applyTheme, sel, setSel, model, tab, setTab } from "./store";
 import { C } from "./cmds";
 import { TitleBar, Ribbon, palette } from "./ribbon";
 import { Backstage, update, checkUpdate } from "./backstage";
@@ -26,6 +26,7 @@ import { Menu, Toast, Icon } from "./ui";
 import { setUnitTable } from "./units";
 import * as D from "./dialogs";
 import { solving, results, stale } from "./rstate";
+import { Tree, cardOpen, setCardOpen } from "./tree";
 
 const SIDE: ([View, string, string] | "-")[] = [["model", "model", "Model"], "-", ["results", "table", "Results"], ["iso", "iso", "Isometric"], ["vessel", "vessel", "Vessels"], ["report", "report", "Report"]];
 
@@ -59,6 +60,8 @@ const Status = () => (
 );
 
 const App = () => {
+  // Picking something opens its card over the view.
+  createEffect(on(sel, s => { if (s) setCardOpen(true); }, { defer: true }));
   onMount(async () => {
     try {
       const o = await invoke<Options>("options"); setOpts(o); setThemeRaw(o.theme || "auto"); applyTheme();
@@ -91,6 +94,7 @@ const App = () => {
     else if (!typing && !ctrl && !backstage() && view() === "model" && k === "f") C.fit();
     else if (!typing && !ctrl && !backstage() && view() === "model" && "1234".includes(k) && k.length === 1) C.std(["iso", "plan", "front", "side"][+k - 1]);
     else if (e.key === "Escape" && backstage() && out()) setBackstage(null);
+    else if (e.key === "Escape" && !typing && !backstage()) { setSel(null); setCardOpen(false); }
   };
   return (
     <div class="app" ref={() => document.addEventListener("keydown", keys)}>
@@ -100,7 +104,7 @@ const App = () => {
         <Flow />
         <div class="content">
           <Show when={out()}>
-            <Switch fallback={<div class="modelview"><div class="center"><View3D /><ElementTable /></div><Inspector /></div>}>
+            <Switch fallback={<div class="modelview"><Tree /><div class="center"><div class="vwrap"><View3D /><Show when={cardOpen() || sel()}><div class="ipop"><Inspector /></div></Show></div><ElementTable /></div></div>}>
               <Match when={view() === "results"}><ResultsPage /></Match>
               <Match when={view() === "iso"}><IsoPage /></Match>
               <Match when={view() === "report"}><ReportPage /></Match>

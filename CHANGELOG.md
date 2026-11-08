@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.2 — 2026-11-09
+
+The new window, step 2: the model tree and the Inspector card.
+
+**The model tree.** A tree beside the workflow bar lists everything in the model with its count: elements and nodes; pipes, materials and line conditions; supports, nozzles, equipment, point loads, wind and seismic, relief valves, soils, flange checks and load cases; dynamics, vessels and the settings. Elements, supports, nozzles and loads open into rows; a click on a row selects it, a click on a group opens its dialog. A filter box at the top leaves only the rows that match (a node, a tag, a kind). The tree's Results tab shows what was solved, each case's worst stress ratio and where, the equilibrium and minimum-wall checks and the lowest natural frequency, and the way to the tables and the report.
+
+**The Inspector as a card.** The Inspector now opens as a card over the 3D view when you pick something, so the view keeps the window's width; × or Esc closes it. The model's own settings open from its name at the top of the tree.
+
 ## 0.6.1 — 2026-11-09
 
 The new window, step 1: the workflow bar and Messages.

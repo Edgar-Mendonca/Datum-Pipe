@@ -506,6 +506,29 @@ const shots = process.env.SHOTS;
   await p.click('.ptabs button:has-text("Elements")'); await p.waitForTimeout(150);
   check("the Elements tab brings the table back", !!(await p.$(".egrid")));
 
+  // 0.6.2: the model tree (counts, rows, filter, results tab) and the Inspector as a card over the view.
+  await open("steam");
+  { const t = (await p.textContent(".tree")) ?? "";
+    check("the tree lists the model with counts", t.includes("Elements") && t.includes("Supports") && t.includes("Load cases") && t.includes("Settings")); }
+  check("the supports are listed under their group", (await p.$$(".tree .ti.k")).length >= 9);
+  await p.click('.tree .ti.k:has-text("LS-20")'); await p.waitForTimeout(150);
+  check("a tree row selects its support and its card opens over the view", ((await p.textContent(".ipop .insp header")) ?? "").includes("Support") && !!(await p.$(".vwrap .ipop")));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+  check("Esc closes the card", !(await p.$(".ipop")));
+  await p.click(".tree .troot"); await p.waitForTimeout(150);
+  check("the model's name opens its settings card", ((await p.textContent(".ipop .insp")) ?? "").includes("Installed temperature"));
+  await p.fill(".tree .tf input", "LS-20"); await p.waitForTimeout(150);
+  check("the filter leaves only the rows that match", (await p.$$(".tree .ti.k")).length === 1);
+  await p.fill(".tree .tf input", ""); await p.waitForTimeout(100);
+  await p.click('.tree .ti:has-text("Load cases")'); await p.waitForTimeout(250);
+  check("a group opens its dialog", !!(await p.$('.dlg .tbl.cases')));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.tree .ttabs button:has-text("Results")'); await p.waitForTimeout(150);
+  { const t = (await p.textContent(".tree")) ?? "";
+    check("the Results tab lists each case's worst ratio and the checks", t.includes("EXP1") && t.includes("Equilibrium") && t.includes("balanced")); }
+  await p.click('.tree .ttabs button:has-text("Model")'); await p.waitForTimeout(100);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

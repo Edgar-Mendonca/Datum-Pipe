@@ -373,11 +373,19 @@
       ]
     },
     {
-      "v": "0.6.2–0.6.9",
+      "v": "0.6.2",
+      "title": "The new window: the model tree and the Inspector card",
+      "when": "Done",
+      "items": [
+        "Everything in the model in one tree with counts and a filter; the Inspector as a card over the view"
+      ]
+    },
+    {
+      "v": "0.6.3–0.6.9",
       "title": "The new window, step by step",
       "when": "Next",
       "items": [
-        "The model tree and the Inspector as a card over the view; node, support and load tables with paste from Excel; colour by any result or property; results you can click; the player; graphs; Home with examples in folders; the model checker; output to Excel"
+        "Node, support and load tables with paste from Excel; colour by any result or property; results you can click; the player; graphs; Home with examples in folders; the model checker; output to Excel"
       ]
     },
     {

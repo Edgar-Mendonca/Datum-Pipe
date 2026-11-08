@@ -1089,3 +1089,16 @@ fn an_expansion_loop_on_a_cold_sprung_pipe_keeps_it_on_a_straight() {
     assert_eq!(with.len(), 1);
     assert!(matches!(with[0].comp, Comp::Pipe) && (with[0].cold - 0.004).abs() < 1e-15);
 }
+
+#[test]
+fn pasted_rows_arrive_as_one_batch_of_elements() {
+    // Paste from Excel (0.6.3) sends one Batch of Adds, each with id 0, chained node to node.
+    let mut d = table("paste", &[(10, 20, 6.0, 0.0, 0.0)]);
+    let e = d.m.elements[0].clone();
+    let add = |from: u32, to: u32, dx: f64, dz: f64| Op::Add { item: Item::Element(crate::model::Element { id: 0, from, to, d: [dx, 0.0, dz], ..e.clone() }), after: None };
+    d.apply(Op::Batch(vec![add(20, 30, 6.0, 0.0), add(30, 40, 0.0, -3.0)])).unwrap();
+    assert_eq!(d.m.elements.len(), 3);
+    let ids: std::collections::HashSet<u32> = d.m.elements.iter().map(|x| x.id).collect();
+    assert_eq!(ids.len(), 3, "each pasted element gets its own id");
+    assert!(d.m.check().is_ok());
+}

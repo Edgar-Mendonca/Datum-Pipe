@@ -381,11 +381,19 @@
       ]
     },
     {
-      "v": "0.6.3–0.6.9",
+      "v": "0.6.3",
+      "title": "The new window: tables and paste from Excel",
+      "when": "Done",
+      "items": [
+        "Nodes, supports and loads as tables in the bottom panel; elements pasted from a spreadsheet"
+      ]
+    },
+    {
+      "v": "0.6.4–0.6.9",
       "title": "The new window, step by step",
       "when": "Next",
       "items": [
-        "Node, support and load tables with paste from Excel; colour by any result or property; results you can click; the player; graphs; Home with examples in folders; the model checker; output to Excel"
+        "Colour by any result or property; results you can click; the player; graphs; Home with examples in folders; the model checker; output to Excel"
       ]
     },
     {

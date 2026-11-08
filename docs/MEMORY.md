@@ -531,6 +531,9 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 ### 2026-11-09: Session 2, continued (0.6.2: tree and card)
 - UI: `tree.tsx` (`Tree`: Model/Results tabs, filter, groups with counts, rows for elements/supports/nozzles/loads, groups open their dialogs; `cardOpen`); main.tsx puts the tree before `.center`, the Inspector inside `.vwrap` as `.ipop` (shown when `cardOpen()` or something is selected; Esc closes; a selection opens it); × in the Inspector header. Eight UI checks. Kept the card open with the model's settings at start so the old checks (and new users) find them.
 
+### 2026-11-09: Session 2, continued (0.6.3: tables, paste)
+- UI: console.tsx `NodesTable` (model nodes, sorted; found in the real app that geometry points at bends are on the arc), `SupportsTable`, `LoadsTable` (in-place edits via Set), `parseRows`/`pasteDialog` (DX DY DZ or From To DX DY DZ, display units, one `Op::Batch` of Adds). Seven UI checks; worked test that a Batch of id-0 Adds makes distinct elements.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.

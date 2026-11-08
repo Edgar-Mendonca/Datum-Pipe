@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.3 — 2026-11-09
+
+The new window, step 3: tables and paste from Excel.
+
+**Tables in the bottom panel.** Beside Elements, the panel has Nodes (every node's position east, up and south, and what is at it: supports, nozzles, loads), Supports (tag, kind, node, gap, friction and stiffness, typed into in place) and Loads (each point load's node, force and moment, typed into in place). A click on a row selects it in the 3D view and opens its card.
+
+**Paste from Excel.** The Elements tab has Paste from Excel: copy rows from a spreadsheet and paste them, DX, DY, DZ in the shown length unit (each row continues from the last element) or From, To, DX, DY, DZ. The new elements take the last element's pipe, material and line conditions; headings and rows that are not numbers are left out and said in Messages. They are added as one edit, so one Undo takes them away.
+
+**Fixed.** In the new Nodes table a node at a bend showed a point on the bend's arc instead of its corner; it shows the corner (the model's node), with a check.
+
 ## 0.6.2 — 2026-11-09
 
 The new window, step 2: the model tree and the Inspector card.

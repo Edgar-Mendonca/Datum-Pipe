@@ -529,6 +529,27 @@ const shots = process.env.SHOTS;
     check("the Results tab lists each case's worst ratio and the checks", t.includes("EXP1") && t.includes("Equilibrium") && t.includes("balanced")); }
   await p.click('.tree .ttabs button:has-text("Model")'); await p.waitForTimeout(100);
 
+  // 0.6.3: the node, support and load tables, and Paste from Excel.
+  await open("steam");
+  await p.click('.ptabs button:has-text("Nodes")'); await p.waitForTimeout(150);
+  { const rows = await p.$$eval(".ptable tbody tr", trs => trs.map(t => t.textContent));
+    check("the Nodes tab lists every node with its position and what is there", rows.length === 8 && rows.some(r => r.includes("20") && r.includes("6000") && r.includes("LS-20")), rows.slice(0, 3).join(" | ")); }
+  { const n50 = await p.$$eval(".ptable tbody tr", trs => trs.map(t => [...t.querySelectorAll("td")].map(td => td.textContent)).find(c => c[0] === "50"));
+    check("a node at a bend shows the bend's corner, not a point on its arc", !!n50 && n50[1] === "24000" && n50[2] === "0", JSON.stringify(n50)); }
+  await p.click('.ptabs button:has-text("Supports")'); await p.waitForTimeout(150);
+  check("the Supports tab lists the nine supports", (await p.$$(".ptable tbody tr")).length === 9);
+  await p.fill('.ptable tbody tr:nth-child(1) td:nth-child(1) input', "S-10A"); await p.press('.ptable tbody tr:nth-child(1) td:nth-child(1) input', "Tab"); await p.waitForTimeout(150);
+  { const op = await lastOp(); check("a tag typed in the table is sent", op?.Set?.item?.Support?.tag === "S-10A", JSON.stringify(op)); }
+  await p.click('.ptabs button:has-text("Loads")'); await p.waitForTimeout(150);
+  check("the Loads tab says how to add one when there are none", ((await p.textContent(".pbody")) ?? "").includes("No point loads"));
+  await p.click('.ptabs button:has-text("Elements")'); await p.waitForTimeout(150);
+  await p.click('.etable header button:has-text("Paste from Excel")'); await p.waitForTimeout(200);
+  await p.fill(".dlg textarea.paste", "DX\tDY\tDZ\n6000\t0\t0\n0 0 -3000\n"); await p.waitForTimeout(100);
+  check("the paste dialog counts the rows it understood", ((await p.textContent(".dlg")) ?? "").includes("2 elements to add, 1 row left out"));
+  await p.click('.dlg button:has-text("Add the elements")'); await p.waitForTimeout(250);
+  { const op = await lastOp(); const adds = op?.Batch ?? [];
+    check("pasted rows are added as elements from the last node, in metres", adds.length === 2 && adds[0].Add.item.Element.from === 70 && Math.abs(adds[0].Add.item.Element.d[0] - 6) < 1e-9 && adds[1].Add.item.Element.from === adds[0].Add.item.Element.to && Math.abs(adds[1].Add.item.Element.d[2] + 3) < 1e-9, JSON.stringify(op).slice(0, 300)); }
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

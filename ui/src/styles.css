@@ -907,3 +907,12 @@ tr.behind td { background: var(--err-bg); }
 .ipop .insp .ibody { overflow: auto; }
 .insp header .x { margin-left: 8px; font-size: 15px; line-height: 1; color: var(--muted); padding: 0 2px; }
 .insp header .x:hover { color: var(--crit); }
+
+/* ---------- 0.6.3: the node, support and load tables; Paste from Excel ---------- */
+.ptable { min-width: 0; width: 100%; }
+.ptable td { padding: 0 6px; height: 24px; }
+.ptable td:has(input) { padding: 0; }
+.ptable td.r { text-align: right; }
+.ptable tbody tr { cursor: default; }
+.ptable input:not(.n):not(.mono) { width: 100%; }
+textarea.paste { width: 100%; box-sizing: border-box; min-height: 160px; font: 12px var(--mono); }

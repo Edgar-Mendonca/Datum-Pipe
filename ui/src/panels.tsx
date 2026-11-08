@@ -4,6 +4,7 @@ import { For, Show, Switch, Match, JSX } from "solid-js";
 import { Element, Support, Nozzle, Load, SupKind, V3, HarmonicLoad, CODES, num } from "./api";
 import { model, sel, setSel, act, toast } from "./store";
 import { setCardOpen } from "./tree";
+import { results, stale, curCase } from "./rstate";
 import { C, SUPPORTS } from "./cmds";
 import { Help } from "./help";
 import { F, T, numIn, numInQ } from "./props";
@@ -80,8 +81,31 @@ const NodePanel = (p: { num: number }) => {
       <For each={on(m().loads)}>{l => <button class="ti" onClick={() => setSel({ kind: "load", id: l.id })}><span>Force {fmt("force", Math.hypot(...l.f))}</span><small>load</small></button>}</For>
       <p class="ibtns"><Show when={!on(m().nozzles).length}><button class="btn sm" onClick={C.nozzle}>Nozzle point</button></Show><button class="btn sm" onClick={C.load}>Force or moment</button></p>
     </Sec>
+    <NodeResults num={p.num} />
   </>}</Show>;
 };
+
+/** What the analysis found at a node, in the case shown (0.6.5: click a node to read it). */
+const NodeResults = (p: { num: number }) => {
+  const r = () => results() && !stale() ? results() : null;
+  const c = () => curCase();
+  const pt = () => r()?.geom.node_point[p.num];
+  const d = () => { const x = c(), i = pt(); return x && i !== undefined ? x.disp[i] : null; };
+  const st = () => { const x = c(), i = pt(); return x && i !== undefined ? x.stresses.filter(s => s.point === i).sort((a, b) => b.ratio - a.ratio) : []; };
+  const re = () => c()?.reactions.filter(x => x.node === p.num) ?? [];
+  return <Show when={r() && c() && pt() !== undefined}>
+    <Sec t={`Results here · ${c()!.name}`} h="results">
+      <table class="vmini"><tbody>
+        <Show when={d()}>{dd => <><tr><td>Movement X, Y, Z</td><td class="r">{[0, 1, 2].map(k => num(toU("disp", dd()[k]), 3)).join(", ")} {unit("disp")}</td></tr><tr><td>Total</td><td class="r">{fmt("disp", Math.hypot(dd()[0], dd()[1], dd()[2]))}</td></tr></>}</Show>
+        <For each={st().slice(0, 2)}>{s => <tr><td>Stress / allowable</td><td class="r" classList={{ bad: !s.pass }}>{fmt("stress", s.stress)} / {fmt("stress", s.allow)} · {num(s.ratio, 3)} {s.pass ? "PASS" : "FAIL"}</td></tr>}</For>
+        <Show when={st().length}><tr><td>SIF in, out</td><td class="r">{num(st()[0].ii, 3)}, {num(st()[0].io, 3)}</td></tr></Show>
+        <For each={re()}>{x => <tr><td>Support load {m_tag(x.support)}</td><td class="r">{fmt("force", Math.hypot(x.f[0], x.f[1], x.f[2]))}</td></tr>}</For>
+      </tbody></table>
+      <p class="muted small">Pick another case in the bar above the view.</p>
+    </Sec>
+  </Show>;
+};
+const m_tag = (id: number) => model()?.supports.find(s => s.id === id)?.tag ?? "";
 
 const SupportPanel = (p: { s: Support }) => {
   const s = () => p.s;

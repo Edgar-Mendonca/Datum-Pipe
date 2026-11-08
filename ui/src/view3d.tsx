@@ -11,7 +11,7 @@ import { Geom, Model, Seg, V3, num } from "./api";
 import { out, model, sel, setSel, opts, themeTick, openMenu, act, Item } from "./store";
 import { C, setFit, setStdView, SUPPORTS } from "./cmds";
 import { COMPS, compFrom, compKey } from "./table";
-import { results, stale, show, curCase, segRatios, setShowPart, modeNo, setModeNo, colourBy, setColourBy, drawMode, setDrawMode, setCaseId, ColourBy } from "./rstate";
+import { results, stale, show, curCase, segRatios, setShowPart, modeNo, setModeNo, colourBy, setColourBy, drawMode, setDrawMode, setCaseId, ColourBy, speed, setSpeed } from "./rstate";
 import { fmt } from "./units";
 
 type Vec = [number, number, number];
@@ -428,7 +428,7 @@ export const View3D = () => {
     });
     setFit(fit); setStdView(stdView);
     build(); setTimeout(fit, 30);
-    const tick = (t: number) => { anim = requestAnimationFrame(tick); if (((show().anim && show().deformed) || modeShown) && deform.length) { animT = t / 600; draw(); } };
+    const tick = (t: number) => { anim = requestAnimationFrame(tick); if (((show().anim && show().deformed) || modeShown) && deform.length) { animT = t * speed() / 600; draw(); } };
     anim = requestAnimationFrame(tick);
     // Leaving the view frees the GPU: the scene's geometry, and the WebGL context itself (dispose()
     // alone keeps the context; switching views many times ran the GPU out of contexts, found 0.3.7).
@@ -451,6 +451,7 @@ export const View3D = () => {
       <Show when={out()?.geom?.warnings.length}><div class="geowarn">{out()!.geom!.warnings.join(" ")}</div></Show>
       <Show when={results() && !stale() && (show().colour && colourBy() === "ratio" || modeNo() !== null)}><Legend /></Show>
       <Show when={results() && !stale() && colourBy() === "move" && modeNo() === null}><MoveLegend /></Show>
+      <Show when={results() && !stale()}><Player /></Show>
       <Show when={categories(model(), out()?.geom, colourBy())}>{c => <div class="legend3d"><b>{CB.find(x => x[0] === colourBy())?.[1]}</b><For each={c().items}>{([k, col]) => <span class="catrow"><i style={{ background: col }} />{k}</span>}</For></div>}</Show>
       <Show when={results() && stale()}><div class="stalebar3d">The model changed since the analysis: press F5 to analyze again.</div></Show>
       <div class="axes3d"><span style={{ color: "#D64545" }}>X east</span><span style={{ color: "#3BB273" }}>Y up</span><span style={{ color: "#2B6FD6" }}>Z south</span></div>
@@ -478,6 +479,18 @@ export const CtxBar = () => (
     <span class="seg vbar"><For each={[["iso", "Iso"], ["plan", "Plan"], ["front", "Front"], ["side", "Side"]]}>{([k, l]) => <button title={`${l} view`} onClick={() => C.std(k)}>{l}</button>}</For><button title="Fit the model (F)" onClick={() => fitNow()}>Fit</button></span>
   </div>
 );
+
+/** The player (0.6.6, after Datum Mesh): play and pause the deformed shape (or the mode shown),
+ *  back to the still shape, and the speed. It loops. */
+const Player = () => {
+  const playing = () => show().anim && (show().deformed || modeNo() !== null);
+  return <div class="player3d">
+    <button title="Back to the still shape" onClick={() => { setShowPart({ anim: false }); setModeNo(null); }}>⏮</button>
+    <button class="pp" title={playing() ? "Pause" : "Play the deformed shape"} onClick={() => playing() ? setShowPart({ anim: false }) : setShowPart({ anim: true, deformed: true })}>{playing() ? "❚❚" : "▶"}</button>
+    <span class="what">{modeNo() !== null ? `Mode ${results()?.modes?.[modeNo()!]?.n ?? ""}` : `Deformed · ${curCase()?.name ?? ""}`} · loop</span>
+    <span class="seg"><For each={[0.5, 1, 2]}>{v => <button classList={{ on: speed() === v }} onClick={() => setSpeed(v)}>{v}×</button>}</For></span>
+  </div>;
+};
 
 /** The movement's colours: none to the largest of the case. */
 const MoveLegend = () => {

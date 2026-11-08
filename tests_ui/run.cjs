@@ -570,6 +570,26 @@ const shots = process.env.SHOTS;
   await p.click('.ctxbar button:text-is("Solid")'); await p.waitForTimeout(150);
   await p.selectOption(".ctxbar .cbpick", "ratio"); await p.waitForTimeout(150);
 
+  // 0.6.5: a node's card shows its results; Next Overstress; 0.6.6: the player.
+  await open("steam");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.ptabs button:has-text("Nodes")'); await p.waitForTimeout(150);
+  await p.click('.ptable tbody tr:has(td:text-is("50"))'); await p.waitForTimeout(200);
+  { const t = (await p.textContent(".ipop .insp")) ?? "";
+    check("a node's card shows its results in the case shown", t.includes("Results here") && t.includes("Movement X, Y, Z") && t.includes("Stress / allowable"), t.slice(0, 200)); }
+  await p.click('.tabs > button:text-is("Results")'); await p.waitForTimeout(150);
+  await p.click('.ribbon button[title="Select the next overstressed point, worst first"]'); await p.waitForTimeout(250);
+  { const s1 = await p.evaluate(() => document.querySelector(".status")?.textContent ?? "");
+    check("Next Overstress selects an overstressed node and says which", /Node \d+/.test(s1), s1); }
+  check("the player sits over the results", !!(await p.$(".player3d")));
+  await p.click('.player3d button.pp'); await p.waitForTimeout(200);
+  check("Play plays the deformed shape", ((await p.textContent(".player3d")) ?? "").includes("❚❚"));
+  await p.click('.player3d .seg button:text-is("2×")'); await p.waitForTimeout(100);
+  check("the speed can be chosen", await p.$eval('.player3d .seg button:text-is("2×")', e => e.classList.contains("on")));
+  await p.click('.player3d button[title="Back to the still shape"]'); await p.waitForTimeout(150);
+  check("back to the still shape stops it", ((await p.textContent(".player3d")) ?? "").includes("▶"));
+  await p.click('.player3d .seg button:text-is("1×")'); await p.waitForTimeout(100);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

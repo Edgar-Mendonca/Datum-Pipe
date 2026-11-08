@@ -397,11 +397,19 @@
       ]
     },
     {
-      "v": "0.6.5–0.6.9",
+      "v": "0.6.5",
+      "title": "The new window: results you can click, and the player",
+      "when": "Done",
+      "items": [
+        "A node's card shows its results; Next Overstress; play the deformed shape and the modes"
+      ]
+    },
+    {
+      "v": "0.6.6–0.6.9",
       "title": "The new window, step by step",
       "when": "Next",
       "items": [
-        "Results you can click; the player; graphs; Home with examples in folders; the model checker; output to Excel"
+        "Graphs; Home with examples in folders; the model checker; output to Excel"
       ]
     },
     {

@@ -16,6 +16,8 @@ export const [modeNo, setModeNo] = createSignal<number | null>(null);
 export type ShowRes = { colour: boolean; deformed: boolean; scale: number; anim: boolean; tags: boolean };
 export const [show, setShow] = createSignal<ShowRes>({ colour: true, deformed: false, scale: 0, anim: false, tags: true });
 export const setShowPart = (s: Partial<ShowRes>) => setShow({ ...show(), ...s });
+/** The player's speed (0.6.6): 0.5, 1 or 2 times. */
+export const [speed, setSpeed] = createSignal(1);
 
 /** What the 3D view colours the pipe by (0.6.4): a result (the stress ratio, the movement) or a
  *  property (pipe size, material, line conditions, temperature, buried); "plain" is steel grey. */

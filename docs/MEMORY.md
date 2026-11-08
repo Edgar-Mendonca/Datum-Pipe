@@ -537,6 +537,9 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 ### 2026-11-09: Session 2, continued (0.6.4: bar above the view, colour by)
 - UI: `colourBy`/`drawMode` in rstate.ts; view3d.tsx `categories` (property colours, Okabe-Ito; temperature cold→hot), movement colours, `dark` (clear colour #1A2230, darker grid, `.v3d.dark` legend and labels), centre-line rods, `CtxBar` (case, colour by, Solid/Centre line, views) in `.vwrap` above the view (the old `.vbar` overlay is gone), `MoveLegend`, category legend. Seven UI checks. Real app: first shot used a stale ui/dist (build:ui before cargo build); the dark grid and labels fixed after looking.
 
+### 2026-11-09: Session 2, continued (0.6.5: query, next overstress, player)
+- UI: panels.tsx `NodeResults` (movement, stresses at the node's segment ends, SIFs, support loads, case shown); results.tsx `nextOver` (worst first, sets the case, jumps); view3d.tsx `Player` (`speed` in rstate scales `animT`). Real app: the card covered the bar's view buttons (`.ipop` top 38 px) and the player's segment was white on dark; both fixed. Six UI checks.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.

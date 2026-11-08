@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.5 — 2026-11-09
+
+The new window, step 5: results you can click, and the player.
+
+**Click a node to read its results.** A node's card now has Results here: its movement east, up and south and in total, the stress and allowable at its pipe ends with the ratio and PASS or FAIL, the stress intensification factors, and the load on each support there, in the case shown (pick another in the bar above the view).
+
+**Next Overstress.** Results › Next Overstress selects the next overstressed point, worst first, in its own case, and says which it is (1 of 6…); press again for the next.
+
+**The player.** A bar over the results plays the deformed shape (or the mode shown) in a loop: play and pause, back to the still shape, and the speed (0.5, 1 or 2 times).
+
+**Fixed.** The card covered the view buttons in the bar above the view; it now opens below the bar. The player's speed buttons were white on the dark ground.
+
 ## 0.6.4 — 2026-11-09
 
 The new window, step 4: the bar above the view and colour by.

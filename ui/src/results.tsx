@@ -3,7 +3,7 @@
 // code stresses, minimum wall and the equilibrium check.
 import { For, Show, createSignal, createMemo, JSX } from "solid-js";
 import { CaseResult, Results, num, codeName } from "./api";
-import { model, setSel, setView, openMenu } from "./store";
+import { model, setSel, setView, openMenu, toast } from "./store";
 import { C } from "./cmds";
 import { G, S, B } from "./ribbon";
 import { Help } from "./help";
@@ -37,7 +37,7 @@ export const ResultsRibbon = () => {
     <G l="Show" h="results"><S><B i="contour" l="Stress Ratio Colours" on={show().colour} off={!r()} run={() => setShowPart({ colour: !show().colour })} /><B i="deform" l="Deformed Shape" on={show().deformed} off={!r()} run={() => setShowPart({ deformed: !show().deformed })} /><B i="play" l="Animate" on={show().anim} off={!r()} run={() => setShowPart({ anim: !show().anim, deformed: true })} /></S></G>
     <G l="Tables" h="results"><S><B i="table" l="Summary" off={!r()} run={() => openTable("summary")} /><B i="table" l="Code Stresses" off={!r()} run={() => openTable("stress")} /><B i="table" l="Displacements" off={!r()} run={() => openTable("disp")} /></S>
       <S><B i="table" l="Support Loads" off={!r()} run={() => openTable("supports")} /><B i="nozzle" l="Nozzle Loads" off={!r()} run={() => openTable("nozzles")} /><B i="table" l="Forces" off={!r()} run={() => openTable("forces")} /></S></G>
-    <G l="Overstressed" h="code"><B big i="info" l="Overstressed" off={!r()} dd={e => { const list = over(); openMenu(e, list.length ? list.slice(0, 30).map(o => ({ label: `${o.label} · ${o.case} · ratio ${num(o.ratio, 3)}`, run: () => jump(o.node) })) : [{ label: "Nothing is overstressed", off: true }]); }} /></G>
+    <G l="Overstressed" h="code"><B big i="check" l="Next Overstress" off={!r()} run={nextOver} title="Select the next overstressed point, worst first" /><B big i="info" l="Overstressed" off={!r()} dd={e => { const list = over(); openMenu(e, list.length ? list.slice(0, 30).map(o => ({ label: `${o.label} · ${o.case} · ratio ${num(o.ratio, 3)}`, run: () => jump(o.node) })) : [{ label: "Nothing is overstressed", off: true }]); }} /></G>
   </>;
 };
 
@@ -49,6 +49,17 @@ const over = () => {
 /** The model node nearest a point (bends' near and far points belong to the bend's node). */
 const nodeOf = (r: Results, pt: number) => r.geom.points[pt]?.node ?? (parseInt(r.geom.points[pt]?.label ?? "") || null);
 const jump = (node: number | null) => { if (node !== null) { setSel({ kind: "node", id: node }); setView("model"); } };
+/** Next Overstress (0.6.5): each press selects the next overstressed point, worst first, in its case. */
+let overAt = -1;
+export const nextOver = () => {
+  const list = over(); const r = results();
+  if (!list.length || !r) { overAt = -1; return toast("Nothing is overstressed.", true); }
+  overAt = (overAt + 1) % list.length;
+  const o = list[overAt]; const c = r.cases.find(x => x.name === o.case);
+  if (c) setCaseId(c.id);
+  jump(o.node);
+  toast(`${overAt + 1} of ${list.length} overstressed: ${o.label} in ${o.case}, ratio ${num(o.ratio, 3)}.`, false, false);
+};
 
 const Th = (p: { children: JSX.Element; r?: boolean }) => <th class={p.r ? "r" : ""}>{p.children}</th>;
 const u = (q: Parameters<typeof unit>[0]) => <span class="unit">{unit(q)}</span>;

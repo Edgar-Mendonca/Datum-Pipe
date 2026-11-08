@@ -939,3 +939,21 @@ textarea.paste { width: 100%; box-sizing: border-box; min-height: 160px; font: 1
 .v3d.dark .lbar i small, .v3d.dark .legend3d em { color: #B8C4D2; }
 .v3d.dark .axes3d { filter: brightness(1.4); }
 .ipop { top: 8px; }
+
+/* ---------- 0.6.6: the player ---------- */
+.player3d { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); padding: 4px 10px; font-size: 11.5px; z-index: 3; }
+.player3d button { padding: 0 4px; color: var(--text2); font-size: 13px; }
+.player3d button:hover { color: var(--blue); }
+.player3d .what { font: 10.5px var(--mono); color: var(--muted); }
+.player3d .seg { display: inline-flex; border: 1px solid var(--line); }
+.player3d .seg button { font: 500 10.5px var(--mono); padding: 1px 6px; border-right: 1px solid var(--line2); }
+.player3d .seg button:last-child { border-right: 0; }
+.player3d .seg button.on { background: var(--sel); color: var(--blue2); }
+.v3d.dark .player3d { background: rgba(16, 24, 35, .92); border-color: #2F4157; color: #E6EDF5; }
+.v3d.dark .player3d button { color: #E6EDF5; }
+.v3d.dark .player3d .seg button.on { background: #2E4A12; color: #A3D65C; }
+.v3d.dark .player3d .seg, .v3d.dark .player3d .seg button { border-color: #2F4157; }
+/* The card sits below the bar above the view (found in the real app: it covered the view buttons). */
+.ipop { top: 38px; }
+.v3d.dark .player3d .seg button:not(.on) { background: transparent; color: #E6EDF5; }
+.v3d.dark .player3d .seg { background: transparent; }

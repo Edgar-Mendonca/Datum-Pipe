@@ -996,3 +996,6 @@ textarea.paste { width: 100%; box-sizing: border-box; min-height: 160px; font: 1
 .finding.info i { color: var(--muted); }
 .finding span { flex: 1; }
 .okline { color: var(--green); }
+.outgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.outgrid > div { display: flex; flex-direction: column; gap: 2px; }
+.outgrid .cap { font: 500 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }

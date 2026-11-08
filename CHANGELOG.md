@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.8 — 2026-11-09
+
+The new window, step 8: output to a spreadsheet.
+
+**Output.** Results › Output writes the load cases and reports you tick (code stresses, movements, support loads, nozzle loads) to one spreadsheet file (CSV, which Excel opens), in the units shown, each report a block with its own heading row. Cells that would start like a formula are kept as text.
+
+**Fixed.** A new, empty model's 3D view was black (since 0.6.4, the ground was set only once there was pipe to draw); it is light again, with a check that reads the view's colour. The Results ribbon had grown too wide and cut its labels; the new button is called Output.
+
 ## 0.6.7 — 2026-11-09
 
 The new window, step 7: File › Home and the model checker.

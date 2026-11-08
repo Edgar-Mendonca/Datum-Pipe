@@ -119,6 +119,10 @@ export const View3D = () => {
     const o = out(), m = model(); if (!o || !m) return;
     scene.remove(group); group.traverse(x => { const mm = x as THREE.Mesh; mm.geometry?.dispose?.(); }); group = new THREE.Group(); scene.add(group);
     pickables = []; deform = []; labels.innerHTML = "";
+    // The light ground until a result says otherwise (found in the real app: an empty model's
+    // view was black, as the ground was only set once there was pipe to draw).
+    dark = false; host?.classList.remove("dark");
+    if (renderer) renderer.setClearColor(new THREE.Color(css("--bg2")));
     const g = o.geom; if (!g || !g.segs.length) { draw(); return; }
     const s = sel();
     const selEl = s?.kind === "element" ? s.id : null, selNode = s?.kind === "node" ? s.id : null;
@@ -378,6 +382,7 @@ export const View3D = () => {
     try { renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); }
     catch { failed = true; host.querySelector(".nogl")?.classList.add("on"); return; }
     renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+    renderer.setClearColor(new THREE.Color(css("--bg2")));
     host.prepend(renderer.domElement);
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = false;

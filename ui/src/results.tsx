@@ -11,6 +11,7 @@ import { results, stale, solving, show, setShowPart, curCase, setCaseId, setMode
 import { unit, toU } from "./units";
 import { supName } from "./panels";
 import { Icon } from "./ui";
+import { outputDialog } from "./output";
 
 export const [tableKind, setTableKind] = createSignal("summary");
 const TABLES: [string, string][] = [["summary", "Summary"], ["stress", "Code stresses"], ["disp", "Displacements"], ["forces", "Forces and moments"], ["supports", "Support loads"], ["nozzles", "Nozzle loads"], ["wall", "Minimum wall"], ["hangers", "Hangers"], ["equip", "Equipment"], ["flanges", "Flanges"], ["relief", "Relief"], ["soil", "Soil"], ["modes", "Modes"], ["equilibrium", "Equilibrium"]];
@@ -37,6 +38,7 @@ export const ResultsRibbon = () => {
     <G l="Show" h="results"><S><B i="contour" l="Stress Ratio Colours" on={show().colour} off={!r()} run={() => setShowPart({ colour: !show().colour })} /><B i="deform" l="Deformed Shape" on={show().deformed} off={!r()} run={() => setShowPart({ deformed: !show().deformed })} /><B i="play" l="Animate" on={show().anim} off={!r()} run={() => setShowPart({ anim: !show().anim, deformed: true })} /></S></G>
     <G l="Tables" h="results"><S><B i="table" l="Summary" off={!r()} run={() => openTable("summary")} /><B i="table" l="Code Stresses" off={!r()} run={() => openTable("stress")} /><B i="table" l="Displacements" off={!r()} run={() => openTable("disp")} /></S>
       <S><B i="table" l="Support Loads" off={!r()} run={() => openTable("supports")} /><B i="nozzle" l="Nozzle Loads" off={!r()} run={() => openTable("nozzles")} /><B i="table" l="Forces" off={!r()} run={() => openTable("forces")} /></S></G>
+    <G l="Output" h="results"><B big i="export" l="Output" off={!r()} run={outputDialog} title="Chosen cases and reports to a spreadsheet file (CSV)" /></G>
     <G l="Overstressed" h="code"><B big i="check" l="Next Overstress" off={!r()} run={nextOver} title="Select the next overstressed point, worst first" /><B big i="info" l="Overstressed" off={!r()} dd={e => { const list = over(); openMenu(e, list.length ? list.slice(0, 30).map(o => ({ label: `${o.label} · ${o.case} · ratio ${num(o.ratio, 3)}`, run: () => jump(o.node) })) : [{ label: "Nothing is overstressed", off: true }]); }} /></G>
   </>;
 };

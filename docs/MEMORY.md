@@ -546,6 +546,9 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 ### 2026-11-09: Session 2, continued (0.6.7: Home, checker)
 - UI: backstage.tsx `FOLDERS`, New tiles (`data-new`), search, Roadmap wide link; `C.newModel(example, after)`; `checker.tsx` (`findings`, `checkModel`); Analyze › Check Model; stale "planned for 0.4" Dynamics buttons made live; Uniform Load's odd message fixed. Tests' `open` uses the New tile for blank. Seven UI checks. The disk filled (cargo clean freed 19.5 GB).
 
+### 2026-11-09: Session 2, continued (0.6.8: output)
+- UI: `output.tsx` (`toCsv` with the formula guard, `outputDialog`); Results › Output. Real app: an empty model's view was black (ground now set at the top of `build` and when the renderer starts; a UI check reads a canvas pixel); the Results ribbon overflowed (label "Output"). Three UI checks.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.

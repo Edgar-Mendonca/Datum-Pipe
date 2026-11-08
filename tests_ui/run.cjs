@@ -626,6 +626,25 @@ const shots = process.env.SHOTS;
   check("an open end with a relief valve is not called a free end", !((await p.textContent(".dlg")) ?? "").includes("free end"), (await p.textContent(".dlg")) ?? "");
   await p.keyboard.press("Escape"); await p.waitForTimeout(100);
 
+  // 0.6.8: output: the chosen cases and reports as one spreadsheet file.
+  await open("steam");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.tabs > button:text-is("Results")'); await p.waitForTimeout(150);
+  await p.click('.ribbon button[title^="Chosen cases and reports"]'); await p.waitForTimeout(250);
+  check("the output dialog lists the cases and the reports", (await p.$$(".dlg .outgrid input[type=checkbox]")).length >= 13 + 4);
+  await p.click('.dlg button:has-text("None")'); await p.waitForTimeout(80);
+  await p.click('.dlg .outgrid label:has-text("EXP1") input'); await p.waitForTimeout(80);
+  await p.click('.dlg button:has-text("Save as a spreadsheet")'); await p.waitForTimeout(250);
+  { const data = await p.evaluate(() => window.__calls.filter(c => c[0] === "save_file").map(c => c[1]).pop());
+    const csv = data?.data ?? "";
+    check("the file has the chosen case's stresses and support loads, with units", (data?.name ?? "").endsWith(".csv") && csv.includes("Code stresses") && csv.includes("Stress (MPa)") && csv.includes("EXP1") && !csv.includes("SUS,") && csv.includes("Support loads") && csv.includes("LS-20"), csv.slice(0, 300)); }
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+
+  // Found in the real app (0.6.8): an empty model's 3D view was black.
+  await open("blank"); await p.waitForTimeout(300);
+  { const px = await p.evaluate(() => { const c = document.querySelector(".v3d canvas"); if (!c) return null; const t = document.createElement("canvas"); t.width = c.width; t.height = c.height; const x = t.getContext("2d"); x.drawImage(c, 0, 0); return Array.from(x.getImageData(5, 5, 1, 1).data); });
+    check("an empty model's 3D view has the light ground", !!px && px[0] > 200 && px[1] > 200 && px[2] > 200, JSON.stringify(px)); }
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

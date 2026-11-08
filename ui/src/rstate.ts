@@ -17,6 +17,12 @@ export type ShowRes = { colour: boolean; deformed: boolean; scale: number; anim:
 export const [show, setShow] = createSignal<ShowRes>({ colour: true, deformed: false, scale: 0, anim: false, tags: true });
 export const setShowPart = (s: Partial<ShowRes>) => setShow({ ...show(), ...s });
 
+/** What the 3D view colours the pipe by (0.6.4): a result (the stress ratio, the movement) or a
+ *  property (pipe size, material, line conditions, temperature, buried); "plain" is steel grey. */
+export type ColourBy = "ratio" | "move" | "size" | "material" | "cond" | "temp" | "soil" | "plain";
+export const [colourBy, setColourBy] = createSignal<ColourBy>("ratio");
+/** Solid pipe at its diameter, or its centre line. */
+export const [drawMode, setDrawMode] = createSignal<"solid" | "centre">("solid");
 /** The case shown: the chosen one, else the first expansion case, else the first. */
 export const curCase = (): CaseResult | null => {
   const r = results(); if (!r) return null;

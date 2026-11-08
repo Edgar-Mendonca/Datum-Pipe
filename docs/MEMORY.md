@@ -534,6 +534,9 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 ### 2026-11-09: Session 2, continued (0.6.3: tables, paste)
 - UI: console.tsx `NodesTable` (model nodes, sorted; found in the real app that geometry points at bends are on the arc), `SupportsTable`, `LoadsTable` (in-place edits via Set), `parseRows`/`pasteDialog` (DX DY DZ or From To DX DY DZ, display units, one `Op::Batch` of Adds). Seven UI checks; worked test that a Batch of id-0 Adds makes distinct elements.
 
+### 2026-11-09: Session 2, continued (0.6.4: bar above the view, colour by)
+- UI: `colourBy`/`drawMode` in rstate.ts; view3d.tsx `categories` (property colours, Okabe-Ito; temperature cold→hot), movement colours, `dark` (clear colour #1A2230, darker grid, `.v3d.dark` legend and labels), centre-line rods, `CtxBar` (case, colour by, Solid/Centre line, views) in `.vwrap` above the view (the old `.vbar` overlay is gone), `MoveLegend`, category legend. Seven UI checks. Real app: first shot used a stale ui/dist (build:ui before cargo build); the dark grid and labels fixed after looking.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.

@@ -389,11 +389,19 @@
       ]
     },
     {
-      "v": "0.6.4–0.6.9",
+      "v": "0.6.4",
+      "title": "The new window: the bar above the view and colour by",
+      "when": "Done",
+      "items": [
+        "Case, colour by any result or property, solid or centre line and the views in one bar; results on a dark ground"
+      ]
+    },
+    {
+      "v": "0.6.5–0.6.9",
       "title": "The new window, step by step",
       "when": "Next",
       "items": [
-        "Colour by any result or property; results you can click; the player; graphs; Home with examples in folders; the model checker; output to Excel"
+        "Results you can click; the player; graphs; Home with examples in folders; the model checker; output to Excel"
       ]
     },
     {

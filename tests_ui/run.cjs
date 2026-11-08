@@ -550,6 +550,26 @@ const shots = process.env.SHOTS;
   { const op = await lastOp(); const adds = op?.Batch ?? [];
     check("pasted rows are added as elements from the last node, in metres", adds.length === 2 && adds[0].Add.item.Element.from === 70 && Math.abs(adds[0].Add.item.Element.d[0] - 6) < 1e-9 && adds[1].Add.item.Element.from === adds[0].Add.item.Element.to && Math.abs(adds[1].Add.item.Element.d[2] + 3) < 1e-9, JSON.stringify(op).slice(0, 300)); }
 
+  // 0.6.4: the bar above the view: case, colour by, solid or centre line, views; the dark results view.
+  await open("buried");
+  check("the bar above the view has the case, colour by, draw and the views", !!(await p.$(".ctxbar .cbpick")) && !!(await p.$(".ctxbar .casepick")) && ((await p.textContent(".ctxbar")) ?? "").includes("Centre line") && !!(await p.$('.ctxbar button:text-is("Iso")')));
+  await p.selectOption(".ctxbar .cbpick", "soil"); await p.waitForTimeout(250);
+  { const t = (await p.textContent(".legend3d")) ?? "";
+    check("colour by buried lists the soil and above ground", t.includes("Buried in Medium dense sand") && t.includes("Above ground"), t); }
+  await p.selectOption(".ctxbar .cbpick", "size"); await p.waitForTimeout(250);
+  check("colour by pipe size names the size", ((await p.textContent(".legend3d")) ?? "").includes('8" Sch 40'));
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.selectOption(".ctxbar .cbpick", "ratio"); await p.waitForTimeout(250);
+  check("results are shown on a dark ground", await p.$eval(".v3d", e => e.classList.contains("dark")));
+  await p.selectOption(".ctxbar .casepick", { label: "SUS" }); await p.waitForTimeout(250);
+  check("the case picked above the view is the case shown", ((await p.textContent(".legend3d")) ?? "").includes("SUS"));
+  await p.selectOption(".ctxbar .cbpick", "move"); await p.waitForTimeout(250);
+  check("colour by movement gives the largest movement", ((await p.textContent(".legend3d")) ?? "").includes("Largest"));
+  await p.click('.ctxbar button:text-is("Centre line")'); await p.waitForTimeout(200);
+  check("centre line is chosen", await p.$eval('.ctxbar button:text-is("Centre line")', e => e.classList.contains("on")));
+  await p.click('.ctxbar button:text-is("Solid")'); await p.waitForTimeout(150);
+  await p.selectOption(".ctxbar .cbpick", "ratio"); await p.waitForTimeout(150);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

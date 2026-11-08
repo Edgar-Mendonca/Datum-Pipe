@@ -916,3 +916,26 @@ tr.behind td { background: var(--err-bg); }
 .ptable tbody tr { cursor: default; }
 .ptable input:not(.n):not(.mono) { width: 100%; }
 textarea.paste { width: 100%; box-sizing: border-box; min-height: 160px; font: 12px var(--mono); }
+
+/* ---------- 0.6.4: the bar above the 3D view, colour by, the dark results view ---------- */
+.ctxbar { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 11.5px; white-space: nowrap; flex: none; overflow: hidden; }
+.ctxbar label { color: var(--muted); }
+.ctxbar .sep { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+.ctxbar .grow { flex: 1; }
+.ctxbar select { height: 21px; font-size: 11.5px; padding: 0 4px; max-width: 200px; }
+.ctxbar .seg { display: inline-flex; border: 1px solid var(--line); background: var(--bg2); }
+.ctxbar .seg button { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-right: 1px solid var(--line2); color: var(--text2); }
+.ctxbar .seg button:last-child { border-right: 0; }
+.ctxbar .seg button:hover { background: var(--pale); color: var(--blue); }
+.ctxbar .seg button.on { background: var(--sel); color: var(--blue2); font-weight: 500; }
+.ctxbar .seg.vbar { position: static; border-color: var(--line); }
+.ctxbar .seg.vbar button { font: 500 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.legend3d .catrow { display: flex; align-items: center; gap: 6px; }
+.legend3d .catrow i { width: 14px; height: 10px; flex: none; }
+.v3d.dark .legend3d { background: rgba(16, 24, 35, .92); border-color: #2F4157; color: #E6EDF5; }
+.v3d.dark .legend3d b { color: #8D9AAB; }
+.v3d.dark .nlabel { color: #E6EDF5; background: rgba(16, 24, 35, .7); }
+.v3d.dark .nlabel.on { color: #101823; background: #A3D65C; }
+.v3d.dark .lbar i small, .v3d.dark .legend3d em { color: #B8C4D2; }
+.v3d.dark .axes3d { filter: brightness(1.4); }
+.ipop { top: 8px; }

@@ -16,7 +16,7 @@ import { TitleBar, Ribbon, palette } from "./ribbon";
 import { Backstage, update, checkUpdate } from "./backstage";
 import { ElementTable } from "./table";
 import { Inspector } from "./panels";
-import { View3D } from "./view3d";
+import { View3D, CtxBar } from "./view3d";
 import { ResultsPage } from "./results";
 import { IsoPage } from "./iso";
 import { ReportPage, setVesselBlocks } from "./report";
@@ -104,7 +104,7 @@ const App = () => {
         <Flow />
         <div class="content">
           <Show when={out()}>
-            <Switch fallback={<div class="modelview"><Tree /><div class="center"><div class="vwrap"><View3D /><Show when={cardOpen() || sel()}><div class="ipop"><Inspector /></div></Show></div><ElementTable /></div></div>}>
+            <Switch fallback={<div class="modelview"><Tree /><div class="center"><div class="vwrap"><CtxBar /><View3D /><Show when={cardOpen() || sel()}><div class="ipop"><Inspector /></div></Show></div><ElementTable /></div></div>}>
               <Match when={view() === "results"}><ResultsPage /></Match>
               <Match when={view() === "iso"}><IsoPage /></Match>
               <Match when={view() === "report"}><ReportPage /></Match>

@@ -11,7 +11,7 @@ import { Geom, Model, Seg, V3, num } from "./api";
 import { out, model, sel, setSel, opts, themeTick, openMenu, act, Item } from "./store";
 import { C, setFit, setStdView, SUPPORTS } from "./cmds";
 import { COMPS, compFrom, compKey } from "./table";
-import { results, stale, show, curCase, segRatios, setShowPart, modeNo, setModeNo } from "./rstate";
+import { results, stale, show, curCase, segRatios, setShowPart, modeNo, setModeNo, colourBy, setColourBy, drawMode, setDrawMode, setCaseId, ColourBy } from "./rstate";
 import { fmt } from "./units";
 
 type Vec = [number, number, number];
@@ -52,6 +52,28 @@ class ArcCurve extends THREE.Curve<THREE.Vector3> {
 
 let fitNow: () => void = () => {};
 
+/** The family's colour-blind-safe series colours (FAMILY §7, Okabe-Ito). */
+const SERIES = ["#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9", "#F0E442", "#000000"];
+/** Colour by a property (0.6.4): each segment's category and the legend's rows. Temperatures are
+ *  ordered and coloured cold to hot; the rest take the series colours in the model's order. */
+export const categories = (m: Model | undefined, g: Geom | null | undefined, cb: string): { colourOf: (si: number) => string; items: [string, string][] } | null => {
+  if (!m || !g || !["size", "material", "cond", "temp", "soil"].includes(cb)) return null;
+  const el = new Map(m.elements.map(e => [e.id, e]));
+  const key = (si: number): string => {
+    const sg = g.segs[si];
+    if (cb === "size") return m.pipes.find(p => p.id === sg.pipe)?.name ?? "?";
+    if (cb === "material") return m.materials.find(x => x.id === sg.material)?.name.split(",")[0] ?? "?";
+    if (cb === "cond") return m.conds.find(x => x.id === sg.cond)?.name ?? "?";
+    if (cb === "temp") { const c = m.conds.find(x => x.id === sg.cond); return c ? `${fmt("temp", c.t[0])}` : "?"; }
+    const s = el.get(sg.element)?.soil; return s ? `Buried in ${m.soils?.find(x => x.id === s)?.name ?? "soil"}` : "Above ground";
+  };
+  const keys = g.segs.map((_, si) => key(si));
+  let order = [...new Set(keys)];
+  if (cb === "temp") { const tOf = (k: string) => m.conds.find(c => fmt("temp", c.t[0]) === k)?.t[0] ?? 0; order = order.sort((a, b) => tOf(a) - tOf(b)); }
+  const colour = new Map(order.map((k, i) => [k, cb === "temp" ? ratioColour(order.length > 1 ? i / (order.length - 1) : 0.5) : cb === "soil" && k === "Above ground" ? "#9AA5B1" : SERIES[i % SERIES.length]]));
+  return { colourOf: si => colour.get(keys[si])!, items: order.map(k => [k, colour.get(k)!]) };
+};
+
 export const View3D = () => {
   let host!: HTMLDivElement, labels!: HTMLDivElement;
   let renderer: THREE.WebGLRenderer | null = null;
@@ -65,6 +87,7 @@ export const View3D = () => {
   let deform: [THREE.BufferAttribute, Float32Array, Float32Array][] = [];
   let ampl = 1;
   let failed = false;
+  let dark = false;
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.6));
   const sun = new THREE.DirectionalLight(0xffffff, 1.4);
   sun.position.set(3, 5, 4);
@@ -105,7 +128,15 @@ export const View3D = () => {
     const md = res && modeNo() !== null ? res.modes?.[modeNo()!] ?? null : null;
     modeShown = !!md;
     const dsrc = md ? md.shape : c?.disp ?? null;
-    const ratios = res && show().colour && !md ? segRatios(c, g.segs.length) : null;
+    // Colour by (0.6.4): a result needs an analysis that is up to date; a property needs none.
+    const cb = colourBy();
+    const ratios = res && show().colour && !md && cb === "ratio" ? segRatios(c, g.segs.length) : null;
+    const moves = res && c && !md && cb === "move" ? g.segs.map(sg => Math.max(Math.hypot(...(c.disp[sg.a] ?? [0, 0, 0]).slice(0, 3) as [number, number, number]), Math.hypot(...(c.disp[sg.b] ?? [0, 0, 0]).slice(0, 3) as [number, number, number]))) : null;
+    const mmax = moves ? Math.max(1e-12, ...moves) : 1;
+    const cat = categories(m, g, cb);
+    dark = !!(ratios || moves);
+    host?.classList.toggle("dark", dark);
+    if (renderer) renderer.setClearColor(new THREE.Color(dark ? "#1A2230" : css("--bg2")));
     // Deformed shape: the case's displacements (or the mode's), scaled so the largest shows as 4 %
     // of the model (8 % for a mode, whose size has no meaning).
     const ext = extent(g);
@@ -125,7 +156,8 @@ export const View3D = () => {
     const buried = new Set((model()?.elements ?? []).filter(e => e.soil).map(e => e.id));
     const matFor = (si: number, sg: Seg) => {
       if (sg.element === selEl) return selMat;
-      if (ratios) { const col = ratioColour(ratios[si]); if (!colourMats.has(col)) colourMats.set(col, new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 })); return colourMats.get(col)!; }
+      const col = ratios ? ratioColour(ratios[si]) : moves ? ratioColour(moves[si] / mmax) : cat ? cat.colourOf(si) : null;
+      if (col) { if (!colourMats.has(col)) colourMats.set(col, new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 })); return colourMats.get(col)!; }
       return sg.rigid ? darkMat : buried.has(sg.element) ? soilMat : steel;
     };
     const dispAt = (sg: Seg, f: number): Vec => {
@@ -137,7 +169,9 @@ export const View3D = () => {
     const big = g.segs.length > 600, rad = big ? 10 : 20, arcSteps = big ? 6 : 16;
     g.segs.forEach((sg, si) => {
       const p = pipeOf(sg.pipe), pb = pipeOf(sg.pipe_b) ?? p; if (!p) return;
-      const r0 = p.od / 2, r1 = (pb?.od ?? p.od) / 2;
+      // Centre line: a thin rod in place of the pipe (0.6.4).
+      const thin = drawMode() === "centre" ? Math.max(ext * 0.0015, 0.004) : 0;
+      const r0 = thin || p.od / 2, r1 = thin || (pb?.od ?? p.od) / 2;
       const curve = new ArcCurve(f => segAt(g, sg, f)[0]);
       const steps = sg.shape.kind === "arc" ? arcSteps : 1;
       let geo: THREE.BufferGeometry;
@@ -156,7 +190,7 @@ export const View3D = () => {
       mesh.userData = { element: sg.element };
       group.add(mesh); pickables.push(mesh);
       if (ampl > 0) addDeform(geo, sg, dispAt);
-      if (p.ins_t > 0) { const ro = r0 + p.ins_t + p.clad_t, ig = sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, ro, rad, false) : straight(ro, ro); group.add(new THREE.Mesh(ig, insMat)); if (ampl > 0) addDeform(ig, sg, dispAt); }
+      if (p.ins_t > 0 && !thin) { const ro = r0 + p.ins_t + p.clad_t, ig = sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, ro, rad, false) : straight(ro, ro); group.add(new THREE.Mesh(ig, insMat)); if (ampl > 0) addDeform(ig, sg, dispAt); }
       if (sg.rigid) rigidSymbol(sg, r0);
       if (sg.bellows) bellowsSymbol(sg, r0);
     });
@@ -211,7 +245,7 @@ export const View3D = () => {
     // A ground grid under the model.
     const lo = Math.min(...g.points.map(p => p.p[1])) - Math.max(od0 * 2, ext * 0.05);
     const size = Math.pow(10, Math.ceil(Math.log10(Math.max(ext * 1.6, 1))));
-    const grid = new THREE.GridHelper(size, Math.min(100, Math.round(size / Math.pow(10, Math.floor(Math.log10(size)) - 1))), new THREE.Color(css("--line3")), new THREE.Color(css("--line2")));
+    const grid = new THREE.GridHelper(size, Math.min(100, Math.round(size / Math.pow(10, Math.floor(Math.log10(size)) - 1))), new THREE.Color(dark ? "#3A4757" : css("--line3")), new THREE.Color(dark ? "#253041" : css("--line2")));
     const cx = (bounds(g)[0][0] + bounds(g)[1][0]) / 2, cz = (bounds(g)[0][2] + bounds(g)[1][2]) / 2;
     grid.position.set(Math.round(cx), lo, Math.round(cz)); group.add(grid);
     batch();
@@ -404,7 +438,7 @@ export const View3D = () => {
       renderer?.dispose(); renderer?.forceContextLoss(); renderer = null;
     });
   });
-  createEffect(on([() => out(), sel, results, stale, show, () => opts().labels, () => opts().contours, () => opts().deform, themeTick], () => { if (!failed) { if (renderer) renderer.setClearColor(new THREE.Color(css("--bg2"))); build(); } }, { defer: true }));
+  createEffect(on([() => out(), sel, results, stale, show, colourBy, drawMode, curCase, () => opts().labels, () => opts().contours, () => opts().deform, themeTick], () => { if (!failed) { build(); if (renderer) renderer.setClearColor(new THREE.Color(dark ? "#1A2230" : css("--bg2"))); } }, { defer: true }));
   // The model's first elements: fit as it grows from nothing.
   createEffect(on(() => out()?.geom?.points.length ?? 0, (n, prev) => { if (renderer && (prev ?? 0) < 2 && n >= 2) setTimeout(fit, 20); }, { defer: true }));
 
@@ -415,21 +449,44 @@ export const View3D = () => {
       <Show when={!model()?.elements.length}><div class="empty"><b>Route the piping</b><span>Type the first element in the table below: its length in DX (east), DY (up) or DZ (south). It draws here at once, at its true diameter.</span></div></Show>
       <Show when={out()?.geom_error}><div class="geoerr">{out()!.geom_error}</div></Show>
       <Show when={out()?.geom?.warnings.length}><div class="geowarn">{out()!.geom!.warnings.join(" ")}</div></Show>
-      <ViewBar />
-      <Show when={results() && !stale() && show().colour}><Legend /></Show>
+      <Show when={results() && !stale() && (show().colour && colourBy() === "ratio" || modeNo() !== null)}><Legend /></Show>
+      <Show when={results() && !stale() && colourBy() === "move" && modeNo() === null}><MoveLegend /></Show>
+      <Show when={categories(model(), out()?.geom, colourBy())}>{c => <div class="legend3d"><b>{CB.find(x => x[0] === colourBy())?.[1]}</b><For each={c().items}>{([k, col]) => <span class="catrow"><i style={{ background: col }} />{k}</span>}</For></div>}</Show>
       <Show when={results() && stale()}><div class="stalebar3d">The model changed since the analysis: press F5 to analyze again.</div></Show>
       <div class="axes3d"><span style={{ color: "#D64545" }}>X east</span><span style={{ color: "#3BB273" }}>Y up</span><span style={{ color: "#2B6FD6" }}>Z south</span></div>
     </div>
   );
 };
 
-/** View buttons over the 3D view. */
-const ViewBar = () => (
-  <div class="vbar">
-    <For each={[["iso", "Iso"], ["plan", "Plan"], ["front", "Front"], ["side", "Side"]]}>{([k, l]) => <button title={`${l} view`} onClick={() => C.std(k)}>{l}</button>}</For>
-    <button title="Fit the model (F)" onClick={() => fitNow()}>Fit</button>
+/** What the pipe can be coloured by (0.6.4). */
+export const CB: [ColourBy, string][] = [["ratio", "Stress ratio"], ["move", "Movement"], ["size", "Pipe size"], ["material", "Material"], ["cond", "Line conditions"], ["temp", "Temperature (case 1)"], ["soil", "Buried or not"], ["plain", "Plain"]];
+
+/** The bar above the 3D view (0.6.4, after Datum Mesh): the case, colour by, solid or centre line,
+ *  the standard views and fit. */
+export const CtxBar = () => (
+  <div class="ctxbar">
+    <label>Case</label>
+    <select class="casepick" disabled={!results()} onChange={e => setCaseId(+e.currentTarget.value)} title={results() ? "The load case the view shows" : "Analyze (F5) to choose a case"}>
+      <Show when={results()} fallback={<option>—</option>}><For each={results()!.cases}>{c => <option value={c.id} selected={c.id === curCase()?.id}>{c.name}</option>}</For></Show>
+    </select>
+    <span class="sep" />
+    <label>Colour by</label>
+    <select class="cbpick" onChange={e => setColourBy(e.currentTarget.value as ColourBy)}><For each={CB}>{([k, l]) => <option value={k} selected={k === colourBy()}>{l}</option>}</For></select>
+    <span class="sep" />
+    <span class="seg"><button classList={{ on: drawMode() === "solid" }} onClick={() => setDrawMode("solid")}>Solid</button><button classList={{ on: drawMode() === "centre" }} onClick={() => setDrawMode("centre")}>Centre line</button></span>
+    <span class="grow" />
+    <span class="seg vbar"><For each={[["iso", "Iso"], ["plan", "Plan"], ["front", "Front"], ["side", "Side"]]}>{([k, l]) => <button title={`${l} view`} onClick={() => C.std(k)}>{l}</button>}</For><button title="Fit the model (F)" onClick={() => fitNow()}>Fit</button></span>
   </div>
 );
+
+/** The movement's colours: none to the largest of the case. */
+const MoveLegend = () => {
+  const c = () => curCase();
+  const top = () => { const x = c(); return x ? Math.max(0, ...x.disp.map(d => Math.hypot(d[0], d[1], d[2]))) : 0; };
+  return <div class="legend3d"><b>Movement · {c()?.name}</b>
+    <div class="lbar"><For each={[0, 0.2, 0.4, 0.6, 0.8]}>{v => <i style={{ background: ratioColour(v + 0.1) }}><small>{fmt("disp", top() * v)}</small></i>}</For><i style={{ background: ratioColour(1) }}><small>{fmt("disp", top())}</small></i></div>
+    <span>Largest {fmt("disp", top())}</span></div>;
+};
 
 const Legend = () => {
   const c = () => curCase();

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.4 — 2026-11-09
+
+The new window, step 4: the bar above the view and colour by.
+
+**The bar above the 3D view.** The load case the view shows, what the pipe is coloured by, Solid or Centre line, and the standard views and Fit now sit in one bar above the view (they were spread over the ribbon and the corner of the view).
+
+**Colour by.** Stress ratio (as before), Movement (each piece by how far it moves in the case, with the largest), Pipe size, Material, Line conditions, Temperature (case 1, cold to hot) or Buried or not, each with its own legend; Plain draws steel grey. Property colours use the family's colour-blind-safe set.
+
+**Results on a dark ground.** A result on the pipe (stress ratio or movement) is drawn on a dark ground with a faint grid, and its legend becomes a dark card in the view, so the colours stand out.
+
+**Centre line.** The pipe can be drawn as its centre line, a thin rod, to see a dense model's route.
+
 ## 0.6.3 — 2026-11-09
 
 The new window, step 3: tables and paste from Excel.

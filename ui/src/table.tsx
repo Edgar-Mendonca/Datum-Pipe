@@ -3,7 +3,8 @@
 // sends one edit to the engine. The selected row follows the 3D view and the other way round.
 import { For, Index, Show, createSignal, createMemo, createEffect, on } from "solid-js";
 import { Element, Comp, Model, num, parseNum } from "./api";
-import { model, act, sel, setSel, toast } from "./store";
+import { model, act, sel, setSel, toast, ptab } from "./store";
+import { PanelTabs, Messages, SolverLog } from "./console";
 import { toU, fromU, unit, parseQ } from "./units";
 import { Help } from "./help";
 
@@ -103,8 +104,11 @@ export const ElementTable = () => {
   return (
     <section class="etable" style={{ height: `${tableH()}px` }}>
       <div class="ehandle" onPointerDown={resize} title="Drag to resize" />
-      <header><b>Elements</b><Help k="table" /><span class="muted">{m().elements.length} elements · {m().nodes.length} nodes · {num(toU("coord", total()), 5)} {unit("coord")} of pipe</span><span class="grow" />
-        <span class="muted small">Lengths in {unit("coord")} · Y is up</span></header>
+      <header><PanelTabs /><Help k="table" /><Show when={ptab() === "elements"}><span class="muted">{m().elements.length} elements · {m().nodes.length} nodes · {num(toU("coord", total()), 5)} {unit("coord")} of pipe</span><span class="grow" />
+        <span class="muted small">Lengths in {unit("coord")} · Y is up</span></Show></header>
+      <Show when={ptab() === "messages"}><Messages /></Show>
+      <Show when={ptab() === "log"}><SolverLog /></Show>
+      <Show when={ptab() === "elements"}>
       <div class="escroll" ref={scroller} onScroll={e => setTop(e.currentTarget.scrollTop)}>
         <table class="egrid">
           <thead><tr><th class="rn">#</th><th>From</th><th>To</th><th>DX</th><th>DY</th><th>DZ</th><th>Length</th><th>Pipe</th><th>Material</th><th>Conditions</th><th>Component</th></tr></thead>
@@ -136,6 +140,7 @@ export const ElementTable = () => {
         </table>
         <Show when={!m().elements.length}><div class="etip"><b>Start here.</b> Type the first element's length in DX (east), DY (up) or DZ (south) in the row above. Node 10 is at the origin.</div></Show>
       </div>
+      </Show>
     </section>
   );
 };

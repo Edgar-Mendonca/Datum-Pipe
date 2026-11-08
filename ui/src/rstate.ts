@@ -2,12 +2,14 @@
 // the 3D view shows (stress ratio colours, the deformed shape and its scale).
 import { createSignal, batch } from "solid-js";
 import { Results, CaseResult, invoke, num } from "./api";
-import { model, toast, onEditHook, onLoadHook, setTab, opts, setSel, setView } from "./store";
+import { model, toast, onEditHook, onLoadHook, setTab, opts, setSel, setView, note } from "./store";
 import { setSolve } from "./cmds";
 
 export const [results, setResults] = createSignal<Results | null>(null);
 export const [stale, setStale] = createSignal(false);
 export const [solving, setSolving] = createSignal(false);
+/** The solver's log (0.6.1): one line per solve, with what it took. */
+export const [solverLog, setSolverLog] = createSignal<string[]>([]);
 export const [caseId, setCaseId] = createSignal<number | null>(null);
 /** The natural mode drawn in the 3D view (its index), or none: then the load case's shape. */
 export const [modeNo, setModeNo] = createSignal<number | null>(null);
@@ -38,7 +40,7 @@ onLoadHook(() => {
 
 /** Run the analysis. Quiet (after an edit, with Analyze automatically on): stay on the tab you are
  *  on, and only speak up when something is wrong or has changed. */
-let lastQuiet = "";
+let lastQuiet = "", lastLogged = "";
 const solve = async (quiet = false) => {
   if (solving() || !model()) return;
   setSolving(true);
@@ -51,13 +53,19 @@ const solve = async (quiet = false) => {
     const ms = r.stats.ms < 1 ? "under 1 ms" : r.stats.ms < 2000 ? `${Math.round(r.stats.ms)} ms` : `${(r.stats.ms / 1000).toFixed(1)} s`;
     const msg = `Analyzed ${r.cases.length} load cases (${r.stats.equations} equations) in ${ms}. ${bad.length ? `The reactions do not balance the loads in ${bad.map(c => c.name).join(", ")}: see Results.` : "Reactions balance the loads in every case."} ${worst > 0 ? `Highest stress ratio ${num(worst, 3)}${fails ? `: ${fails} checks fail.` : ", every check passes."}` : ""}`;
     const text = [...r.warnings, msg].join(" ");
+    // Messages keep what changed: every solve asked for, and a quiet one only when its findings differ.
+    const key = text.replace(/ in [\d.]+ (ms|s)\.| in under 1 ms\./, "");
+    if (!quiet || key !== lastLogged) { for (const w of r.warnings) note(w, "warn"); note(msg.trim(), "solve"); }
+    lastLogged = key;
+    setSolverLog(l => [...l.slice(-199), `${new Date().toLocaleTimeString()}  ${r.cases.length} load cases · ${r.stats.equations} equations · ${r.stats.nonzeros} stored entries · residual ${r.stats.residual.toExponential(1)} · ${ms}`, ...r.cases.filter(c => c.iterations > 1).map(c => `          ${c.name}: the one-way, gapped and friction supports and the soil settled in ${c.iterations} solves`), ...(r.modes?.length ? [`          ${r.modes.length} natural modes, the lowest ${num(r.modes[0].freq, 4)} Hz`] : [])]);
     const good = !r.warnings.length && !bad.length && !fails;
-    if (!quiet) toast(text, good);
-    else if (!good && text.replace(/ in [\d.]+ (ms|s)\.| in under 1 ms\./, "") !== lastQuiet) toast(text, false);
+    if (!quiet) toast(text, good, false);
+    else if (!good && text.replace(/ in [\d.]+ (ms|s)\.| in under 1 ms\./, "") !== lastQuiet) toast(text, false, false);
     lastQuiet = good ? "" : text.replace(/ in [\d.]+ (ms|s)\.| in under 1 ms\./, "");
   } catch (e) {
     const s = String(e);
     setResults(null);
+    setSolverLog(l => [...l.slice(-199), `${new Date().toLocaleTimeString()}  not solved: ${s}`]);
     if (!quiet || s !== lastQuiet) toast(s);
     lastQuiet = s;
     // A model that can move freely: show where.

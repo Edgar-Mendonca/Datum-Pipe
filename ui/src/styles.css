@@ -851,3 +851,28 @@ tr.behind td { background: var(--err-bg); }
 .vsum b { font-size: 15px; }
 .nowrap { white-space: nowrap; }
 @media (max-width: 1100px) { .vgrid { grid-template-columns: 1fr; } }
+
+/* ---------- 0.6.1: the workflow bar, the title bar's facts, the bottom panel's tabs ---------- */
+.flow.side { width: 74px; padding-top: 6px; gap: 2px; }
+.flow.side button { padding: 8px 2px 7px; gap: 3px; }
+.flow.side button svg { width: 22px; height: 22px; }
+.flow.side button span { font: 500 9.5px var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+.flow.side button.done svg { color: var(--green); }
+.flow.side button.on svg { color: var(--blue); }
+.flow.side button.on span { font-weight: 600; }
+.top .title .facts { margin-left: 10px; font: 10.5px var(--mono); color: var(--muted); }
+.ptabs { display: flex; align-items: stretch; gap: 2px; margin: -5px 0 -5px -6px; height: 28px; }
+.ptabs button { display: flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--text2); border-bottom: 2px solid transparent; font-size: 12px; }
+.ptabs button:hover { color: var(--blue); }
+.ptabs button.on { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+.ptabs .badge { font: 600 10px var(--mono); font-style: normal; background: var(--amber); color: #fff; padding: 0 5px; border-radius: 7px; }
+.pbody { flex: 1; overflow: auto; background: var(--bg2); user-select: text; min-height: 0; }
+.pbody .pad { padding: 10px 12px; margin: 0; }
+.pbar { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--line2); position: sticky; top: 0; background: var(--bg2); }
+.msg { display: flex; gap: 10px; padding: 3px 10px; border-bottom: 1px solid var(--line2); font-size: 12px; align-items: baseline; }
+.msg time { font: 11px var(--mono); color: var(--muted); flex: none; }
+.msg b { font: 500 9.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); width: 44px; flex: none; }
+.msg.warn b { color: var(--warn-fg, #8A5A00); }
+.msg.ok b, .msg.solve b { color: var(--green); }
+.msg.edit b { color: var(--blue); }
+.slog pre { margin: 0; padding: 8px 12px; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; }

@@ -10,7 +10,7 @@ import "@fontsource/ibm-plex-mono/latin-500.css";
 import "@fontsource/ibm-plex-mono/latin-600.css";
 import "./styles.css";
 import { invoke, listen, Out, Options, Shown, Typed } from "./api";
-import { out, setOut, view, setView, View, backstage, setBackstage, setOpts, opts, dialogs, toast, loadOut, setThemeRaw, applyTheme, sel, model } from "./store";
+import { out, setOut, view, setView, View, backstage, setBackstage, setOpts, opts, dialogs, toast, loadOut, setThemeRaw, applyTheme, sel, model, tab, setTab } from "./store";
 import { C } from "./cmds";
 import { TitleBar, Ribbon, palette } from "./ribbon";
 import { Backstage, update, checkUpdate } from "./backstage";
@@ -25,9 +25,27 @@ setVesselBlocks(vesselReport);
 import { Menu, Toast, Icon } from "./ui";
 import { setUnitTable } from "./units";
 import * as D from "./dialogs";
-import { solving } from "./rstate";
+import { solving, results, stale } from "./rstate";
 
 const SIDE: ([View, string, string] | "-")[] = [["model", "model", "Model"], "-", ["results", "table", "Results"], ["iso", "iso", "Isometric"], ["vessel", "vessel", "Vessels"], ["report", "report", "Report"]];
+
+/** The workflow bar (0.6.1, after Datum Mesh): the steps of a piping analysis down the left, each
+ *  icon green once done, no numbers (the owner's choice). A click opens the step's ribbon tab and
+ *  view; Isometric and Vessels follow a rule. */
+type Step = { k: string; i: string; l: string; go: () => void; done: () => boolean; on: () => boolean };
+const STEPS: (Step | "-")[] = [
+  { k: "route", i: "pipe", l: "Route", go: () => { setView("model"); setTab("home"); }, done: () => !!model()?.elements.length, on: () => view() === "model" && tab() === "home" },
+  { k: "props", i: "material", l: "Pipes", go: () => { setView("model"); setTab("model"); }, done: () => !!model()?.elements.length, on: () => view() === "model" && tab() === "model" },
+  { k: "supports", i: "anchor", l: "Supports", go: () => { setView("model"); setTab("supports"); }, done: () => !!model()?.supports.length, on: () => view() === "model" && tab() === "supports" },
+  { k: "loads", i: "force", l: "Loads", go: () => { setView("model"); setTab("loads"); }, done: () => !!model()?.cases.length && !!model()?.elements.length, on: () => view() === "model" && tab() === "loads" },
+  { k: "analyze", i: "solve", l: "Analyze", go: () => { setView("model"); setTab("analyze"); C.analyze(); }, done: () => !!results() && !stale(), on: () => view() === "model" && tab() === "analyze" },
+  { k: "results", i: "table", l: "Results", go: () => { setView("results"); setTab("results"); }, done: () => !!results() && !stale(), on: () => view() === "results" },
+  { k: "report", i: "report", l: "Report", go: () => setView("report"), done: () => false, on: () => view() === "report" },
+  "-",
+  { k: "iso", i: "iso", l: "Isometric", go: () => { setView("iso"); setTab("isometric"); }, done: () => false, on: () => view() === "iso" },
+  { k: "vessel", i: "vessel", l: "Vessels", go: () => setView("vessel"), done: () => !!model()?.vessels?.length, on: () => view() === "vessel" },
+];
+const Flow = () => <nav class="flow side"><For each={STEPS}>{s => s === "-" ? <hr /> : <button classList={{ on: s.on(), done: s.done() }} onClick={s.go} title={s.l}><Icon n={s.i} /><span>{s.l}</span></button>}</For></nav>;
 
 const Status = () => (
   <footer class="status">
@@ -79,7 +97,7 @@ const App = () => {
       <TitleBar update={update()?.available ? update()!.latest : null} />
       <Ribbon />
       <main class="work">
-        <nav class="side"><For each={SIDE}>{x => x === "-" ? <hr /> : <button classList={{ on: view() === x[0] }} onClick={() => setView(x[0])} title={x[2]}><Icon n={x[1]} /><span>{x[2]}</span></button>}</For></nav>
+        <Flow />
         <div class="content">
           <Show when={out()}>
             <Switch fallback={<div class="modelview"><div class="center"><View3D /><ElementTable /></div><Inspector /></div>}>

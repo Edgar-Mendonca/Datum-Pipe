@@ -5,6 +5,7 @@ import { For, Show, JSX, createSignal, createMemo, onMount } from "solid-js";
 import { call, out, model, tab, setTab, setBackstage, openMenu, openDialog, closeDialog, theme, setTheme, sel, setSel, opts, setOpts, act, view, setView } from "./store";
 import { C, ALL_CMDS, SUPPORTS } from "./cmds";
 import { ResultsRibbon } from "./results";
+import { results, stale } from "./rstate";
 import { IsoRibbon } from "./iso";
 import * as D from "./dialogs";
 import * as P from "./props";
@@ -50,7 +51,7 @@ export const palette = () => openDialog(() => {
   );
 });
 
-export const TABS: [string, string][] = [["home", "Home"], ["model", "Model"], ["loads", "Loads"], ["supports", "Supports"], ["analyze", "Analyze"], ["results", "Results"], ["isometric", "Isometric"], ["view", "View"], ["help", "Help"]];
+export const TABS: [string, string][] = [["home", "Route"], ["model", "Properties"], ["loads", "Loads"], ["supports", "Supports"], ["analyze", "Analyze"], ["results", "Results"], ["isometric", "Isometric"], ["view", "View"], ["help", "Help"]];
 
 export const TitleBar = (p: { update: string | null }) => (
   <header class="top">
@@ -62,7 +63,7 @@ export const TitleBar = (p: { update: string | null }) => (
         <button title="Redo (Ctrl+Y)" disabled={!out()?.redo} onClick={C.redo}><Icon n="redo" /></button>
         <button title="Print (Ctrl+P)" onClick={C.print}><Icon n="print" /></button>
       </div>
-      <div class="title">{out() ? `${out()!.m.name}${out()!.dirty ? " •" : ""} — Datum Pipe` : "Datum Pipe"}</div>
+      <div class="title">{out() ? `${out()!.m.name}${out()!.dirty ? " •" : ""} — Datum Pipe` : "Datum Pipe"}<Show when={model()}>{m => <small class="facts">{docFacts(m())}</small>}</Show></div>
       <button class="search" onClick={palette} title="Tell me what you want to do (Ctrl+K)"><Icon n="search" /><span>Tell me what you want to do</span><kbd>Ctrl+K</kbd></button>
       <Show when={p.update}><button class="upd" onClick={() => setBackstage("about")}>Update {p.update} available</button></Show>
       <button class="theme" title="Theme: Auto follows Windows" onClick={() => setTheme(theme() === "auto" ? "light" : theme() === "light" ? "dark" : "auto")}>Theme · {theme()}</button>
@@ -74,6 +75,10 @@ export const TitleBar = (p: { update: string | null }) => (
     </nav>
   </header>
 );
+
+/** What the open file is, in a line for the title bar (0.6.1): code, units, size, and its analysis. */
+const CODE: Record<string, string> = { "b31.3": "B31.3", "b31.1": "B31.1", en13480: "EN 13480" };
+const docFacts = (m: NonNullable<ReturnType<typeof model>>) => [CODE[m.settings.code ?? "b31.3"] ?? "B31.3", m.units === "US" ? "US" : "SI", `${m.elements.length} elements`, `${m.supports.length} supports`, ...(m.vessels?.length ? [`${m.vessels.length} vessel${m.vessels.length > 1 ? "s" : ""}`] : []), results() ? (stale() ? "results out of date" : "analysed") : "not analysed"].join(" · ");
 
 /** The selected element, for the contextual Component tab. */
 const selEl = () => { const s = sel(), m = model(); return s?.kind === "element" && m ? m.elements.find(e => e.id === s.id) : undefined; };

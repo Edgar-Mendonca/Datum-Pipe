@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.1 — 2026-11-09
+
+The new window, step 1: the workflow bar and Messages.
+
+**The workflow bar.** The bar down the left now follows the work: Route, Pipes, Supports, Loads, Analyze, Results and Report, then Isometric and Vessels. Each step's icon turns green once it is done; a click opens its ribbon tab and view. The first two ribbon tabs are now called Route and Properties.
+
+**Messages and the solver log.** The panel at the bottom has tabs: Elements (the table, as before), Messages and Solver log. Messages keeps everything the window tells you with its time: each edit, each analysis, every warning and note, so a pop-up that vanished can be read again; a count on the tab says how many warnings came in since you last looked. The solver log has a line for every solve: the cases, the equations, how long it took, and the cases where supports or soil needed several solves to settle.
+
+**The title bar** says what the file is: its piping code, its units, how many elements and supports, and whether it is analysed or its results are out of date.
+
 ## 0.6.0 — 2026-11-02
 
 More codes, complete.

@@ -84,7 +84,7 @@ const shots = process.env.SHOTS;
   if (await p.$('.dlg header:has-text("Save changes?")')) { await p.click('.dlg button:has-text("Don\'t save")'); await p.waitForTimeout(250); }
   check("File › Export › Import calls the shell's import", await p.evaluate(() => window.__calls.some(c => c[0] === "import_pcf")));
   await p.keyboard.press("Escape"); await p.waitForTimeout(150);
-  check("ribbon tabs", JSON.stringify(await p.$$eval(".tabs > button:not(.file)", els => els.map(e => e.textContent))) === JSON.stringify(["Home", "Model", "Loads", "Supports", "Analyze", "Results", "Isometric", "View", "Help"]));
+  check("ribbon tabs", JSON.stringify(await p.$$eval(".tabs > button:not(.file)", els => els.map(e => e.textContent))) === JSON.stringify(["Route", "Properties", "Loads", "Supports", "Analyze", "Results", "Isometric", "View", "Help"]));
   check("the table says where to start", (await p.textContent(".etable")).includes("Start here"));
   check("the Inspector shows the model's settings", (await p.textContent(".insp")).includes("Installed temperature"));
   await p.click('.insp label.chk:has-text("Pressure elongation") input'); await p.waitForTimeout(200);
@@ -120,7 +120,7 @@ const shots = process.env.SHOTS;
   check("a support with nothing selected says to pick a node", (await p.textContent("#toast")).includes("Select a node"));
 
   // 6. Property dialogs: pipes with library sizes, materials with typical allowables marked.
-  await p.click('.tabs > button:text-is("Model")');
+  await p.click('.tabs > button:text-is("Properties")');
   await p.click('.ribbon button[title="Pipes"]'); await p.waitForTimeout(300);
   check("the pipes dialog offers the library sizes", (await p.$$eval(".dlg select option", els => els.map(e => e.textContent))).includes('24"'));
   await p.keyboard.press("Escape"); await p.waitForTimeout(100);
@@ -142,7 +142,7 @@ const shots = process.env.SHOTS;
   await p.keyboard.press("Escape"); await p.waitForTimeout(200);
   await p.click('.side button[title="Report"]'); await p.waitForTimeout(200);
   check("the Report view shows the input echo", (await p.textContent(".rsheet")).includes("Line conditions"));
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(150);
   await p.click(".etable .help"); await p.waitForTimeout(150);
   check("the ? beside the table opens its card", (await p.textContent(".dlg")).includes("DX, DY or DZ"));
   await p.keyboard.press("Escape");
@@ -189,7 +189,7 @@ const shots = process.env.SHOTS;
   await p.click('.rtabs button:text-is("Code stresses")'); await p.waitForTimeout(150);
   check("code stresses are shown in MPa", (await p.textContent(".rtable thead")).includes("MPa"));
   if (shots) await p.screenshot({ path: `${shots}/results.png` });
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(200);
   await p.click('.tabs > button:text-is("Help")');
   await p.click('.ribbon button[title="Verification"]'); await p.waitForTimeout(400);
   check("Help › Verification: every check passes", (await p.textContent(".dlg .verif")).includes(`${fix.verification.length} of ${fix.verification.length} checks pass`));
@@ -201,7 +201,7 @@ const shots = process.env.SHOTS;
 
   // The expansion loop wizard sends one Loop edit for the selected straight element.
   await p.click('.egrid tbody tr:nth-child(2) td.rn'); await p.waitForTimeout(150);
-  await p.click('.tabs > button:text-is("Model")');
+  await p.click('.tabs > button:text-is("Properties")');
   await p.click('.ribbon button[title="Turn the selected straight element into an expansion loop"]'); await p.waitForTimeout(250);
   check("the loop wizard draws the loop", !!(await p.$(".dlg .looppic path")));
   await p.click('.dlg .btn.pri'); await p.waitForTimeout(250);
@@ -222,10 +222,10 @@ const shots = process.env.SHOTS;
   await p.click('.ribbon button[title="The springs hangers are chosen from, and the load variation allowed"]'); await p.waitForTimeout(300);
   check("the spring table lists the generic sizes and says to use the supplier's", (await p.$$(".dlg .tbl tbody tr")).length === 60 && (await p.textContent(".dlg")).includes("supplier"));
   await p.keyboard.press("Escape"); await p.waitForTimeout(100);
-  await p.click('.tabs > button:text-is("Model")');
+  await p.click('.tabs > button:text-is("Properties")');
 
   // US units: lengths in feet, stresses in psi, the isometric in feet and inches.
-  await p.click('.tabs > button:text-is("Home")');
+  await p.click('.tabs > button:text-is("Route")');
   await p.click('.ribbon button[title="US: ft, in, lbf, psi"]'); await p.waitForTimeout(300);
   check("US units: the L-bend's 6000 mm leg shows as 19.685 ft", (await p.textContent(".egrid tbody tr:first-child")).includes("19.685") && (await p.textContent(".etable header")).includes("ft"));
   await p.click('.ribbon button[title="SI: mm, N, MPa, bar"]'); await p.waitForTimeout(200);
@@ -241,7 +241,7 @@ const shots = process.env.SHOTS;
   await p.click('.side button[title="Report"]'); await p.waitForTimeout(300);
   const rep = await p.textContent(".rsheet");
   check("the report has the stress summary, support and nozzle loads and the equilibrium", rep.includes("3. Stress summary") && rep.includes("4. Support loads") && rep.includes("5. Nozzle loads") && rep.includes("7. Equilibrium checks"));
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(200);
 
   // 11. The isometric: lines, dimensions, symbols, tags; it prints with the report.
   await p.click('.side button[title="Isometric"]'); await p.waitForTimeout(400);
@@ -252,7 +252,7 @@ const shots = process.env.SHOTS;
   check("the printout includes the isometric sheet", (await p.$$(".pprev .isosvg")).length >= 1);
   if (shots) await p.screenshot({ path: `${shots}/print.png` });
   await p.keyboard.press("Escape"); await p.waitForTimeout(200);
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(200);
 
   // 12. Every example opens, analyzes, draws its isometric and prints its report.
   for (const ex of fix.examples_list.filter(e => e.id !== "blank" && fix.models[e.id].m.elements.length)) {
@@ -264,7 +264,7 @@ const shots = process.env.SHOTS;
     await p.keyboard.press("Control+p"); await p.waitForTimeout(700);
     const pages = (await p.$$(".pprev .ppage")).length;
     await p.keyboard.press("Escape"); await p.waitForTimeout(200);
-    await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+    await p.click('.side button[title="Route"]'); await p.waitForTimeout(150);
     check(`${ex.name}: analyzes, draws its isometric, prints ${pages} pages`, ok && dims > 0 && pages >= 3, `${ok} ${dims} ${pages}`);
   }
 
@@ -276,7 +276,7 @@ const shots = process.env.SHOTS;
   await p.click('.ctabs button:has(b:text-is("OPE1"))'); await p.waitForTimeout(200);
   const eqText = await p.textContent(".results, body");
   check("Results › Equipment shows the turbine's criteria", eqText.includes("T-301") && eqText.includes("3F + 1M ≤ 500·De"), eqText.slice(0, 200));
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(150);
   await p.click('.tabs > button:text-is("Supports")');
   await p.click('.ribbon button[title^="Group nozzles into pumps"]'); await p.waitForTimeout(300);
   check("the equipment dialog lists the turbine and its criteria", ((await p.textContent(".dlg")) ?? "").includes("All nozzles resolved at") && (await p.$$(".dlg .eqcard")).length === 1);
@@ -289,7 +289,7 @@ const shots = process.env.SHOTS;
   await p.click('.rtabs button:text-is("Flanges")'); await p.waitForTimeout(200);
   await p.click('.ctabs button:has(b:text-is("OPE1"))'); await p.waitForTimeout(200);
   check("Results › Flanges shows the valve's equivalent pressure", (await p.$$(".rtable tbody tr")).length === 1 && (await p.textContent(".rtable thead")).includes("P_eq"));
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(150);
   await p.click('.tabs > button:text-is("Loads")');
   await p.click('.ribbon button[title^="Check flanged joints"]'); await p.waitForTimeout(300);
   check("the flange dialog lists the valve with its gasket and rating", (await p.$$(".dlg .tbl tbody tr")).length === 1 && ((await p.textContent(".dlg")) ?? "").includes("16M/(πG³)"));
@@ -303,7 +303,7 @@ const shots = process.env.SHOTS;
   check("Results › Relief shows the valve's thrust", (await p.$$(".rtable tbody tr")).length === 1 && ((await p.textContent(".rtable tbody")) ?? "").includes("PSV-1"));
   await p.click('.rtabs button:text-is("Code stresses")'); await p.waitForTimeout(200);
   check("the relief cases OPE1+RV and OCC RV are there", (await p.$$('.ctabs button:has(b:text-is("OCC RV"))')).length === 1 && (await p.$$('.ctabs button:has(b:text-is("OPE1+RV"))')).length === 1);
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(150);
   await p.click('.tabs > button:text-is("Loads")');
   await p.click('.ribbon button[title^="Relief valves discharging"]'); await p.waitForTimeout(300);
   check("the relief dialog lists the valve at its open end", (await p.$$(".dlg .tbl tbody tr")).length === 1 && ((await p.textContent(".dlg")) ?? "").includes("DLF"));
@@ -346,7 +346,7 @@ const shots = process.env.SHOTS;
   check("the occasional check reads ≤ 1.2 Sh", ((await p.textContent('.rtable tr:has(b:text-is("OCC WIN"))')) ?? "").includes("≤ 1.2 Sh"));
   await p.click('.side button[title="Report"]'); await p.waitForTimeout(300);
   check("the report names the power piping code", ((await p.textContent(".preport")) ?? "").includes("the power piping code (ASME B31.1)"));
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(200);
   await open("power");
   await p.selectOption("#pcode", "en13480"); await p.waitForTimeout(200);
   { const op = await lastOp(); check("choosing the European piping standard sends it with k 1.2", op?.SetSettings?.s?.code === "en13480" && op?.SetSettings?.s?.occ_k === 1.2); }
@@ -372,7 +372,7 @@ const shots = process.env.SHOTS;
   await p.click('.side button[title="Report"]'); await p.waitForTimeout(300);
   { const rep = (await p.textContent(".preport")) ?? "";
     check("the report has the soils and the soil loads", rep.includes("Soils (buried pipe)") && rep.includes("Soil loads on buried pipe")); }
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(200);
 
   // 17. Expansion joints: the example's joint in the Inspector, analysed, and on the isometric.
   await open("bellows");
@@ -383,7 +383,7 @@ const shots = process.env.SHOTS;
   await p.keyboard.press("F5"); await p.waitForTimeout(400);
   await p.click('.side button[title="Isometric"]'); await p.waitForTimeout(300);
   check("the isometric draws", (await p.$$(".isosvg path")).length > 5);
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(150);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(150);
 
   // 18. Wind by height and both directions: the Inspector's profile editor and the checkbox.
   await open("blank");
@@ -451,7 +451,7 @@ const shots = process.env.SHOTS;
 
   // Switching views many times releases the 3D view's GPU context each time (it ran out before 0.3.7).
   await open("pump");
-  for (let k = 0; k < 30; k++) { await p.click('.side button[title="Isometric"]'); await p.waitForTimeout(40); await p.click('.side button[title="Model"]'); await p.waitForTimeout(60); }
+  for (let k = 0; k < 30; k++) { await p.click('.side button[title="Isometric"]'); await p.waitForTimeout(40); await p.click('.side button[title="Route"]'); await p.waitForTimeout(60); }
   check("the 3D view survives 30 view switches", !!(await p.$(".v3d canvas, canvas")));
 
   // Natural modes: the setting, and the Modes tab (the steam rack's fixture is analysed with modes).
@@ -474,7 +474,7 @@ const shots = process.env.SHOTS;
   await p.click('.rtabs button:text-is("Equilibrium")'); await p.waitForTimeout(200);
   check("equilibrium says it does not apply to the combined spectrum", ((await p.textContent(".rtable")) ?? "").includes("not applicable (combined)"));
   check("equilibrium says HARM's values are amplitudes", ((await p.textContent('.rtable tr:has(td:text-is("HARM"))')) ?? "").includes("not applicable (amplitudes)"));
-  await p.click('.side button[title="Model"]'); await p.waitForTimeout(200);
+  await p.click('.side button[title="Route"]'); await p.waitForTimeout(200);
   check("Stop goes back to the load case", !((await p.textContent(".legend3d")) ?? "").includes("Mode 1"));
   await p.click('.side button[title="Report"]'); await p.waitForTimeout(300);
   { const rep = (await p.textContent(".preport")) ?? "";
@@ -488,6 +488,23 @@ const shots = process.env.SHOTS;
   check("the harmonic load can be removed and added back", !(await p.$("#harm-node")) && !!(await p.$('button:text-is("Harmonic load")')));
   await p.click('button:text-is("Harmonic load")'); await p.waitForTimeout(200);
   check("adding a harmonic load opens its editor", !!(await p.$("#harm-node")));
+
+  // 0.6.1: the workflow bar (no numbers), the title bar's facts, Messages and the solver log.
+  await open("steam");
+  { const steps = await p.$$eval(".flow button", els => els.map(e => e.textContent.trim()));
+    check("the workflow bar has the steps in order, without numbers", JSON.stringify(steps) === JSON.stringify(["Route", "Pipes", "Supports", "Loads", "Analyze", "Results", "Report", "Isometric", "Vessels"]) && !steps.some(t => /[0-9]/.test(t)), JSON.stringify(steps)); }
+  check("finished steps are marked done", (await p.$$(".flow button.done")).length >= 3);
+  check("the title bar says what the file is", ((await p.textContent(".top .title .facts")) ?? "").includes("B31.3 · SI · 7 elements"));
+  await p.click('.flow button[title="Supports"]'); await p.waitForTimeout(150);
+  check("a step opens its ribbon tab", (await p.textContent(".tabs > button.on")) === "Supports");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.flow button[title="Route"]'); await p.waitForTimeout(200);
+  await p.click('.ptabs button:has-text("Messages")'); await p.waitForTimeout(150);
+  check("Messages keeps the solve with its time", ((await p.textContent(".msgs")) ?? "").includes("Analyzed") && !!(await p.$(".msgs time")));
+  await p.click('.ptabs button:has-text("Solver log")'); await p.waitForTimeout(150);
+  check("the solver log has a line for the solve", ((await p.textContent(".slog")) ?? "").includes("equations"));
+  await p.click('.ptabs button:has-text("Elements")'); await p.waitForTimeout(150);
+  check("the Elements tab brings the table back", !!(await p.$(".egrid")));
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

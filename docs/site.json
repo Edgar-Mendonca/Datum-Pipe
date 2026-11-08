@@ -365,9 +365,25 @@
       ]
     },
     {
+      "v": "0.6.1",
+      "title": "The new window: workflow bar and Messages",
+      "when": "Done",
+      "items": [
+        "The workflow bar down the left, each finished step green; Messages and the solver log in the bottom panel; the title bar says what the file is"
+      ]
+    },
+    {
+      "v": "0.6.2–0.6.9",
+      "title": "The new window, step by step",
+      "when": "Next",
+      "items": [
+        "The model tree and the Inspector as a card over the view; node, support and load tables with paste from Excel; colour by any result or property; results you can click; the player; graphs; Home with examples in folders; the model checker; output to Excel"
+      ]
+    },
+    {
       "v": "0.7",
       "title": "More options",
-      "when": "Next",
+      "when": "Later",
       "items": [
         "Load combinations",
         "A sustained case with the operating support states",

@@ -37,7 +37,7 @@ export const [sel, setSel] = createSignal<Sel | null>(null);
 
 // ---------- editing ----------
 export const act = async (op: object | string, quiet = false): Promise<Out | null> => {
-  try { const o = await invoke<Out>("apply", { op }); setOut(o); onEdit(); return o; }
+  try { const o = await invoke<Out>("apply", { op }); setOut(o); note(describeOp(op), "edit"); onEdit(); return o; }
   catch (e) { if (!quiet) toast(String(e)); return null; }
 };
 /** What runs after every edit (results go out of date, vessels are checked again). Every hook runs:
@@ -58,9 +58,30 @@ export const loadOut = async (cmd: string, args?: object) => {
 };
 
 // ---------- messages, menus, dialogs ----------
+/** Messages (0.6.1): everything the window tells you, kept with its time (the bottom panel's
+ *  Messages tab), so a note that vanished can be read again. `kind`: note, ok, warn, edit, solve. */
+export type Note = { t: Date; text: string; kind: "note" | "ok" | "warn" | "edit" | "solve" };
+export const [log, setLog] = createSignal<Note[]>([]);
+export const [unread, setUnread] = createSignal(0);
+/** The bottom panel's tab: the element table, the messages or the solver's log. */
+export const [ptab, setPtabRaw] = createSignal<string>("elements");
+export const setPtab = (t: string) => { setPtabRaw(t); if (t === "messages") setUnread(0); };
+export const note = (text: string, kind: Note["kind"] = "note") => {
+  setLog(l => [...l.slice(-499), { t: new Date(), text, kind }]);
+  if ((kind === "warn") && ptab() !== "messages") setUnread(n => n + 1);
+};
 export const [msg, setMsg] = createSignal<{ text: string; ok: boolean } | null>(null);
 let timer = 0;
-export const toast = (text: string, ok = false) => { setMsg({ text, ok }); clearTimeout(timer); timer = window.setTimeout(() => setMsg(null), ok ? 3000 : 7000); };
+export const toast = (text: string, ok = false, keep = true) => { setMsg({ text, ok }); if (keep) note(text, ok ? "ok" : "warn"); clearTimeout(timer); timer = window.setTimeout(() => setMsg(null), ok ? 3000 : 7000); };
+/** An edit in words, for the Messages tab. */
+const VERB: Record<string, string> = { Add: "Added", Set: "Changed", Delete: "Deleted", Split: "Inserted a node", Loop: "Added an expansion loop", Renumber: "Renumbered the nodes", Duplicate: "Copied", SetSettings: "Changed the settings", SetCases: "Changed the load cases", RecommendCases: "Rebuilt the load cases", SetVessels: "Changed the vessels", SetReliefs: "Changed the relief valves", SetSoils: "Changed the soils", SetEquipment: "Changed the equipment", SetFlanges: "Changed the flange checks", SetProject: "Changed the title block", Move: "Moved" };
+export const describeOp = (op: object | string): string => {
+  const k = typeof op === "string" ? op : Object.keys(op)[0] ?? "Edit";
+  const body = typeof op === "string" ? null : (op as any)[k];
+  const item = body && typeof body === "object" && body.item ? Object.keys(body.item)[0] : null;
+  const verb = VERB[k] ?? k.replace(/([a-z])([A-Z])/g, "$1 $2");
+  return item ? `${verb} ${item.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}` : verb;
+};
 export type Item = { label: string; run?: () => void; keys?: string; off?: boolean; on?: boolean; sub?: Item[]; icon?: string } | "-";
 export const [menu, setMenu] = createSignal<{ x: number; y: number; items: Item[] } | null>(null);
 export const openMenu = (e: MouseEvent | { x: number; y: number }, items: Item[]) => {

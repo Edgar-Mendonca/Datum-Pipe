@@ -61,7 +61,9 @@ const shots = process.env.SHOTS;
   const lastOp = async () => (await ops()).slice(-1)[0];
   const open = async id => {
     await p.evaluate(() => document.querySelector(".tabs .file").click()); await p.waitForTimeout(150);
-    const n = fix.examples_list.find(e => e.id === id).name; await p.click(`.home .tile:has(b:text-is("${n}"))`); await p.waitForTimeout(250);
+    // 0.6.7: the blank model is the New tile "Piping model"; the examples are in folders below it.
+    if (id === "blank") await p.click('.home .tile[data-new="blank"]'); else { const n = fix.examples_list.find(e => e.id === id).name; await p.click(`.home .tile:has(b:text-is("${n}"))`); }
+    await p.waitForTimeout(250);
     if (await p.$('.dlg header:has-text("Save changes?")')) { await p.click('.dlg button:has-text("Don\'t save")'); await p.waitForTimeout(300); }
     await p.evaluate(i => { window.__curId = i; }, id);
     await p.waitForTimeout(200);
@@ -69,7 +71,13 @@ const shots = process.env.SHOTS;
 
   // 1. File page: every worked example, the moss sidebar, the update card.
   const tiles = await p.$$eval(".home .tile b", els => els.map(e => e.textContent));
-  check("File page shows every worked example", fix.examples_list.every(e => tiles.includes(e.name)), JSON.stringify(tiles));
+  check("File page shows every worked example", fix.examples_list.filter(e => e.id !== "blank").every(e => tiles.includes(e.name)) && tiles.includes("Piping model"), JSON.stringify(tiles));
+  { const t = (await p.textContent(".home")) ?? "";
+    check("File › Home has the New tiles and the examples in folders", ["Piping model", "From a .pcf file", "Pressure vessel", "Buried line", "Verification"].every(x => t.includes(x)) && ["Process piping", "Other codes", "Vessels", "Check by hand"].every(x => t.includes(x))); }
+  await p.fill(".home .exsearch", "turbine"); await p.waitForTimeout(150);
+  { const names = await p.$$eval(".home .tiles:not(.new) .tile b", els => els.map(e => e.textContent));
+    check("searching the examples leaves the ones that match", names.length === 1 && names[0] === "Steam line on a pipe rack", JSON.stringify(names)); }
+  await p.fill(".home .exsearch", ""); await p.waitForTimeout(100);
   check("File sidebar is the moss accent", (await p.$eval(".bs aside", el => getComputedStyle(el).backgroundColor)) === "rgb(77, 124, 15)");
   check("the update card names Datum Pipe", (await p.textContent(".card .brand")).includes("Datum Pipe"));
   if (shots) await p.screenshot({ path: `${shots}/file.png` });
@@ -603,6 +611,19 @@ const shots = process.env.SHOTS;
   await p.click('.ptabs button:has-text("Elements")'); await p.waitForTimeout(100);
   await p.click('.tree .ti:has-text("Materials")'); await p.waitForTimeout(250);
   check("the Materials dialog draws E, α and S against temperature", (await p.$$(".dlg .mcurve")).length === 3);
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+
+  // 0.6.7: the model checker, and the Dynamics buttons that were left planned.
+  await open("steam");
+  await p.click('.tabs > button:text-is("Analyze")'); await p.waitForTimeout(100);
+  check("the Dynamics buttons are live (they said planned for 0.4)", !(await p.$('.ribbon button[title*="planned for 0.4"]')) && !!(await p.$('.ribbon button:has-text("Natural Frequencies"):not([disabled])')));
+  await p.click('.ribbon button:has-text("Check Model")'); await p.waitForTimeout(250);
+  check("Check Model on the steam rack has nothing to fix", ((await p.textContent(".dlg")) ?? "").match(/Nothing to report|0 to fix/) !== null, (await p.textContent(".dlg")) ?? "");
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+  await open("relief");
+  await p.click('.tabs > button:text-is("Analyze")'); await p.waitForTimeout(100);
+  await p.click('.ribbon button:has-text("Check Model")'); await p.waitForTimeout(250);
+  check("an open end with a relief valve is not called a free end", !((await p.textContent(".dlg")) ?? "").includes("free end"), (await p.textContent(".dlg")) ?? "");
   await p.keyboard.press("Escape"); await p.waitForTimeout(100);
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));

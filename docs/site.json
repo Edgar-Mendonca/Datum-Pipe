@@ -413,11 +413,19 @@
       ]
     },
     {
-      "v": "0.6.7–0.6.9",
-      "title": "The new window, step by step",
+      "v": "0.6.7",
+      "title": "The new window: File › Home and the model checker",
+      "when": "Done",
+      "items": [
+        "New tiles, examples in folders with search; Check Model lists everything to fix or check"
+      ]
+    },
+    {
+      "v": "0.6.8–0.7.0",
+      "title": "The new window, finished",
       "when": "Next",
       "items": [
-        "Home with examples in folders; the model checker; output to Excel"
+        "Output of chosen cases and reports to a spreadsheet; the stage reviewed"
       ]
     },
     {

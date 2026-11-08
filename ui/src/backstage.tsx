@@ -2,8 +2,9 @@
 import { For, Show, createSignal, createResource, onMount, JSX } from "solid-js";
 import { PAPERS, PrintPage } from "./print";
 import { RoadmapPage } from "./roadmap";
-import { Options, Out, Example, listen, invoke } from "./api";
-import { backstage, setBackstage, call, out, setOut, opts, setOpts, toast, setThemeRaw, applyTheme } from "./store";
+import { Options, Out, Example, listen, invoke, SAND } from "./api";
+import { backstage, setBackstage, call, out, setOut, opts, setOpts, toast, setThemeRaw, applyTheme, setView, act } from "./store";
+import { verification } from "./props";
 import { C } from "./cmds";
 import * as D from "./dialogs";
 import { Icon, Text, Pick, Check } from "./ui";
@@ -51,17 +52,38 @@ const ExampleArt = (p: { id: string }) => {
   return <svg viewBox="0 0 100 60" class="exart"><path d={pics[p.id] ?? pics.blank} {...s} /></svg>;
 };
 
+/** The examples' folders (0.6.7, after Datum Mesh): by kind, in this order. */
+const FOLDERS: [string, string[]][] = [["Process piping", ["pump", "compressor", "steam", "tank", "relief", "bellows"]], ["Other codes", ["power", "buried"]], ["Vessels", ["separator", "drum"]], ["Check by hand", ["lbend", "zbend"]]];
+const folderOf = (id: string) => FOLDERS.find(f => f[1].includes(id))?.[0] ?? "More";
+
 const Home = () => {
   const [ex] = createResource(() => call<Example[]>("examples_list"));
   const [recent] = createResource(() => call<{ path: string; name: string; modified: string }[]>("recent"));
+  const [q, setQ] = createSignal("");
+  const shown = () => (ex() ?? []).filter(t => t.id !== "blank" && (!q().trim() || `${t.name} ${t.what}`.toLowerCase().includes(q().trim().toLowerCase())));
+  const groups = () => [...FOLDERS.map(f => f[0]), "More"].map(f => [f, shown().filter(t => folderOf(t.id) === f)] as [string, Example[]]).filter(g => g[1].length);
+  // New: a blank model, a .pcf file, a vessel or a buried line to start from.
+  const NEW: [string, string, string, () => void][] = [
+    ["blank", "Piping model", "Type the route in the table", () => C.newModel("blank")],
+    ["pcf", "From a .pcf file", "A design tool's pipeline", () => C.importPcf()],
+    ["vessel", "Pressure vessel", "Vertical or horizontal", () => C.newModel("blank", () => setView("vessel"))],
+    ["soil", "Buried line", "With a soil to start", () => C.newModel("blank", () => act({ SetSoils: { list: [{ ...SAND, id: 1 }] } }, true))],
+    ["verify", "Verification", "Benchmarks solved in front of you", () => verification()],
+  ];
   return (
     <div class="home">
       <div>
         <h1>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}</h1>
-        <div class="tiles">
-          <For each={ex() ?? []}>{t => <button class="tile" onClick={() => C.newModel(t.id)}><div class="pic"><ExampleArt id={t.id} /></div><b>{t.name}</b><span>{t.what}</span></button>}</For>
-          <button class="tile" onClick={() => setBackstage("roadmap")}><div class="pic"><svg class="ic"><use href="#i-list" /></svg></div><b>Roadmap</b><span>Everything Datum Pipe will do, and when.</span></button>
+        <h2 class="cap">New</h2>
+        <div class="tiles new">
+          <For each={NEW}>{([k, l, w, go]) => <button class="tile" data-new={k} onClick={go}><div class="pic"><Show when={k === "blank"} fallback={<svg class="ic"><use href={`#i-${k === "pcf" ? "import" : k === "vessel" ? "vessel" : k === "soil" ? "soil" : "verify"}`} /></svg>}><ExampleArt id="blank" /></Show></div><b>{l}</b><span>{w}</span></button>}</For>
         </div>
+        <div class="exhead"><h2 class="cap">Examples</h2><input class="exsearch" placeholder="Search the examples: loop, turbine, buried, vessel, spectrum…" value={q()} onInput={e => setQ(e.currentTarget.value)} aria-label="Search the examples" /></div>
+        <For each={groups()} fallback={<p class="muted">No example matches “{q()}”.</p>}>{([f, list]) => <>
+          <h3 class="folder"><svg class="ic"><use href="#i-open" /></svg>{f} <span class="muted">· {list.length}</span></h3>
+          <div class="tiles"><For each={list}>{t => <button class="tile" onClick={() => C.newModel(t.id)}><div class="pic"><ExampleArt id={t.id} /></div><b>{t.name}</b><span>{t.what}</span></button>}</For></div>
+        </>}</For>
+        <button class="wide" onClick={() => setBackstage("roadmap")}><svg class="ic"><use href="#i-list" /></svg><b>Roadmap</b><span class="muted">Everything Datum Pipe will do, and when</span></button>
         <h2>Recent</h2>
         <table class="recent"><tbody>
           <For each={recent() ?? []} fallback={<tr><td class="muted">Models you open or save appear here.</td></tr>}>{r => <tr class="f" onClick={() => C.openPath(r.path)}><td><b>{r.name}</b><div class="p">{r.path}</div></td><td class="p">{r.modified}</td></tr>}</For>

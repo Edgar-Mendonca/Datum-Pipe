@@ -2,10 +2,12 @@
 // · Results · Isometric · View · Help). Copied from Datum Plan's ribbon by way of Datum Mesh;
 // planned tools are shown dimmed with the release they arrive in.
 import { For, Show, JSX, createSignal, createMemo, onMount } from "solid-js";
-import { call, out, model, tab, setTab, setBackstage, openMenu, openDialog, closeDialog, theme, setTheme, sel, setSel, opts, setOpts, act, view, setView } from "./store";
+import { call, out, model, tab, setTab, setBackstage, openMenu, openDialog, closeDialog, theme, setTheme, sel, setSel, opts, setOpts, act, view, setView, toast } from "./store";
 import { C, ALL_CMDS, SUPPORTS } from "./cmds";
 import { ResultsRibbon } from "./results";
 import { results, stale } from "./rstate";
+import { checkModel } from "./checker";
+import { setCardOpen } from "./tree";
 import { IsoRibbon } from "./iso";
 import * as D from "./dialogs";
 import * as P from "./props";
@@ -126,7 +128,7 @@ export const Ribbon = () => {
       </Show>
       <Show when={tab() === "loads"}>
         <G l="Conditions" h="conds"><B big i="temp" l="Line Conditions" run={() => P.conds()} /></G>
-        <G l="Extra Loads" h="loads"><B big i="force" l="Force at Node" run={C.load} /><S><B i="dist" l="Uniform Load" run={() => selEl() ? setTab("element") : C.planned("Select an element, then set its extra load in the Inspector; uniform loads", "this release")} title="Select an element and set its extra load (per length) in the Inspector" /></S></G>
+        <G l="Extra Loads" h="loads"><B big i="force" l="Force at Node" run={C.load} /><S><B i="dist" l="Uniform Load" run={() => selEl() ? setTab("element") : toast("Select an element first: its extra load per length is in its card.")} title="Select an element and set its extra load (per length) in the Inspector" /></S></G>
         <G l="Displacements" h="disp"><B big i="disp" l="Imposed Displacement" run={() => C.support("anchor")} title="Put an anchor on the selected node and set its movements per case in the Inspector" /></G>
         <G l="Load Cases" h="cases"><B big i="cases" l="Load Cases" run={() => P.cases()} /><S><B i="check" l="Recommend" run={C.recommendCases} on={!!m()?.settings.auto_cases} /><label class="chk"><input type="checkbox" checked={!!m()?.settings.hydro} onChange={e => C.settings({ hydro: e.currentTarget.checked })} />Hydrotest case</label></S></G>
         <G l="Occasional" h="occasional"><S><B i="wind" l="Wind" run={() => setSel(null)} title="Wind: set the design pressure in the Inspector (Occasional loads)" /><B i="seismic" l="Static Seismic" run={() => setSel(null)} title="Static seismic: set the factors in the Inspector (Occasional loads)" /></S></G>
@@ -141,13 +143,13 @@ export const Ribbon = () => {
         <G l="Equipment" h="nozzles"><B big i="nozzle" l="Nozzle Point" run={C.nozzle} /><S><B i="nozzle" l="Equipment Checks" run={() => P.equipmentDialog()} title="Group nozzles into pumps, compressors and turbines, checked against their standards' criteria" /></S></G>
       </Show>
       <Show when={tab() === "analyze"}>
-        <G l="Analyze" h="analyze"><B big i="solve" l="Analyze" run={C.analyze} title="Solve every load case (F5)" /><S><B i="cases" l="Load Cases" run={() => P.cases()} /><B i="verify" l="Verification" run={() => P.verification()} /></S></G>
+        <G l="Analyze" h="analyze"><B big i="solve" l="Analyze" run={C.analyze} title="Solve every load case (F5)" /><B big i="check" l="Check Model" run={checkModel} title="Everything wrong or worth a look, with the way to it" /><S><B i="cases" l="Load Cases" run={() => P.cases()} /><B i="verify" l="Verification" run={() => P.verification()} /></S></G>
         <G l="Code" h="code"><S>
           <label class="chk"><input type="checkbox" checked={!!m()?.settings.liberal} onChange={e => C.settings({ liberal: e.currentTarget.checked })} />Liberal allowable range</label>
           <label class="chk"><input type="checkbox" checked={!!m()?.settings.bend_pressure} onChange={e => C.settings({ bend_pressure: e.currentTarget.checked })} />Pressure correction on bends</label>
           <B i="opts" l="Analysis Settings" run={() => setSel(null)} title="Nothing selected: the model's settings show in the Inspector" />
         </S></G>
-        <G l="Dynamics" h="analyze"><S><Planned i="wave" l="Natural Frequencies" v="0.4" /><Planned i="wave" l="Response Spectrum" v="0.4" /></S></G>
+        <G l="Dynamics" h="modes"><S><B i="wave" l="Natural Frequencies" run={() => { setSel(null); setCardOpen(true); }} title="Dynamics in the model's settings: the modes to find" /><B i="wave" l="Response Spectrum" run={() => { setSel(null); setCardOpen(true); }} title="Dynamics in the model's settings: the spectrum and the harmonic load" /></S></G>
       </Show>
       <Show when={tab() === "results"}><ResultsRibbon /></Show>
       <Show when={tab() === "isometric"}><IsoRibbon /></Show>

@@ -543,6 +543,9 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 ### 2026-11-09: Session 2, continued (0.6.6: graphs)
 - UI: console.tsx `Graphs` (SVG, Okabe-Ito blue line, dashed allowable, nodes marked; pieces ordered by element; found in the real app that `geom.segs` lists bends' pieces last); props.tsx `Curve` (E, α, S against temperature in the Materials dialog). Four UI checks.
 
+### 2026-11-09: Session 2, continued (0.6.7: Home, checker)
+- UI: backstage.tsx `FOLDERS`, New tiles (`data-new`), search, Roadmap wide link; `C.newModel(example, after)`; `checker.tsx` (`findings`, `checkModel`); Analyze › Check Model; stale "planned for 0.4" Dynamics buttons made live; Uniform Load's odd message fixed. Tests' `open` uses the New tile for blank. Seven UI checks. The disk filled (cargo clean freed 19.5 GB).
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.

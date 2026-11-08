@@ -974,3 +974,25 @@ textarea.paste { width: 100%; box-sizing: border-box; min-height: 160px; font: 1
 .mcurve .tk.e { text-anchor: end; }
 .graphs .pbar .seg { border-radius: 0; border-color: var(--line); }
 .graphs .pbar .seg button.on { background: var(--sel); color: var(--blue2); font-weight: 500; }
+
+/* ---------- 0.6.7: File › Home: new tiles, examples in folders with search ---------- */
+.home h2.cap { font: 500 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+.tiles.new { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.tiles.new .pic { height: 64px; }
+.exhead { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.exhead h2.cap { margin: 0; }
+.exsearch { flex: 1; max-width: 460px; }
+.home h3.folder { display: flex; align-items: center; gap: 6px; font-size: 12.5px; margin: 14px 0 8px; }
+.home h3.folder svg { width: 16px; height: 16px; color: var(--blue); }
+.home button.wide { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 16px; padding: 10px 14px; background: var(--bg2); border: 1px solid var(--line); text-align: left; }
+.home button.wide:hover { border-color: var(--blue); }
+.home button.wide svg { width: 20px; height: 20px; color: var(--blue); }
+.findings { display: flex; flex-direction: column; border: 1px solid var(--line); max-height: 50vh; overflow: auto; }
+.finding { display: flex; align-items: baseline; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--line2); }
+.finding:last-child { border-bottom: 0; }
+.finding i { font: 500 9.5px var(--mono); font-style: normal; letter-spacing: .1em; text-transform: uppercase; width: 44px; flex: none; }
+.finding.error i { color: var(--crit); }
+.finding.warn i { color: var(--warn-fg, #8A5A00); }
+.finding.info i { color: var(--muted); }
+.finding span { flex: 1; }
+.okline { color: var(--green); }

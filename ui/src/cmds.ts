@@ -42,7 +42,7 @@ export const C = {
   },
   importPcf: () => D.keepChanges(() => loadOut("import_pcf", { path: null }).then(o => { if (o) setTimeout(fitHook, 60); })),
   openPath: (path: string) => D.keepChanges(() => loadOut("open", { path }).then(o => { if (o) setTimeout(fitHook, 60); })),
-  newModel: (example: string | null) => D.keepChanges(() => loadOut("new_model", { example }).then(o => { if (o) setTimeout(fitHook, 60); })),
+  newModel: (example: string | null, after?: () => void) => D.keepChanges(() => loadOut("new_model", { example }).then(o => { if (o) { setTimeout(fitHook, 60); after?.(); } })),
   print: () => setBackstage("print"),
   undo: async () => { const o = await call<Out>("history", { redo: false }); if (o) { setOut(o); onEdit(); } },
   redo: async () => { const o = await call<Out>("history", { redo: true }); if (o) { setOut(o); onEdit(); } },

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.7 — 2026-11-09
+
+The new window, step 7: File › Home and the model checker.
+
+**File › Home.** New has five tiles: a piping model, from a .pcf file, a pressure vessel, a buried line (with a soil ready) and Verification. The examples are in folders (Process piping, Other codes, Vessels, Check by hand) with a search across their names and descriptions; Roadmap is a wide link below them; recent models and the updates card are where they were.
+
+**Check Model.** Analyze › Check Model lists in one place what is wrong or worth a look, each with Show to go to it: the geometry's errors and warnings, nothing holding the piping, free ends (fine for an open end; a relief valve's open end is not counted), materials without allowable stresses, the last analysis's failure or warnings, and results out of date.
+
+**Fixed.** Analyze › Dynamics still showed Natural Frequencies and Response Spectrum as planned for 0.4, though both arrived in 0.4.1 and 0.4.3; they now open the dynamics settings. Loads › Uniform Load with nothing selected said it was coming "in this release"; it says to select an element.
+
 ## 0.6.6 — 2026-11-09
 
 The new window, step 6: graphs.

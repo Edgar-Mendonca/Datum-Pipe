@@ -270,7 +270,9 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.5.4 | More codes: buried pipe (soil springs from first-principles soil mechanics) | ✅ |
 | 0.5.5 | More codes: European vessel standard (EN 13445-3) cylinders, spheres, cones, test pressure (dished heads: default rules) | ✅ |
 | 0.6.0 | Milestone: more codes reviewed | ✅ |
-| 0.7 | 🔜 Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
+| 0.6.1–0.6.8 | The new window from the approved mock-ups (workflow bar, tree, card, bar above the view, colour by, dark results, query, player, graphs, tables, paste, Messages, Home, checker, output) | ✅ |
+| 0.7.0 | Milestone: the new window reviewed | ✅ |
+| 0.8 | 🔜 Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
 
 **Backlog: owner said "we should not miss out anything"** (each becomes small steps when its stage starts; every item from free public sources only):
@@ -548,6 +550,9 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 
 ### 2026-11-09: Session 2, continued (0.6.8: output)
 - UI: `output.tsx` (`toCsv` with the formula guard, `outputDialog`); Results › Output. Real app: an empty model's view was black (ground now set at the top of `build` and when the renderer starts; a UI check reads a canvas pixel); the Results ribbon overflowed (label "Output"). Three UI checks.
+
+### 2026-11-09: Session 2, continued (0.7.0: the new window, finished)
+- Review in the real app: README picture replaced with the new window; help card "window"; Inspector help as a card; the load cases' Kind column widened. Roadmap: the old 0.7 (load combinations…) is 0.8. New UI files: `tree.tsx`, `console.tsx`, `checker.tsx`, `output.tsx`.
 
 ## 5. Known limits (0.2.0)
 

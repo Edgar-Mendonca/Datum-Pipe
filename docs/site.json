@@ -34,7 +34,8 @@
     "An automatic isometric drawing with dimensions, node numbers and result tags, and a printed stress report",
     "Help › Verification: benchmark problems with known answers solved in front of you, and an equilibrium check after every solve; Help › Sources: where every equation is published",
     "Pressure vessels in the same app: shells and heads, MAWP, test pressure and weights",
-    "Dynamics: natural frequencies and mode shapes animated in 3D, a response spectrum checked as an occasional load, and the response to a load at a frequency"
+    "Dynamics: natural frequencies and mode shapes animated in 3D, a response spectrum checked as an occasional load, and the response to a load at a frequency",
+    "A window built for the work: a workflow bar, the model tree, cards over the 3D view, colour by any result or property, results you can click, graphs, tables with paste from Excel, Messages, a model checker and output to a spreadsheet"
   ],
   "screenshots": [
     "docs/images/model-stress.png",
@@ -431,15 +432,15 @@
     {
       "v": "0.7.0",
       "title": "The new window, finished",
-      "when": "Next",
+      "when": "Done",
       "items": [
-        "The stage reviewed: help, screenshots and every window checked"
+        "Every step reviewed in the real app; help for the window; the new picture"
       ]
     },
     {
-      "v": "0.7",
+      "v": "0.8",
       "title": "More options",
-      "when": "Later",
+      "when": "Next",
       "items": [
         "Load combinations",
         "A sustained case with the operating support states",

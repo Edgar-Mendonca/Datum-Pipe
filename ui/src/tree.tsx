@@ -5,6 +5,7 @@ import { For, Show, createSignal, JSX } from "solid-js";
 import { model, sel, setSel, setView, setTab } from "./store";
 import { results, stale, setCaseId } from "./rstate";
 import { Icon } from "./ui";
+import { Help } from "./help";
 import { num } from "./api";
 import * as P from "./props";
 import { SUPPORTS } from "./cmds";
@@ -92,7 +93,7 @@ const ResultsTree = () => {
 
 export const Tree = () => (
   <aside class="tree">
-    <div class="ttabs"><button classList={{ on: treeTab() === "model" }} onClick={() => setTreeTab("model")}>Model</button><button classList={{ on: treeTab() === "results" }} onClick={() => setTreeTab("results")}>Results</button></div>
+    <div class="ttabs"><button classList={{ on: treeTab() === "model" }} onClick={() => setTreeTab("model")}>Model</button><button classList={{ on: treeTab() === "results" }} onClick={() => setTreeTab("results")}>Results</button><Help k="window" /></div>
     <Show when={treeTab() === "model"}><div class="tf"><input placeholder="Filter: node, tag, kind…" value={filter()} onInput={e => setFilter(e.currentTarget.value)} aria-label="Filter the tree" /></div></Show>
     <Show when={model()}><Show when={treeTab() === "model"} fallback={<ResultsTree />}><ModelTree /></Show></Show>
   </aside>

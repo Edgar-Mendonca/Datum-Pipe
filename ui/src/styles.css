@@ -999,3 +999,6 @@ textarea.paste { width: 100%; box-sizing: border-box; min-height: 160px; font: 1
 .outgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .outgrid > div { display: flex; flex-direction: column; gap: 2px; }
 .outgrid .cap { font: 500 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+/* The load cases' Kind column was cut ("Operatin", found while taking the 0.7.0 screenshots). */
+.tbl.cases td:nth-child(2) select { min-width: 112px; }
+.tree .ttabs .help { align-self: center; margin: 0 6px; flex: none; }

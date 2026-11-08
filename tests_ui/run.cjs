@@ -645,6 +645,12 @@ const shots = process.env.SHOTS;
   { const px = await p.evaluate(() => { const c = document.querySelector(".v3d canvas"); if (!c) return null; const t = document.createElement("canvas"); t.width = c.width; t.height = c.height; const x = t.getContext("2d"); x.drawImage(c, 0, 0); return Array.from(x.getImageData(5, 5, 1, 1).data); });
     check("an empty model's 3D view has the light ground", !!px && px[0] > 200 && px[1] > 200 && px[2] > 200, JSON.stringify(px)); }
 
+  // 0.7.0: the window's help card, from the ? beside the tree's tabs.
+  await open("steam");
+  await p.click(".tree .ttabs .help"); await p.waitForTimeout(200);
+  check("the ? beside the tree explains the window", ((await p.textContent("body")) ?? "").includes("workflow bar: Route, Pipes, Supports"));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

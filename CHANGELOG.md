@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0 — 2026-11-09
+
+The new window, finished.
+
+**The stage.** Since 0.6.1 the window has been rebuilt to the approved mock-ups, after Datum Mesh and the Datum family's design: the workflow bar down the left (no numbers; each finished step green), the model tree with counts, a filter and a Results tab, the Inspector as a card over the 3D view, the bar above the view (case, colour by any result or property, solid or centre line, the views), results on a dark ground with the legend as a card, a node's results in its card, Next Overstress, the player, graphs along the route, the bottom panel's tables (nodes, supports, loads), Paste from Excel, Messages and the solver log, File › Home with the examples in folders and a search, Check Model, and Output to a spreadsheet.
+
+**Reviewed.** Every step with the full checks and in the real app; over sixty new UI checks. Help has a card for the window as a whole, and the README's picture is the new window.
+
+**Fixed.** The load cases' Kind column was cut short ("Operatin").
+
+**Next.** 0.8: load combinations, a sustained case with the operating support states, more operating cases, other pipe size standards and jacketed pipe.
+
 ## 0.6.8 — 2026-11-09
 
 The new window, step 8: output to a spreadsheet.

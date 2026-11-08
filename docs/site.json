@@ -405,11 +405,19 @@
       ]
     },
     {
-      "v": "0.6.6–0.6.9",
+      "v": "0.6.6",
+      "title": "The new window: graphs",
+      "when": "Done",
+      "items": [
+        "Stress ratio and movement along the route; material properties against temperature"
+      ]
+    },
+    {
+      "v": "0.6.7–0.6.9",
       "title": "The new window, step by step",
       "when": "Next",
       "items": [
-        "Graphs; Home with examples in folders; the model checker; output to Excel"
+        "Home with examples in folders; the model checker; output to Excel"
       ]
     },
     {

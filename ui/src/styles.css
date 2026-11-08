@@ -957,3 +957,20 @@ textarea.paste { width: 100%; box-sizing: border-box; min-height: 160px; font: 1
 .ipop { top: 38px; }
 .v3d.dark .player3d .seg button:not(.on) { background: transparent; color: #E6EDF5; }
 .v3d.dark .player3d .seg { background: transparent; }
+
+/* ---------- 0.6.6: graphs ---------- */
+.graphs .pbar .seg button { padding: 1px 8px; font-size: 11.5px; }
+.gsvg { width: 100%; height: calc(100% - 34px); min-height: 110px; display: block; background: var(--bg2); }
+.gsvg .ax { stroke: var(--line3); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.gsvg .lim { stroke: var(--crit); stroke-dasharray: 4 4; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.gsvg .ln { fill: none; stroke: #0072B2; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.gsvg .tk { font: 10px var(--mono); fill: var(--muted); text-anchor: middle; }
+.gsvg .tk.r { text-anchor: end; }
+.gsvg .wl { font: 11px var(--mono); fill: var(--text); }
+.mcurve { width: 100%; height: 90px; background: var(--bg2); border: 1px solid var(--line2); }
+.mcurve .ax { stroke: var(--line3); stroke-width: 1; }
+.mcurve .ln { fill: none; stroke: #0072B2; stroke-width: 1.8; }
+.mcurve .tk { font: 9.5px var(--mono); fill: var(--muted); }
+.mcurve .tk.e { text-anchor: end; }
+.graphs .pbar .seg { border-radius: 0; border-color: var(--line); }
+.graphs .pbar .seg button.on { background: var(--sel); color: var(--blue2); font-weight: 500; }

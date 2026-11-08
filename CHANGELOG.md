@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.6 — 2026-11-09
+
+The new window, step 6: graphs.
+
+**Graphs along the route.** The bottom panel has a Graphs tab: the stress ratio (with the allowable as a dashed line at 1) or the movement along the route in the case shown, piece by piece in the order of the elements with the nodes marked below, and the worst value labelled.
+
+**Material curves.** The Materials dialog draws the modulus, the mean expansion and the allowable stress against temperature beside their tables, so a mistyped value stands out.
+
+**Fixed.** The graph first drew the pieces in the analysis's own order, which puts bends last; it follows the route, with a check.
+
 ## 0.6.5 — 2026-11-09
 
 The new window, step 5: results you can click, and the player.

@@ -84,6 +84,21 @@ const TTable = (p: { l: string; q: Q; rows: [number, number][]; set: (r: [number
     <button class="btn sm" onClick={() => { const l = p.rows[p.rows.length - 1]; p.set([...p.rows, [l[0] + 50, l[1]]]); }}>Add a row</button></div>;
 };
 
+/** A material property against temperature as a small line chart (0.6.6), from its table. */
+const Curve = (p: { l: string; q: Q; rows: [number, number][] }) => {
+  const W = 220, H = 90;
+  const xs = () => p.rows.map(r => toU("temp", r[0])), ys = () => p.rows.map(r => toU(p.q, r[1]));
+  const lo = () => Math.min(...xs()), hi = () => Math.max(...xs()), ylo = () => Math.min(0, ...ys()), yhi = () => Math.max(...ys(), 1e-12);
+  const sx = (x: number) => 30 + (W - 36) * (hi() > lo() ? (x - lo()) / (hi() - lo()) : 0.5), sy = (y: number) => 8 + (H - 26) * (1 - (y - ylo()) / (yhi() - ylo() || 1));
+  return <Show when={p.rows.length > 1} fallback={<span />}>
+    <svg class="mcurve" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${p.l} against temperature`}>
+      <line x1="30" y1="8" x2="30" y2={H - 18} class="ax" /><line x1="30" y1={H - 18} x2={W - 6} y2={H - 18} class="ax" />
+      <polyline points={p.rows.map((_, i) => `${sx(xs()[i])},${sy(ys()[i])}`).join(" ")} class="ln" />
+      <text x="4" y="14" class="tk">{p.l}</text><text x="30" y={H - 4} class="tk">{num(lo(), 3)}</text><text x={W - 6} y={H - 4} class="tk e">{num(hi(), 3)} {unit("temp")}</text>
+    </svg>
+  </Show>;
+};
+
 export const materials = (focus?: number) => openDialog(() => {
   const list = () => model()?.materials ?? [];
   const [cur, setCur] = createSignal(focus ?? list()[0]?.id ?? 0);
@@ -98,6 +113,7 @@ export const materials = (focus?: number) => openDialog(() => {
         <T l="Name" v={x.name} set={name => put({ name })} />
         <div class="two"><F l="Density" q="density" v={x.rho} set={rho => put({ rho })} /><div class="iprow"><label>Poisson's ratio</label><input class="mono" value={x.nu} onChange={numIn(v => put({ nu: v }), () => x.nu)} /></div></div>
         <div class="three"><TTable l="Modulus E" q="modulus" rows={x.e} set={e => put({ e })} /><TTable l="Mean expansion from 21 °C" q="expansion" rows={x.alpha} set={alpha => put({ alpha })} /><TTable l="Allowable stress S" q="stress" rows={x.allow} set={allow => put({ allow })} /></div>
+        <div class="three mcurves"><Curve l="E" q="modulus" rows={x.e} /><Curve l="α" q="expansion" rows={x.alpha} /><Curve l="S" q="stress" rows={x.allow} /></div>
         <p class="warnline"><Icon n="info" /> Allowable stresses are your inputs. The values filled in are typical (the lower of a third of the tensile strength and two thirds of the yield at temperature): check them against your code edition.</p>
         <div class="three"><div class="iprow"><label>Quality factor E</label><input class="mono" value={x.quality} onChange={numIn(v => put({ quality: v }), () => x.quality)} /></div>
           <div class="iprow"><label>Weld strength factor W</label><input class="mono" value={x.weld} onChange={numIn(v => put({ weld: v }), () => x.weld)} /></div>

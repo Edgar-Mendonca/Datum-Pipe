@@ -1,9 +1,9 @@
 // The bottom panel's other tabs: Messages (everything the window said, kept with its time) and the
 // solver's log (0.6.1); the Nodes, Supports and Loads tables and Paste from Excel (0.6.3). The
 // element table is its first tab (table.tsx).
-import { For, Show, createSignal } from "solid-js";
+import { For, Index, Show, createSignal, createMemo } from "solid-js";
 import { log, setLog, ptab, setPtab, unread, Note, model, act, sel, setSel, toast, note, openDialog, closeDialog } from "./store";
-import { solverLog, setSolverLog } from "./rstate";
+import { solverLog, setSolverLog, results, stale, curCase } from "./rstate";
 import { Load, Support, num, parseNum } from "./api";
 import { toU, fromU, unit, parseQ } from "./units";
 import { SUPPORTS } from "./cmds";
@@ -15,7 +15,7 @@ const hhmm = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2
 /** The panel's tabs. */
 export const PanelTabs = () => (
   <nav class="ptabs">
-    <For each={[["elements", "Elements"], ["nodes", "Nodes"], ["supports", "Supports"], ["loads", "Loads"], ["messages", "Messages"], ["log", "Solver log"]]}>{([k, l]) =>
+    <For each={[["elements", "Elements"], ["nodes", "Nodes"], ["supports", "Supports"], ["loads", "Loads"], ["graphs", "Graphs"], ["messages", "Messages"], ["log", "Solver log"]]}>{([k, l]) =>
       <button classList={{ on: ptab() === k }} onClick={() => setPtab(k)}>{l}<Show when={k === "messages" && unread() > 0}><i class="badge">{unread()}</i></Show></button>}</For>
   </nav>
 );
@@ -144,3 +144,53 @@ export const pasteDialog = () => openDialog(() => {
     </Dialog>
   );
 });
+
+/** Graphs (0.6.6): the stress ratio or the movement along the route, in the case shown, piece by
+ *  piece in the order of the elements, with the nodes marked; the family's chart style. */
+export const Graphs = () => {
+  const [what, setWhat] = createSignal<"ratio" | "move">("ratio");
+  const data = createMemo(() => {
+    const r = results(), c = curCase(); if (!r || stale() || !c) return null;
+    const g = r.geom; let x = 0;
+    const pts: { x: number; y: number }[] = [], marks: { x: number; label: string }[] = [];
+    const ratio = new Array(g.segs.length).fill(0);
+    for (const s of c.stresses) ratio[s.seg] = Math.max(ratio[s.seg], s.ratio);
+    const mv = (i: number) => { const d = c.disp[i]; return d ? Math.hypot(d[0], d[1], d[2]) : 0; };
+    // Along the route: the pieces in the order of the elements (the analysis lists bends' pieces
+    // last; found in the real app, the bends were drawn at the end of the graph).
+    const at = new Map((model()?.elements ?? []).map((e, k) => [e.id, k]));
+    const order = g.segs.map((sg, i) => ({ sg, i })).sort((a, b) => (at.get(a.sg.element) ?? 0) - (at.get(b.sg.element) ?? 0) || a.i - b.i);
+    order.forEach(({ sg, i }) => {
+      const ya = what() === "ratio" ? ratio[i] : mv(sg.a), yb = what() === "ratio" ? ratio[i] : mv(sg.b);
+      const lab = g.points[sg.a].node;
+      if (lab !== null && !marks.some(m => m.label === String(lab))) marks.push({ x, label: String(lab) });
+      pts.push({ x, y: ya }); x += sg.length; pts.push({ x, y: yb });
+      const lb = g.points[sg.b].node;
+      if (lb !== null && !marks.some(m => m.label === String(lb))) marks.push({ x, label: String(lb) });
+    });
+    const top = Math.max(what() === "ratio" ? 1 : 1e-12, ...pts.map(p => p.y));
+    const worst = pts.reduce((a, p) => p.y > a.y ? p : a, { x: 0, y: -1 });
+    return { pts, marks, total: Math.max(x, 1e-9), top, worst, name: c.name, has: what() === "move" || c.stresses.length > 0 };
+  });
+  const W = 1000, H = 150, L = 46, B = 22;
+  const sx = (x: number) => L + (W - L - 10) * x / (data()?.total ?? 1);
+  const sy = (y: number) => 8 + (H - B - 8) * (1 - y / (data()?.top ?? 1));
+  return (
+    <div class="pbody graphs">
+      <div class="pbar"><span class="seg"><button classList={{ on: what() === "ratio" }} onClick={() => setWhat("ratio")}>Stress ratio</button><button classList={{ on: what() === "move" }} onClick={() => setWhat("move")}>Movement</button></span>
+        <span class="muted">{data() ? `${what() === "ratio" ? "Stress ratio" : `Movement (${unit("disp")})`} along the route · ${data()!.name}` : ""}</span><span class="grow" /></div>
+      <Show when={data()} fallback={<p class="muted pad">Analyze (F5) to graph the results along the route.</p>}>
+        <Show when={data()!.has} fallback={<p class="muted pad">{data()!.name} has no code stresses: pick a sustained, expansion or occasional case in the bar above the view, or graph the movement.</p>}>
+          <svg class="gsvg" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${what() === "ratio" ? "Stress ratio" : "Movement"} along the route`}>
+            <line x1={L} y1={8} x2={L} y2={H - B} class="ax" /><line x1={L} y1={H - B} x2={W - 10} y2={H - B} class="ax" />
+            <Show when={what() === "ratio"}><line x1={L} y1={sy(1)} x2={W - 10} y2={sy(1)} class="lim" /></Show>
+            <polyline points={data()!.pts.map(p => `${sx(p.x)},${sy(p.y)}`).join(" ")} class="ln" />
+            <Index each={data()!.marks}>{m => <><line x1={sx(m().x)} y1={H - B} x2={sx(m().x)} y2={H - B + 4} class="ax" /><text x={sx(m().x)} y={H - 6} class="tk">{m().label}</text></>}</Index>
+            <text x={L - 4} y={12} class="tk r">{what() === "ratio" ? num(data()!.top, 3) : num(toU("disp", data()!.top), 3)}</text><text x={L - 4} y={H - B} class="tk r">0</text>
+            <text x={Math.min(sx(data()!.worst.x) + 4, W - 140)} y={Math.max(sy(data()!.worst.y) - 4, 18)} class="wl">{what() === "ratio" ? `${num(data()!.worst.y, 3)} worst` : `${num(toU("disp", data()!.worst.y), 3)} ${unit("disp")} largest`}</text>
+          </svg>
+        </Show>
+      </Show>
+    </div>
+  );
+};

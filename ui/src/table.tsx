@@ -4,7 +4,7 @@
 import { For, Index, Show, createSignal, createMemo, createEffect, on } from "solid-js";
 import { Element, Comp, Model, num, parseNum } from "./api";
 import { model, act, sel, setSel, toast, ptab } from "./store";
-import { PanelTabs, Messages, SolverLog, NodesTable, SupportsTable, LoadsTable, pasteDialog } from "./console";
+import { PanelTabs, Messages, SolverLog, NodesTable, SupportsTable, LoadsTable, Graphs, pasteDialog } from "./console";
 import { toU, fromU, unit, parseQ } from "./units";
 import { Help } from "./help";
 
@@ -109,6 +109,7 @@ export const ElementTable = () => {
       <Show when={ptab() === "nodes"}><NodesTable /></Show>
       <Show when={ptab() === "supports"}><SupportsTable /></Show>
       <Show when={ptab() === "loads"}><LoadsTable /></Show>
+      <Show when={ptab() === "graphs"}><Graphs /></Show>
       <Show when={ptab() === "messages"}><Messages /></Show>
       <Show when={ptab() === "log"}><SolverLog /></Show>
       <Show when={ptab() === "elements"}>

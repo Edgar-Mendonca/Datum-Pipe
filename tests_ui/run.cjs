@@ -590,6 +590,21 @@ const shots = process.env.SHOTS;
   check("back to the still shape stops it", ((await p.textContent(".player3d")) ?? "").includes("▶"));
   await p.click('.player3d .seg button:text-is("1×")'); await p.waitForTimeout(100);
 
+  // 0.6.6: graphs along the route, and the material curves.
+  await open("steam");
+  await p.keyboard.press("F5"); await p.waitForTimeout(400);
+  await p.click('.ptabs button:has-text("Graphs")'); await p.waitForTimeout(200);
+  { const t = (await p.textContent(".graphs")) ?? "";
+    check("the Graphs tab draws the stress ratio along the route with its worst", !!(await p.$(".gsvg polyline.ln")) && t.includes("Stress ratio along the route") && t.includes("worst"), t.slice(0, 160)); }
+  { const ticks = await p.$$eval(".gsvg text.tk:not(.r)", els => els.map(e => e.textContent));
+    check("the graph follows the route: the nodes in the order of the elements", JSON.stringify(ticks) === JSON.stringify(["10", "20", "30", "40", "50", "60", "65", "70"]), JSON.stringify(ticks)); }
+  await p.click('.graphs .seg button:text-is("Movement")'); await p.waitForTimeout(150);
+  check("and the movement", ((await p.textContent(".graphs")) ?? "").includes("largest"));
+  await p.click('.ptabs button:has-text("Elements")'); await p.waitForTimeout(100);
+  await p.click('.tree .ti:has-text("Materials")'); await p.waitForTimeout(250);
+  check("the Materials dialog draws E, α and S against temperature", (await p.$$(".dlg .mcurve")).length === 3);
+  await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

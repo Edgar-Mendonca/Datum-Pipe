@@ -457,11 +457,19 @@
       ]
     },
     {
-      "v": "0.7.3–0.7.5",
+      "v": "0.7.3",
+      "title": "A better 3D model: light, outlines, floor, view cube",
+      "when": "Done",
+      "items": [
+        "Steel lit as in a room, thin outlines and the edges where pieces meet",
+        "A shaded ground, a fading floor grid and a view cube"
+      ]
+    },
+    {
+      "v": "0.7.4–0.7.5",
       "title": "A better 3D model",
       "when": "Next",
       "items": [
-        "0.7.3: lighting, outlines, a fading floor and a view cube",
         "0.7.4: real fittings: elbows, flanges, valves, reducers, tees",
         "0.7.5: real supports: shoes, guides, clamps, spring cans"
       ]

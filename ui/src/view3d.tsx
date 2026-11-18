@@ -7,6 +7,7 @@
 import { onMount, onCleanup, createEffect, createSignal, on, Show, For } from "solid-js";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { Geom, Model, Seg, V3, num } from "./api";
 import { out, model, sel, setSel, opts, themeTick, openMenu, act, Item, note } from "./store";
 import { cardOpen } from "./tree";
@@ -94,11 +95,108 @@ const View3DInner = () => {
   let ampl = 1;
   let failed = false;
   let dark = false;
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.6));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-  sun.position.set(3, 5, 4);
-  scene.add(sun);
+  // The look (0.7.3): a soft room's light reflected by the steel (set once the renderer exists), a
+  // low sky light and a key light from over the viewer's shoulder, a ground that shades from light
+  // to a little darker towards the bottom, and dark outlines round every solid.
+  const sky = new THREE.HemisphereLight(0xffffff, 0x8899aa, 0.55);
+  scene.add(sky);
+  let roomLight: THREE.Texture | null = null;
+  const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+  sun.position.set(-2, 4, 3);
+  camera.add(sun);
   scene.add(camera);
+  let bgKey = "";
+  /** The ground: a vertical shade in the theme's colours, made again only when the theme changes. */
+  const ground = () => {
+    const [top, bot] = dark ? ["#1B2633", "#0C121A"] : ["#FFFFFF", "#DCE2E7"];
+    if (bgKey === top + bot) return;
+    bgKey = top + bot;
+    const c = document.createElement("canvas"); c.width = 2; c.height = 256;
+    const x = c.getContext("2d")!, gr = x.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, top); gr.addColorStop(0.55, top); gr.addColorStop(1, bot);
+    x.fillStyle = gr; x.fillRect(0, 0, 2, 256);
+    (scene.background as THREE.Texture | null)?.dispose?.();
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; scene.background = t;
+  };
+  /** Outlines: each solid drawn again from behind, pushed out by a pixel and a half on screen, in
+   *  the ink colour (the way drawings show a part's edges). `px` is that push in clip units. */
+  const px = { value: new THREE.Vector2(0.002, 0.003) };
+  const outlineMat = (color: string) => {
+    const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(color), side: THREE.BackSide });
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uPx = px;
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nuniform vec2 uPx;").replace("#include <project_vertex>", `#include <project_vertex>
+  vec2 dn = (projectionMatrix * modelViewMatrix * vec4(normal, 0.0)).xy;
+  if (length(dn) > 1e-6) gl_Position.xy += normalize(dn) * uPx * gl_Position.w;`);
+    };
+    return m;
+  };
+  // The floor grid (after Datum Mesh): big squares with small ones inside, sized to the zoom,
+  // centred under what the view looks at and fading out round it; made again only when its squares'
+  // size or place changes. It lies just under the lowest pipe.
+  const floorGrp = new THREE.Group();
+  scene.add(floorGrp);
+  let floorY = 0, floorL = 10, floorKey = "", floorOn = false;
+  const nice = (v: number) => { const p = 10 ** Math.floor(Math.log10(v)), k = v / p; return (k <= 1 ? 1 : k <= 2 ? 2 : k <= 5 ? 5 : 10) * p; };
+  const adaptFloor = () => {
+    floorGrp.visible = floorOn;
+    if (!floorOn) return;
+    const t = controls?.target ?? new THREE.Vector3(), d = Math.max(camera.position.distanceTo(t), 1e-3);
+    const minor = nice(d / 12), mant = Math.round(minor / 10 ** Math.floor(Math.log10(minor) + 1e-9)), major = minor * (mant === 5 ? 10 : 5);
+    const R = Math.ceil(Math.max(floorL * 0.8, d * 1.6) / major) * major, Rm = Math.min(R, d * 1.1);
+    const cx = Math.round(t.x / major) * major, cz = Math.round(t.z / major) * major;
+    const bgc = dark ? "#121A24" : "#F4F6F8", c2 = dark ? "#3A4A5C" : css("--line3");
+    const key = `${minor}|${cx}|${cz}|${R}|${floorY}|${bgc}|${c2}`;
+    if (key === floorKey) return;
+    floorKey = key;
+    floorGrp.children.forEach(o => { const x = o as THREE.LineSegments; x.geometry.dispose(); (x.material as THREE.Material).dispose(); });
+    floorGrp.clear();
+    const bg = new THREE.Color(bgc), cMin = new THREE.Color(c2).lerp(bg, 0.68), cMaj = new THREE.Color(c2).lerp(bg, 0.3);
+    const pos: number[] = [], col: number[] = [];
+    // A line in short pieces, each faded by its distance from the centre (out to `reach`).
+    const seg = (a: [number, number], b: [number, number], c: THREE.Color, reach: number) => {
+      const k = 16;
+      for (let i = 0; i < k; i++) for (const u of [i / k, (i + 1) / k]) {
+        const x = a[0] + (b[0] - a[0]) * u, z = a[1] + (b[1] - a[1]) * u, f = Math.min(1, Math.hypot(x - cx, z - cz) / reach) ** 1.5, cc = c.clone().lerp(bg, f);
+        pos.push(x, floorY, z); col.push(cc.r, cc.g, cc.b);
+      }
+    };
+    const nm = Math.ceil(Rm / minor), nM = Math.round(R / major), per = Math.round(major / minor);
+    for (let i = -nm; i <= nm; i++) {
+      if (i % per === 0) continue;
+      const v = i * minor;
+      seg([cx + v, cz - Rm], [cx + v, cz + Rm], cMin, Rm); seg([cx - Rm, cz + v], [cx + Rm, cz + v], cMin, Rm);
+    }
+    for (let i = -nM; i <= nM; i++) {
+      const v = i * major;
+      seg([cx + v, cz - R], [cx + v, cz + R], cMaj, R); seg([cx - R, cz + v], [cx + R, cz + v], cMaj, R);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+    g.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3));
+    floorGrp.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true })));
+  };
+  // The view cube (after Datum Mesh): turns with the view; a click on a face looks from that side.
+  let cubeEl: SVGSVGElement | undefined;
+  const FACES: [string, Vec][] = [["Front", [0, 0, 1]], ["Back", [0, 0, -1]], ["Right", [1, 0, 0]], ["Left", [-1, 0, 0]], ["Top", [0, 1, 0]], ["Bottom", [0, -1, 0]]];
+  const turnCube = () => {
+    if (!cubeEl) return;
+    const e = camera.matrixWorldInverse.elements, R = (i: number, j: number) => e[j * 4 + i];
+    const rot = (v: number[]) => [0, 1, 2].map(i => R(i, 0) * v[0] + R(i, 1) * v[1] + R(i, 2) * v[2]);
+    const order: [number, SVGGElement][] = [];
+    FACES.forEach(([name, n]) => {
+      const g = cubeEl!.querySelector(`[data-face="${name}"]`) as SVGGElement; if (!g) return;
+      const a = n.findIndex(c => c !== 0), [u, w] = [0, 1, 2].filter(i => i !== a);
+      const pts = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([p, q]) => { const v = [0, 0, 0]; v[a] = n[a]; v[u] = p; v[w] = q; const r = rot(v); return `${(32 + 17 * r[0]).toFixed(1)},${(32 - 17 * r[1]).toFixed(1)}`; });
+      const depth = rot(n)[2];
+      g.style.display = depth > 0.02 ? "" : "none";
+      g.querySelector("polygon")!.setAttribute("points", pts.join(" "));
+      const t = g.querySelector("text")!, c = rot(n); t.setAttribute("x", (32 + 17 * c[0]).toFixed(1)); t.setAttribute("y", (34.5 - 17 * c[1]).toFixed(1));
+      t.style.opacity = String(Math.min(1, depth * 1.6));
+      order.push([depth, g]);
+    });
+    order.sort((x, y) => x[0] - y[0]).forEach(([, g]) => cubeEl!.appendChild(g));
+  };
 
   const draw = () => {
     if (!renderer) return;
@@ -107,6 +205,7 @@ const View3DInner = () => {
       const f = modeShown ? Math.sin(animT * 1.6) : 0.5 - 0.5 * Math.cos(animT);
       for (const [attr, base, dv] of deform) { const a = attr.array as Float32Array; for (let i = 0; i < a.length; i++) a[i] = base[i] + f * ampl * dv[i]; attr.needsUpdate = true; }
     }
+    camera.updateMatrixWorld(); turnCube(); adaptFloor();
     renderer.render(scene, camera);
     placeLabels();
   };
@@ -140,6 +239,7 @@ const View3DInner = () => {
     // going dark by itself once a model was analysed (0.7.1, the owner).
     dark = document.documentElement.dataset.theme === "dark"; host?.classList.toggle("dark", dark);
     if (renderer) renderer.setClearColor(new THREE.Color(css("--bg2")));
+    ground(); floorOn = false;
     const g = o.geom; if (!g || !g.segs.length) { for (const gg of lastGeo.values()) gg.dispose(); draw(); return; }
     const s = sel();
     const selEl = s?.kind === "element" ? s.id : null, selNode = s?.kind === "node" ? s.id : null;
@@ -162,20 +262,23 @@ const View3DInner = () => {
     const auto = (md ? 0.08 : 0.04) * ext / dmax;
     ampl = !dsrc || (!show().deformed && !md) ? 0 : md ? auto : show().scale > 0 ? show().scale : opts().deform > 0 ? opts().deform : auto;
     const pipeOf = (id: number) => m.pipes.find(p => p.id === id);
-    const steel = new THREE.MeshStandardMaterial({ color: 0x9aa5b1, metalness: 0.25, roughness: 0.55 });
-    const selMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(css("--blue")), metalness: 0.2, roughness: 0.5, emissive: new THREE.Color(css("--blue")), emissiveIntensity: 0.25 });
-    const insMat = new THREE.MeshStandardMaterial({ color: 0xe8e0c0, transparent: true, opacity: 0.28, depthWrite: false });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x55606e, metalness: 0.3, roughness: 0.5 });
-    const supMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(css("--green")), roughness: 0.6 });
-    const nozMat = new THREE.MeshStandardMaterial({ color: 0xb7791f, roughness: 0.6 });
+    // Brushed steel; colours (results, properties) less metallic so they read true. Every solid
+    // material is outlined (`userData.ol`), not the translucent insulation.
+    const ol = <M extends THREE.Material>(m: M) => { m.userData.ol = true; return m; };
+    const steel = ol(new THREE.MeshStandardMaterial({ color: 0xa3adb8, metalness: 0.6, roughness: 0.36 }));
+    const selMat = ol(new THREE.MeshStandardMaterial({ color: new THREE.Color(css("--blue")), metalness: 0.2, roughness: 0.45, emissive: new THREE.Color(css("--blue")), emissiveIntensity: 0.25 }));
+    const insMat = new THREE.MeshStandardMaterial({ color: 0xdfe5ea, metalness: 0.4, roughness: 0.35, transparent: true, opacity: 0.3, depthWrite: false });
+    const darkMat = ol(new THREE.MeshStandardMaterial({ color: 0x56616d, metalness: 0.55, roughness: 0.38 }));
+    const supMat = ol(new THREE.MeshStandardMaterial({ color: new THREE.Color(css("--green")), metalness: 0.15, roughness: 0.5 }));
+    const nozMat = ol(new THREE.MeshStandardMaterial({ color: 0xb7791f, metalness: 0.3, roughness: 0.5 }));
     const colourMats = new Map<string, THREE.Material>();
     // Buried pipe is drawn earth-coloured (when the stresses are not shown).
-    const soilMat = new THREE.MeshStandardMaterial({ color: 0x9c7a4f, roughness: 0.8 });
+    const soilMat = ol(new THREE.MeshStandardMaterial({ color: 0x9c7a4f, roughness: 0.8 }));
     const buried = new Set((model()?.elements ?? []).filter(e => e.soil).map(e => e.id));
     const matFor = (si: number, sg: Seg) => {
       if (sg.element === selEl) return selMat;
       const col = ratios ? ratioColour(ratios[si]) : moves ? ratioColour(moves[si] / mmax) : cat ? cat.colourOf(si) : null;
-      if (col) { if (!colourMats.has(col)) colourMats.set(col, new THREE.MeshStandardMaterial({ color: col, roughness: 0.6 })); return colourMats.get(col)!; }
+      if (col) { if (!colourMats.has(col)) colourMats.set(col, ol(new THREE.MeshStandardMaterial({ color: col, metalness: 0.1, roughness: 0.5 }))); return colourMats.get(col)!; }
       return sg.rigid ? darkMat : buried.has(sg.element) ? soilMat : steel;
     };
     const dispAt = (sg: Seg, f: number): Vec => {
@@ -184,7 +287,11 @@ const View3DInner = () => {
       return [0, 1, 2].map(i => da[i] + (db[i] - da[i]) * f) as Vec;
     };
     // Detail by size: a large model is seen from far away, so fewer facets cost nothing visible.
-    const big = g.segs.length > 600, rad = big ? 10 : 20, arcSteps = big ? 6 : 16;
+    const big = g.segs.length > 600, rad = big ? 10 : 24, arcSteps = big ? 6 : 16;
+    const rings: number[] = [], nodePts = new Set(Object.values(g.node_point));
+    // A very large model is lit by the sky and key lights alone: the room's reflections cost the
+    // most to draw and show least from far off.
+    scene.environment = big ? null : roomLight; sky.intensity = big ? 1.5 : 0.55;
     g.segs.forEach((sg, si) => {
       const p = pipeOf(sg.pipe), pb = pipeOf(sg.pipe_b) ?? p; if (!p) return;
       // Centre line: a thin rod in place of the pipe (0.6.4).
@@ -216,6 +323,13 @@ const View3DInner = () => {
       group.add(mesh); pickables.push(mesh);
       if (ampl > 0) addDeform(geo, sg, dispAt);
       if (p.ins_t > 0 && !thin) { const ro = r0 + p.ins_t + p.clad_t, ig = keep(`i${ro}`, () => sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, ro, rad, false) : straight(ro, ro)); group.add(new THREE.Mesh(ig, insMat)); if (ampl > 0) addDeform(ig, sg, dispAt); }
+      // The edge where one piece meets the next (a weld, a bend's tangent line), as drawings show it.
+      if (!thin && !big && ampl === 0) for (const [pt, rr, dirF] of [[sg.a, r0, 0], [sg.b, r1, 1]] as [number, number, number][]) {
+        // Only at the model's nodes and a bend's two ends, not at every point the pipe is split at.
+        if (sg.shape.kind !== "arc" && !nodePts.has(pt)) continue;
+        const [c0, t0] = segAt(g, sg, dirF), u = unitv(Math.abs(t0[1]) < 0.9 ? cross(t0, [0, 1, 0]) : cross(t0, [1, 0, 0])), w = cross(t0, u);
+        for (let k = 0; k < rad; k++) for (const kk of [k, k + 1]) { const th = 2 * Math.PI * kk / rad; rings.push(...addv(c0, addv(mul(u, rr * Math.cos(th)), mul(w, rr * Math.sin(th))))); }
+      }
       if (sg.rigid) rigidSymbol(sg, r0);
       if (sg.bellows) bellowsSymbol(sg, r0);
     });
@@ -274,10 +388,20 @@ const View3DInner = () => {
     // A ground grid under the model.
     const lo = Math.min(...g.points.map(p => p.p[1])) - Math.max(od0 * 2, ext * 0.05);
     const size = Math.pow(10, Math.ceil(Math.log10(Math.max(ext * 1.6, 1))));
-    const grid = new THREE.GridHelper(size, Math.min(100, Math.round(size / Math.pow(10, Math.floor(Math.log10(size)) - 1))), new THREE.Color(dark ? "#3A4757" : css("--line3")), new THREE.Color(dark ? "#253041" : css("--line2")));
-    const cx = (bounds(g)[0][0] + bounds(g)[1][0]) / 2, cz = (bounds(g)[0][2] + bounds(g)[1][2]) / 2;
-    grid.position.set(Math.round(cx), lo, Math.round(cz)); group.add(grid);
+    floorY = lo; floorL = size; floorOn = true; floorKey = "";
     batch();
+    // Outlines round every solid, and the edges where pieces meet (not on a very large model, seen
+    // from far off, where they would double the drawing for little to see).
+    const olMat = outlineMat(dark ? "#05080C" : "#3B4652");
+    group.updateMatrixWorld(true);
+    const solids: THREE.Mesh[] = [];
+    group.traverse(x => { const mm = x as THREE.Mesh; if (mm.isMesh && !Array.isArray(mm.material) && mm.material.userData.ol) solids.push(mm); });
+    if (!big) for (const mm of solids) { const o = new THREE.Mesh(mm.geometry, olMat); o.matrixAutoUpdate = false; o.matrix.copy(mm.matrixWorld); o.raycast = () => {}; group.add(o); }
+    host.dataset.outlined = String(big ? 0 : solids.length);
+    if (rings.length) {
+      const rg = new THREE.BufferGeometry(); rg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(rings), 3));
+      group.add(new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: new THREE.Color(dark ? "#05080C" : "#2C3540"), transparent: true, opacity: 0.55 })));
+    }
     for (const [k, gg] of lastGeo) if (!geoCache.has(k)) gg.dispose();
     // For the window checks: how many builds, and how many tubes the last one had to make.
     host.dataset.builds = String(+(host.dataset.builds ?? 0) + 1); host.dataset.made = String(made);
@@ -405,6 +529,13 @@ const View3DInner = () => {
     camera.position.copy(t.clone().add(dv)); camera.lookAt(t); controls?.update(); fit();
   };
   fitNow = fit;
+  /** Look from a direction (the view cube), keeping the distance, then fit. */
+  const lookFrom = (dv: Vec) => {
+    const t = controls?.target ?? new THREE.Vector3(), d = Math.max(1, camera.position.distanceTo(t));
+    const v = V(unitv(dv[1] !== 0 ? [dv[0], dv[1], dv[2] + 1e-4 * dv[1]] : dv)).multiplyScalar(d);
+    camera.up.set(0, 1, 0); if (dv[1] !== 0) camera.up.set(0, 0, -dv[1]);
+    camera.position.copy(t.clone().add(v)); camera.lookAt(t); controls?.update(); fit();
+  };
   /** The Inspector card covers the view's right side (0.7.1: Fit put the model's far end under it):
    *  the canvas stops at the card, so the picture is centred, and Fit fills, the part left free. (A
    *  camera view offset did the same but WebKit drew the grid's lines as wide bands with it.) */
@@ -416,6 +547,8 @@ const View3DInner = () => {
     renderer.setSize(fw, h, false);
     renderer.domElement.style.width = `${fw}px`;
     freeAspect = camera.aspect = fw / h;
+    px.value.set(2 * 1.0 / fw, 2 * 1.0 / h);
+    if (cubeEl) cubeEl.parentElement!.style.left = `${fw - 100}px`;
     camera.updateProjectionMatrix(); draw();
   };
 
@@ -423,6 +556,8 @@ const View3DInner = () => {
     try { renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); }
     catch { failed = true; host.querySelector(".nogl")?.classList.add("on"); return; }
     renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    { const pm = new THREE.PMREMGenerator(renderer); roomLight = pm.fromScene(new RoomEnvironment(), 0.04, 0.1, 100, { size: 64 }).texture; scene.environment = roomLight; scene.environmentIntensity = 0.9; pm.dispose(); }
     renderer.setClearColor(new THREE.Color(css("--bg2")));
     host.prepend(renderer.domElement);
     controls = new OrbitControls(camera, renderer.domElement);
@@ -505,6 +640,7 @@ const View3DInner = () => {
       <Show when={results() && !stale()}><Player /></Show>
       <Show when={categories(model(), out()?.geom, colourBy())}>{c => <div class="legend3d"><b>{CB.find(x => x[0] === colourBy())?.[1]}</b><For each={c().items}>{([k, col]) => <span class="catrow"><i style={{ background: col }} />{k}</span>}</For></div>}</Show>
       <Show when={results() && stale()}><div class="stalebar3d">The model changed since the analysis: press F5 to analyze again.</div></Show>
+      <div class="vcube"><svg class="cube" ref={cubeEl} viewBox="0 0 64 64" width="76" height="76">{FACES.map(([n, d]) => <g class={`cf cf-${n.toLowerCase()}`} data-face={n} onClick={() => lookFrom(d)}><title>{`Look from the ${n.toLowerCase()}`}</title><polygon /><text text-anchor="middle">{n}</text></g>)}</svg></div>
       <div class="axes3d"><span style={{ color: "#D64545" }}>X east</span><span style={{ color: "#3BB273" }}>Y up</span><span style={{ color: "#2B6FD6" }}>Z south</span></div>
     </div>
   );

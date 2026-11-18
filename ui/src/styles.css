@@ -1002,3 +1002,12 @@ textarea.paste { width: 100%; box-sizing: border-box; min-height: 160px; font: 1
 /* The load cases' Kind column was cut ("Operatin", found while taking the 0.7.0 screenshots). */
 .tbl.cases td:nth-child(2) select { min-width: 112px; }
 .tree .ttabs .help { align-self: center; margin: 0 6px; flex: none; }
+
+/* 0.7.3: the view cube (after Datum Mesh), at the top right of the part of the view left free. */
+.v3d .vcube { position: absolute; top: 44px; left: calc(100% - 100px); width: 84px; display: flex; justify-content: center; z-index: 2; user-select: none; }
+.v3d .cube { width: 76px; height: 76px; overflow: visible; }
+.v3d .cube .cf { cursor: pointer; }
+.v3d .cube polygon { fill: color-mix(in srgb, var(--panel) 90%, #2F6FD0); stroke: var(--line3); stroke-width: 1; }
+.v3d .cube .cf-top polygon, .v3d .cube .cf-bottom polygon { fill: color-mix(in srgb, var(--panel) 78%, #2F6FD0); }
+.v3d .cube .cf:hover polygon { fill: color-mix(in srgb, #2F6FD0 30%, var(--panel)); stroke: #2F6FD0; }
+.v3d .cube text { font: 700 7px var(--mono); letter-spacing: .03em; text-transform: uppercase; fill: var(--text); pointer-events: none; }

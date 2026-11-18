@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.3 — 2026-11-18
+
+A better 3D model, part 1: the light, the outlines, the floor and the view cube.
+
+**Light.** The steel is lit as in a room: soft reflections that show the pipe's roundness, a key light from over your shoulder and a low sky light. Colours (stress ratio, movement, sizes) are less metallic so they read true.
+
+**Outlines.** Every solid (pipe, bends, supports, nozzles, equipment) has a thin dark outline, and a fine line marks where one piece meets the next and where each bend starts and ends, as drawings show them. Insulation stays a see-through sleeve.
+
+**The ground.** A soft shade from white at the top to light grey at the bottom (deep blue-grey in the Dark theme), and the floor grid after Datum Mesh's: large squares with small ones inside, sized to the zoom, centred under what you look at and fading out round it. The old grid is gone, and with it a wide grey band that the Linux build drew under the camera.
+
+**The view cube.** At the top right of the 3D view, turning with the model; click a face to look from that side.
+
+**Large models.** Over 600 pieces, the outlines and the room's reflections are left off: they cost the most to draw and show least from far off, and the speed checks stay within their budgets (open 1441 elements in 1.8 s, an edit drawn again in about 1 s).
+
+**Checked.** Five new window checks; the real app; the Light and Dark themes.
+
 ## 0.7.2 — 2026-11-18
 
 Speed: an edit redraws only what changed.

@@ -689,6 +689,20 @@ const shots = process.env.SHOTS;
     check("an edit builds the scene once (it built it twice: the model, then its results going out of date)", s2.b === s1.b + 1, JSON.stringify([s1, s2]));
     await p.selectOption(".ctxbar .cbpick", "ratio"); await p.waitForTimeout(400); }
 
+  // 0.7.3: the look: outlines round the solids, a shaded ground, the view cube.
+  { await open("compressor"); await p.waitForTimeout(400);
+    check("every solid is outlined", +(await p.$eval(".v3d", e => e.dataset.outlined ?? "0")) > 3);
+    const px = await p.evaluate(() => { const c = document.querySelector(".v3d canvas"); const t = document.createElement("canvas"); t.width = c.width; t.height = c.height; const x = t.getContext("2d"); x.drawImage(c, 0, 0); return [Array.from(x.getImageData(3, 3, 1, 1).data), Array.from(x.getImageData(3, c.height - 3, 1, 1).data)]; });
+    check("the ground shades from white at the top to a little darker at the bottom", px[0][0] > 245 && px[1][0] < px[0][0] - 10, JSON.stringify(px));
+    const faces = async () => p.$$eval(".v3d .cube g", gs => gs.filter(g => g.style.display !== "none").map(g => g.dataset.face).sort().join(","));
+    check("the view cube shows three faces from the iso view", (await faces()).split(",").length === 3, await faces());
+    await p.click('.v3d .cube g[data-face="Top"]'); await p.waitForTimeout(250);
+    check("a click on the cube's top looks straight down", (await faces()) === "Top", await faces());
+    await p.click('.ctxbar button:text-is("Iso")'); await p.waitForTimeout(200);
+    await p.click('.v3d .cube g[data-face="Front"]'); await p.waitForTimeout(250);
+    check("a click on its front looks from the front", (await faces()) === "Front", await faces());
+    await p.click('.ctxbar button:text-is("Iso")'); await p.waitForTimeout(200); }
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

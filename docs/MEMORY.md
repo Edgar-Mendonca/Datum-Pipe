@@ -272,7 +272,8 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.6.0 | Milestone: more codes reviewed | ✅ |
 | 0.6.1–0.6.8 | The new window from the approved mock-ups (workflow bar, tree, card, bar above the view, colour by, dark results, query, player, graphs, tables, paste, Messages, Home, checker, output) | ✅ |
 | 0.7.0 | Milestone: the new window reviewed | ✅ |
-| 0.8 | 🔜 Load combinations, sustained case with operating support states, more operating cases, other pipe size standards, jacketed pipe | ⬜ |
+| 0.7.1–0.7.10 | **Proposed 2026-11-09, awaiting the owner's approval:** 0.7.1 load combinations (algebraic with factors, absolute, SRSS, envelope); 0.7.2 design support loads (envelope per support with the governing case); 0.7.3 sustained case with the operating support states; 0.7.4 up to 9 operating cases; 0.7.5 spring hangers over every operating case (cold spring included); 0.7.6 metric pipe (DN) sizes; 0.7.7 jacketed pipe; 0.7.8 response spectrum: missing mass, a spectrum per direction; 0.7.9 hinged, gimbal and slip joints; 0.7.10 report builder | ⬜ |
+| 0.8.0 | Milestone: 0.7.1–0.7.10 reviewed | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
 
 **Backlog: owner said "we should not miss out anything"** (each becomes small steps when its stage starts; every item from free public sources only):

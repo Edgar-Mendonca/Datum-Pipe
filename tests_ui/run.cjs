@@ -568,7 +568,7 @@ const shots = process.env.SHOTS;
   check("colour by pipe size names the size", ((await p.textContent(".legend3d")) ?? "").includes('8" Sch 40'));
   await p.keyboard.press("F5"); await p.waitForTimeout(400);
   await p.selectOption(".ctxbar .cbpick", "ratio"); await p.waitForTimeout(250);
-  check("results are shown on a dark ground", await p.$eval(".v3d", e => e.classList.contains("dark")));
+  check("results keep the theme's light ground (0.7.1: the view went dark by itself)", !(await p.$eval(".v3d", e => e.classList.contains("dark"))));
   await p.selectOption(".ctxbar .casepick", { label: "SUS" }); await p.waitForTimeout(250);
   check("the case picked above the view is the case shown", ((await p.textContent(".legend3d")) ?? "").includes("SUS"));
   await p.selectOption(".ctxbar .cbpick", "move"); await p.waitForTimeout(250);
@@ -650,6 +650,30 @@ const shots = process.env.SHOTS;
   await p.click(".tree .ttabs .help"); await p.waitForTimeout(200);
   check("the ? beside the tree explains the window", ((await p.textContent("body")) ?? "").includes("workflow bar: Route, Pipes, Supports"));
   await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+
+  // 0.7.1: the view follows the theme only; the message names what fails; it goes with its model;
+  // Fit keeps the model clear of the card; the view survives a graphics card reset.
+  { const corner = () => p.evaluate(() => { const c = document.querySelector(".v3d canvas"); if (!c) return null; const t = document.createElement("canvas"); t.width = c.width; t.height = c.height; const x = t.getContext("2d"); x.drawImage(c, 0, 0); return Array.from(x.getImageData(5, 5, 1, 1).data); });
+    await open("steam"); await p.keyboard.press("F5"); await p.waitForTimeout(500);
+    const px = await corner();
+    check("an analysed model is drawn on the light ground", !!px && px[0] > 230 && px[1] > 230 && px[2] > 230, JSON.stringify(px));
+    const t = (await p.textContent("#toast")) ?? "";
+    check("the analysis message tells nozzle loads apart from code stresses", t.includes("every code stress passes; 6 nozzle load checks fail."), t);
+    await open("power"); await p.waitForTimeout(200);
+    check("the message goes when another model opens", !((await p.$("#toast")) && ((await p.textContent("#toast")) ?? "").includes("nozzle load")));
+    await p.click('.ctxbar button:text-is("Fit")'); await p.waitForTimeout(200);
+    const clear = await p.evaluate(() => { const card = document.querySelector(".ipop > *")?.getBoundingClientRect(); const ls = [...document.querySelectorAll(".v3d .nlabel")].filter(e => e.style.display !== "none").map(e => e.getBoundingClientRect()); return { cardL: card?.left ?? 1e9, maxR: Math.max(...ls.map(r => r.left)), n: ls.length }; });
+    check("Fit keeps every node clear of the Inspector card", clear.n > 0 && clear.maxR < clear.cardL, JSON.stringify(clear));
+    await p.evaluate(() => { const c = document.querySelector(".v3d canvas"); const gl = c.getContext("webgl2") || c.getContext("webgl"); window.__lose = gl.getExtension("WEBGL_lose_context"); window.__lose.loseContext(); });
+    await p.waitForTimeout(300);
+    await p.evaluate(() => window.__lose.restoreContext()); await p.waitForTimeout(500);
+    const px2 = await corner();
+    check("the view is drawn again after the graphics card comes back", !!px2 && px2[0] > 230, JSON.stringify(px2));
+    await p.evaluate(() => { const c = document.querySelector(".v3d canvas"); window.__old = c; (c.getContext("webgl2") || c.getContext("webgl")).getExtension("WEBGL_lose_context").loseContext(); });
+    await p.waitForTimeout(3600);
+    const fresh = await p.evaluate(() => { const c = document.querySelector(".v3d canvas"); return !!c && c !== window.__old && !(c.getContext("webgl2") || c.getContext("webgl")).isContextLost(); });
+    check("a view whose graphics never come back is made again", fresh);
+    check("the view made again shows the model", ((await p.$$(".v3d .nlabel")).length) > 0); }
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

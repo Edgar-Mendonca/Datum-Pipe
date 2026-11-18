@@ -4,11 +4,12 @@
 // table follows). After an analysis: colours by stress ratio with a legend, and the deformed shape
 // with a scale, animated between installed and operating. The window draws what the engine gives:
 // positions, arcs and results all come from it.
-import { onMount, onCleanup, createEffect, on, Show, For } from "solid-js";
+import { onMount, onCleanup, createEffect, createSignal, on, Show, For } from "solid-js";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Geom, Model, Seg, V3, num } from "./api";
-import { out, model, sel, setSel, opts, themeTick, openMenu, act, Item } from "./store";
+import { out, model, sel, setSel, opts, themeTick, openMenu, act, Item, note } from "./store";
+import { cardOpen } from "./tree";
 import { C, setFit, setStdView, SUPPORTS } from "./cmds";
 import { COMPS, compFrom, compKey } from "./table";
 import { results, stale, show, curCase, segRatios, setShowPart, modeNo, setModeNo, colourBy, setColourBy, drawMode, setDrawMode, setCaseId, ColourBy, speed, setSpeed } from "./rstate";
@@ -74,7 +75,12 @@ export const categories = (m: Model | undefined, g: Geom | null | undefined, cb:
   return { colourOf: si => colour.get(keys[si])!, items: order.map(k => [k, colour.get(k)!]) };
 };
 
-export const View3D = () => {
+/** Drawn again from nothing when the graphics card resets and WebGL does not come back by itself
+ *  (a driver update, sleep; 0.7.1: the view stayed black until another view was opened). */
+const [glGen, setGlGen] = createSignal(1);
+export const View3D = () => <Show when={glGen()} keyed>{_ => <View3DInner />}</Show>;
+
+const View3DInner = () => {
   let host!: HTMLDivElement, labels!: HTMLDivElement;
   let renderer: THREE.WebGLRenderer | null = null;
   const scene = new THREE.Scene();
@@ -105,7 +111,7 @@ export const View3D = () => {
     placeLabels();
   };
   const placeLabels = () => {
-    const w = host.clientWidth, h = host.clientHeight;
+    const w = renderer?.domElement.clientWidth || host.clientWidth, h = host.clientHeight;
     for (const el of [...labels.children] as HTMLElement[]) {
       const p = new THREE.Vector3(+el.dataset.x!, +el.dataset.y!, +el.dataset.z!).project(camera);
       const vis = p.z < 1 && p.z > -1;
@@ -119,9 +125,10 @@ export const View3D = () => {
     const o = out(), m = model(); if (!o || !m) return;
     scene.remove(group); group.traverse(x => { const mm = x as THREE.Mesh; mm.geometry?.dispose?.(); }); group = new THREE.Group(); scene.add(group);
     pickables = []; deform = []; labels.innerHTML = "";
-    // The light ground until a result says otherwise (found in the real app: an empty model's
-    // view was black, as the ground was only set once there was pipe to draw).
-    dark = false; host?.classList.remove("dark");
+    // The ground follows the theme (Light, Dark or Auto, which follows Windows), and nothing
+    // else: 0.6.4 turned the view navy whenever results were coloured, which read as the window
+    // going dark by itself once a model was analysed (0.7.1, the owner).
+    dark = document.documentElement.dataset.theme === "dark"; host?.classList.toggle("dark", dark);
     if (renderer) renderer.setClearColor(new THREE.Color(css("--bg2")));
     const g = o.geom; if (!g || !g.segs.length) { draw(); return; }
     const s = sel();
@@ -138,9 +145,6 @@ export const View3D = () => {
     const moves = res && c && !md && cb === "move" ? g.segs.map(sg => Math.max(Math.hypot(...(c.disp[sg.a] ?? [0, 0, 0]).slice(0, 3) as [number, number, number]), Math.hypot(...(c.disp[sg.b] ?? [0, 0, 0]).slice(0, 3) as [number, number, number]))) : null;
     const mmax = moves ? Math.max(1e-12, ...moves) : 1;
     const cat = categories(m, g, cb);
-    dark = !!(ratios || moves);
-    host?.classList.toggle("dark", dark);
-    if (renderer) renderer.setClearColor(new THREE.Color(dark ? "#1A2230" : css("--bg2")));
     // Deformed shape: the case's displacements (or the mode's), scaled so the largest shows as 4 %
     // of the model (8 % for a mode, whose size has no meaning).
     const ext = extent(g);
@@ -361,7 +365,7 @@ export const View3D = () => {
     const r = Math.max(0.5, new THREE.Vector3(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]).length() / 2);
     const dir = camera.position.clone().sub(controls?.target ?? new THREE.Vector3()).normalize();
     if (dir.lengthSq() < 0.5) dir.set(1, 0.8, 1).normalize();
-    const fov = Math.min(camera.fov, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect)));
+    const fov = Math.min(camera.fov, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * freeAspect)));
     const d = r / Math.sin(THREE.MathUtils.degToRad(fov / 2)) * 0.9;
     camera.position.copy(c.clone().add(dir.multiplyScalar(d)));
     camera.near = d / 1000; camera.far = d * 100; camera.updateProjectionMatrix();
@@ -377,6 +381,19 @@ export const View3D = () => {
     camera.position.copy(t.clone().add(dv)); camera.lookAt(t); controls?.update(); fit();
   };
   fitNow = fit;
+  /** The Inspector card covers the view's right side (0.7.1: Fit put the model's far end under it):
+   *  the canvas stops at the card, so the picture is centred, and Fit fills, the part left free. (A
+   *  camera view offset did the same but WebKit drew the grid's lines as wide bands with it.) */
+  let freeAspect = 1;
+  const resize = () => {
+    const w = host.clientWidth, h = host.clientHeight; if (!w || !h || !renderer) return;
+    const card = (cardOpen() || sel()) ? host.parentElement?.querySelector(".ipop") : null;
+    const fw = Math.round(w - (card ? Math.min(w * 0.5, card.getBoundingClientRect().width + 8) : 0));
+    renderer.setSize(fw, h, false);
+    renderer.domElement.style.width = `${fw}px`;
+    freeAspect = camera.aspect = fw / h;
+    camera.updateProjectionMatrix(); draw();
+  };
 
   onMount(() => {
     try { renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); }
@@ -389,8 +406,12 @@ export const View3D = () => {
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN };
     controls.addEventListener("change", draw);
     camera.position.set(8, 6, 8);
-    const resize = () => { const w = host.clientWidth, h = host.clientHeight; if (!w || !h || !renderer) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); draw(); };
     const ro = new ResizeObserver(resize); ro.observe(host); resize();
+    // The graphics card reset: WebGL comes back by itself (draw everything again) or, if it has not
+    // within 3 s, the view is made again from nothing.
+    let lostT = 0;
+    renderer.domElement.addEventListener("webglcontextlost", e => { e.preventDefault(); clearTimeout(lostT); lostT = window.setTimeout(() => { if (renderer?.getContext().isContextLost()) { note("The graphics card restarted: the 3D view was made again.", "note"); setGlGen(g => g + 1); } }, 3000); });
+    renderer.domElement.addEventListener("webglcontextrestored", () => { clearTimeout(lostT); build(); });
     // Click (not drag) to select.
     let down: [number, number] | null = null;
     renderer.domElement.addEventListener("pointerdown", e => { down = [e.clientX, e.clientY]; });
@@ -443,7 +464,8 @@ export const View3D = () => {
       renderer?.dispose(); renderer?.forceContextLoss(); renderer = null;
     });
   });
-  createEffect(on([() => out(), sel, results, stale, show, colourBy, drawMode, curCase, () => opts().labels, () => opts().contours, () => opts().deform, themeTick], () => { if (!failed) { build(); if (renderer) renderer.setClearColor(new THREE.Color(dark ? "#1A2230" : css("--bg2"))); } }, { defer: true }));
+  createEffect(on([() => out(), sel, results, stale, show, colourBy, drawMode, curCase, () => opts().labels, () => opts().contours, () => opts().deform, themeTick], () => { if (!failed) build(); }, { defer: true }));
+  createEffect(on([cardOpen, () => !!sel()], () => requestAnimationFrame(resize), { defer: true }));
   // The model's first elements: fit as it grows from nothing.
   createEffect(on(() => out()?.geom?.points.length ?? 0, (n, prev) => { if (renderer && (prev ?? 0) < 2 && n >= 2) setTimeout(fit, 20); }, { defer: true }));
 

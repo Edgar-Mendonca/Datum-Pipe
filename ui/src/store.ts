@@ -53,7 +53,8 @@ export const onLoadHook = (f: () => void) => { loadHooks.push(f); };
 const loaded = () => loadHooks.forEach(f => f());
 export const loadOut = async (cmd: string, args?: object) => {
   const o = await call<Out | null>(cmd, args);
-  if (o) batch(() => { setSel(null); setOut(o); loaded(); setBackstage(null); setView("model"); });
+  // A message about the model that was open goes with it (0.7.1: it stayed over the next one).
+  if (o) batch(() => { setMsg(null); setSel(null); setOut(o); loaded(); setBackstage(null); setView("model"); });
   return o;
 };
 

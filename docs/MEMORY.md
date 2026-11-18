@@ -272,8 +272,13 @@ Each stage is reached through small 0.x.y steps; the next minor version (0.2.0, 
 | 0.6.0 | Milestone: more codes reviewed | ✅ |
 | 0.6.1–0.6.8 | The new window from the approved mock-ups (workflow bar, tree, card, bar above the view, colour by, dark results, query, player, graphs, tables, paste, Messages, Home, checker, output) | ✅ |
 | 0.7.0 | Milestone: the new window reviewed | ✅ |
-| 0.7.1–0.7.10 | **Proposed 2026-11-09, awaiting the owner's approval:** 0.7.1 load combinations (algebraic with factors, absolute, SRSS, envelope); 0.7.2 design support loads (envelope per support with the governing case); 0.7.3 sustained case with the operating support states; 0.7.4 up to 9 operating cases; 0.7.5 spring hangers over every operating case (cold spring included); 0.7.6 metric pipe (DN) sizes; 0.7.7 jacketed pipe; 0.7.8 response spectrum: missing mass, a spectrum per direction; 0.7.9 hinged, gimbal and slip joints; 0.7.10 report builder | ⬜ |
-| 0.8.0 | Milestone: 0.7.1–0.7.10 reviewed | ⬜ |
+| 0.7.1 | Fixes from the 2026-11-18 health check: the view follows the theme only (no dark results ground), recovery from a graphics card reset, the analysis message counts each kind of check, the message goes with its model, Fit keeps the model clear of the Inspector card | ✅ |
+| 0.7.2 | Speed: an edit redraws only what changed | ⬜ |
+| 0.7.3 | 3D look 1: lighting, outlines, fading floor, view cube (after Datum Mesh's view) | ⬜ |
+| 0.7.4 | 3D look 2: real fittings (elbows with welds, flanges with bolts, valves with handwheels, reducers, tees) | ⬜ |
+| 0.7.5 | 3D look 3: real supports (shoes, guides, clamps, spring cans) and equipment shapes | ⬜ |
+| 0.7.6 → | The features proposed 2026-11-09, in order: load combinations; design support loads; sustained case with the operating support states; up to 9 operating cases; spring hangers over every operating case; metric DN sizes; jacketed pipe; spectrum missing mass and per-direction spectra; hinged, gimbal and slip joints; report builder; then the 0.8.0 milestone | ⬜ |
+| Later | STEP export through Datum Mesh's geometry engine (SolidCraft, MIT/Apache) | ⬜ |
 | 1.0 | Validation report, user guide, signed installer | ⬜ |
 
 **Backlog: owner said "we should not miss out anything"** (each becomes small steps when its stage starts; every item from free public sources only):
@@ -561,6 +566,8 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
   - Speed: an edit on the 1441-element model redraws in 0.76–1.53 s (budget 1.2 s): the whole scene is rebuilt on every edit.
   - 3D look: thin open cylinders, flat lighting, no edges, symbolic fittings and supports, a plain grid.
   - Datum Mesh: SolidCraft's B-rep kernel (MIT/Apache, `app/`, used headless by `crates/cad`; +~25 MB installer, long build) and a better three.js view (fat edge lines, fading floor, view cube). Recommended: the look first in three.js (lighting, edges, real fittings and supports), the kernel later only for STEP export. Awaiting the owner.
+
+- **0.7.1 built (2026-11-18).** The owner approved the fix-first order (0.7.1 fixes, 0.7.2 speed, 0.7.3–0.7.5 the 3D look, then the features) and said the dark view is simply the theme: Light, Dark or Auto. Done: `view3d.tsx` ground from the theme only (`dark` = theme dark; the 0.6.4 navy ground removed), `webglcontextrestored` rebuilds, a context still lost after 3 s remounts the view (`glGen`, keyed Show), the canvas stops at the Inspector card's edge so the picture is centred in, and Fit fills, the part left free (`freeAspect`; a camera view offset was tried first); `rstate.ts` counts stresses, minimum wall, nozzle loads, flanges and vessel nozzles apart; `loadOut` clears the message. Seven window checks (one replaced the dark-ground check); real app. Seen in the real app on Linux (Xvfb, software GL), before and after this release: a grid line under the camera drawn as a wide grey band (hidden on the old navy ground); Chromium (the Windows WebView) draws it right; the grid is replaced in 0.7.3, check it there.
 
 ## 5. Known limits (0.2.0)
 

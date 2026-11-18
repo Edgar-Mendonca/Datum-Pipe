@@ -394,7 +394,7 @@
       "title": "The new window: the bar above the view and colour by",
       "when": "Done",
       "items": [
-        "Case, colour by any result or property, solid or centre line and the views in one bar; results on a dark ground"
+        "Case, colour by any result or property, solid or centre line and the views in one bar; the view follows the Light, Dark or Auto theme"
       ]
     },
     {
@@ -435,6 +435,28 @@
       "when": "Done",
       "items": [
         "Every step reviewed in the real app; help for the window; the new picture"
+      ]
+    },
+    {
+      "v": "0.7.1",
+      "title": "Fixes from a health check",
+      "when": "Done",
+      "items": [
+        "The view follows the Light, Dark or Auto theme only",
+        "The view comes back after a graphics card reset",
+        "The analysis message counts each kind of check on its own",
+        "Fit keeps the model clear of the Inspector card"
+      ]
+    },
+    {
+      "v": "0.7.2–0.7.5",
+      "title": "Speed and a better 3D model",
+      "when": "Next",
+      "items": [
+        "0.7.2: an edit redraws only what changed",
+        "0.7.3: lighting, outlines, a fading floor and a view cube",
+        "0.7.4: real fittings: elbows, flanges, valves, reducers, tees",
+        "0.7.5: real supports: shoes, guides, clamps, spring cans"
       ]
     },
     {

@@ -57,9 +57,14 @@ const solve = async (quiet = false) => {
     batch(() => { setResults(r); setStale(false); if (!r.cases.some(c => c.id === caseId())) setCaseId(null); if (!quiet) setTab("results"); });
     const bad = r.cases.filter(c => c.imbalance > 1e-6);
     const worst = r.cases.flatMap(c => c.stresses).reduce((m, s) => Math.max(m, s.ratio), 0);
-    const fails = r.cases.flatMap(c => c.stresses).filter(s => !s.pass).length + r.walls.filter(w => !w.pass).length + r.cases.flatMap(c => c.equipment ?? []).filter(e => !e.pass).length + r.cases.flatMap(c => c.flanges ?? []).filter(f => f.rating > 0 && !f.pass).length + (r.vessel_links ?? []).filter(x => !x.pass).length;
+    // Each kind of check counted on its own (0.7.1: "Highest stress ratio 0.494: 6 checks fail"
+    // read as failing stresses when the 6 were nozzle loads).
+    const sFails = r.cases.flatMap(c => c.stresses).filter(s => !s.pass).length;
+    const other = ([[r.walls.filter(w => !w.pass).length, "minimum wall"], [r.cases.flatMap(c => c.equipment ?? []).filter(e => !e.pass).length, "nozzle load"], [r.cases.flatMap(c => c.flanges ?? []).filter(f => f.rating > 0 && !f.pass).length, "flange"], [(r.vessel_links ?? []).filter(x => !x.pass).length, "vessel nozzle"]] as [number, string][]).filter(([n]) => n > 0);
+    const fails = sFails + other.reduce((a, [n]) => a + n, 0);
+    const otherTxt = other.map(([n, k]) => `${n} ${k} check${n > 1 ? "s" : ""}`).join(", ");
     const ms = r.stats.ms < 1 ? "under 1 ms" : r.stats.ms < 2000 ? `${Math.round(r.stats.ms)} ms` : `${(r.stats.ms / 1000).toFixed(1)} s`;
-    const msg = `Analyzed ${r.cases.length} load cases (${r.stats.equations} equations) in ${ms}. ${bad.length ? `The reactions do not balance the loads in ${bad.map(c => c.name).join(", ")}: see Results.` : "Reactions balance the loads in every case."} ${worst > 0 ? `Highest stress ratio ${num(worst, 3)}${fails ? `: ${fails} checks fail.` : ", every check passes."}` : ""}`;
+    const msg = `Analyzed ${r.cases.length} load cases (${r.stats.equations} equations) in ${ms}. ${bad.length ? `The reactions do not balance the loads in ${bad.map(c => c.name).join(", ")}: see Results.` : "Reactions balance the loads in every case."} ${worst > 0 ? `Highest stress ratio ${num(worst, 3)}: ` : ""}${worst > 0 || otherTxt ? (!fails ? "every check passes." : `${sFails ? `${sFails} code stress${sFails > 1 ? "es" : ""} fail` : worst > 0 ? "every code stress passes" : ""}${otherTxt ? `${sFails || worst > 0 ? "; " : ""}${otherTxt} fail${other.length === 1 && other[0][0] === 1 ? "s" : ""}` : ""}.`) : ""}`;
     const text = [...r.warnings, msg].join(" ");
     // Messages keep what changed: every solve asked for, and a quiet one only when its findings differ.
     const key = text.replace(/ in [\d.]+ (ms|s)\.| in under 1 ms\./, "");

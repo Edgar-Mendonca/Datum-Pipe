@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.1 — 2026-11-18
+
+Fixes found in a full health check, before the next features.
+
+**The view no longer turns dark by itself.** Since 0.6.4 the 3D view switched to a navy ground whenever results were coloured, and with Auto-analyze on that happened as soon as the model was finished. The view now follows the theme only: Light, Dark, or Auto (which follows Windows), set at the top right.
+
+**A graphics card reset no longer leaves the view black.** After a driver update, sleep or a reset of the graphics, the view is drawn again; if the graphics do not come back by themselves within 3 seconds, the view is made again from nothing (noted in Messages).
+
+**The analysis message says what fails.** It said "Highest stress ratio 0.494: 6 checks fail" when every code stress passed and the 6 were nozzle loads. Each kind of check is now counted on its own: "every code stress passes; 6 nozzle load checks fail."
+
+**A message goes with its model.** The last model's message no longer stays over the next model you open.
+
+**Fit keeps the model clear of the Inspector card.** The picture is centred in the part of the view the card leaves free, so the far end of the model is no longer hidden under it.
+
+**Checked.** Seven new window checks; the real app.
+
 ## 0.7.0 — 2026-11-09
 
 The new window, finished.

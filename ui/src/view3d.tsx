@@ -120,17 +120,27 @@ const View3DInner = () => {
     }
   };
 
+  /** The pipe's tubes kept from one build to the next (0.7.2): a change of colour, case or
+   *  selection redraws without making a single tube again; an edit makes only the tubes it moved.
+   *  Tubes that move with the deformed shape are made fresh, as their vertices are changed. */
+  let geoCache = new Map<string, THREE.BufferGeometry>();
+  /** One build per frame, however many of its inputs change together (0.7.2: an edit built the
+   *  scene twice, once for the new model and again as its results went out of date). */
+  let pendingBuild = 0;
+  const later = () => { if (!pendingBuild) pendingBuild = requestAnimationFrame(() => { pendingBuild = 0; build(); }); };
   /** Builds the scene from the engine's geometry, the selection and the results. */
   const build = () => {
     const o = out(), m = model(); if (!o || !m) return;
-    scene.remove(group); group.traverse(x => { const mm = x as THREE.Mesh; mm.geometry?.dispose?.(); }); group = new THREE.Group(); scene.add(group);
+    scene.remove(group); group.traverse(x => { const mm = x as THREE.Mesh; if (!mm.geometry?.userData.kept) mm.geometry?.dispose?.(); }); group = new THREE.Group(); scene.add(group);
+    const lastGeo = geoCache; geoCache = new Map();
+    let made = 0;
     pickables = []; deform = []; labels.innerHTML = "";
     // The ground follows the theme (Light, Dark or Auto, which follows Windows), and nothing
     // else: 0.6.4 turned the view navy whenever results were coloured, which read as the window
     // going dark by itself once a model was analysed (0.7.1, the owner).
     dark = document.documentElement.dataset.theme === "dark"; host?.classList.toggle("dark", dark);
     if (renderer) renderer.setClearColor(new THREE.Color(css("--bg2")));
-    const g = o.geom; if (!g || !g.segs.length) { draw(); return; }
+    const g = o.geom; if (!g || !g.segs.length) { for (const gg of lastGeo.values()) gg.dispose(); draw(); return; }
     const s = sel();
     const selEl = s?.kind === "element" ? s.id : null, selNode = s?.kind === "node" ? s.id : null;
     const res = results() && !stale() ? results() : null;
@@ -192,13 +202,20 @@ const View3DInner = () => {
         c.rotateX(Math.PI / 2); c.lookAt(V(sub(b, a))); c.translate(...(addv(a, mul(sub(b, a), 0.5)) as Vec));
         return c;
       };
-      if (sg.shape.kind === "arc") geo = new THREE.TubeGeometry(curve, steps, r0, rad, false);
-      else geo = straight(r0, r1);
+      const pa = g.points[sg.a].p, pb2 = g.points[sg.b].p, shp = sg.shape.kind === "arc" ? JSON.stringify(sg.shape) : "";
+      const keep = (k: string, make: () => THREE.BufferGeometry) => {
+        if (ampl > 0) return make();
+        const key = `${k}|${pa}|${pb2}|${shp}|${rad}|${steps}`;
+        let gg = geoCache.get(key) ?? lastGeo.get(key);
+        if (!gg) { gg = make(); gg.userData.kept = true; made++; }
+        geoCache.set(key, gg); return gg;
+      };
+      geo = keep(`${r0},${r1}`, () => sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, r0, rad, false) : straight(r0, r1));
       const mesh = new THREE.Mesh(geo, matFor(si, sg));
       mesh.userData = { element: sg.element };
       group.add(mesh); pickables.push(mesh);
       if (ampl > 0) addDeform(geo, sg, dispAt);
-      if (p.ins_t > 0 && !thin) { const ro = r0 + p.ins_t + p.clad_t, ig = sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, ro, rad, false) : straight(ro, ro); group.add(new THREE.Mesh(ig, insMat)); if (ampl > 0) addDeform(ig, sg, dispAt); }
+      if (p.ins_t > 0 && !thin) { const ro = r0 + p.ins_t + p.clad_t, ig = keep(`i${ro}`, () => sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, ro, rad, false) : straight(ro, ro)); group.add(new THREE.Mesh(ig, insMat)); if (ampl > 0) addDeform(ig, sg, dispAt); }
       if (sg.rigid) rigidSymbol(sg, r0);
       if (sg.bellows) bellowsSymbol(sg, r0);
     });
@@ -209,7 +226,11 @@ const View3DInner = () => {
     const nodeR = Math.max(od0 * 0.32, ext * 0.004);
     for (const [num, pi] of Object.entries(g.node_point)) {
       const n = +num, pt = g.points[pi].p as Vec;
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(n === selNode ? nodeR * 1.6 : nodeR, big ? 8 : 14, big ? 6 : 10), n === selNode ? selMat : darkMat);
+      const br = n === selNode ? nodeR * 1.6 : nodeR, bk = `ball|${br}|${big}`;
+      let bg = geoCache.get(bk) ?? lastGeo.get(bk);
+      if (!bg) { bg = new THREE.SphereGeometry(br, big ? 8 : 14, big ? 6 : 10); bg.userData.kept = true; }
+      geoCache.set(bk, bg);
+      const ball = new THREE.Mesh(bg, n === selNode ? selMat : darkMat);
       ball.position.copy(V(pt)); ball.userData = { node: n }; ball.renderOrder = 2; group.add(ball); pickables.push(ball);
       if (opts().labels && (Object.keys(g.node_point).length < 400 || n === selNode)) {
         const el = document.createElement("div"); el.className = "nlabel" + (n === selNode ? " on" : ""); el.textContent = String(n);
@@ -257,6 +278,9 @@ const View3DInner = () => {
     const cx = (bounds(g)[0][0] + bounds(g)[1][0]) / 2, cz = (bounds(g)[0][2] + bounds(g)[1][2]) / 2;
     grid.position.set(Math.round(cx), lo, Math.round(cz)); group.add(grid);
     batch();
+    for (const [k, gg] of lastGeo) if (!geoCache.has(k)) gg.dispose();
+    // For the window checks: how many builds, and how many tubes the last one had to make.
+    host.dataset.builds = String(+(host.dataset.builds ?? 0) + 1); host.dataset.made = String(made);
     draw();
   };
   /** Thousands of small meshes are thousands of draw calls: merge every still mesh that shares a
@@ -295,7 +319,7 @@ const View3DInner = () => {
           }
         }
         starts.push(oi / 3);
-        for (let i = 0; i < gi.count; i++) idx[oi + i] = gi.getX(i) + ov;
+        const ga = gi.array; for (let i = 0; i < gi.count; i++) idx[oi + i] = ga[i] + ov;
         ov += gp.count; oi += gi.count;
       }
       const merged = new THREE.BufferGeometry();
@@ -307,7 +331,7 @@ const View3DInner = () => {
       big.renderOrder = Math.max(...list.map(mm => mm.renderOrder));
       big.userData = { pick: (face: number) => { let lo = 0, hi = starts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= face) lo = mid; else hi = mid - 1; } return tags[lo]; } };
       const picked = list.some(mm => pickables.includes(mm) || pickables.some(p => p !== mm && p.getObjectById(mm.id)));
-      for (const mm of list) { mm.parent?.remove(mm); mm.geometry.dispose(); }
+      for (const mm of list) { mm.parent?.remove(mm); if (!mm.geometry.userData.kept) mm.geometry.dispose(); }
       group.add(big);
       pickables = pickables.filter(p => p.parent || p === group);
       if (picked) pickables.push(big);
@@ -459,12 +483,12 @@ const View3DInner = () => {
     // Leaving the view frees the GPU: the scene's geometry, and the WebGL context itself (dispose()
     // alone keeps the context; switching views many times ran the GPU out of contexts, found 0.3.7).
     onCleanup(() => {
-      cancelAnimationFrame(anim); ro.disconnect(); controls?.dispose();
-      scene.traverse(x => { const mm = x as THREE.Mesh; mm.geometry?.dispose?.(); });
+      cancelAnimationFrame(anim); cancelAnimationFrame(pendingBuild); ro.disconnect(); controls?.dispose();
+      scene.traverse(x => { const mm = x as THREE.Mesh; mm.geometry?.dispose?.(); }); for (const gg of geoCache.values()) gg.dispose(); geoCache.clear();
       renderer?.dispose(); renderer?.forceContextLoss(); renderer = null;
     });
   });
-  createEffect(on([() => out(), sel, results, stale, show, colourBy, drawMode, curCase, () => opts().labels, () => opts().contours, () => opts().deform, themeTick], () => { if (!failed) build(); }, { defer: true }));
+  createEffect(on([() => out(), sel, results, stale, show, colourBy, drawMode, curCase, () => opts().labels, () => opts().contours, () => opts().deform, themeTick], () => { if (!failed) later(); }, { defer: true }));
   createEffect(on([cardOpen, () => !!sel()], () => requestAnimationFrame(resize), { defer: true }));
   // The model's first elements: fit as it grows from nothing.
   createEffect(on(() => out()?.geom?.points.length ?? 0, (n, prev) => { if (renderer && (prev ?? 0) < 2 && n >= 2) setTimeout(fit, 20); }, { defer: true }));

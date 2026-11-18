@@ -675,6 +675,20 @@ const shots = process.env.SHOTS;
     check("a view whose graphics never come back is made again", fresh);
     check("the view made again shows the model", ((await p.$$(".v3d .nlabel")).length) > 0); }
 
+  // 0.7.2: an edit builds the 3D scene once; a change of colour makes no tube again.
+  { const st = () => p.$eval(".v3d", e => ({ b: +(e.dataset.builds ?? 0), m: +(e.dataset.made ?? -1) }));
+    await open("steam"); await p.keyboard.press("F5"); await p.waitForTimeout(500);
+    await p.click('.side button[title="Model"]').catch(() => {}); await p.waitForTimeout(150);
+    const s0 = await st();
+    await p.selectOption(".ctxbar .cbpick", "size"); await p.waitForTimeout(200);
+    const s1 = await st();
+    check("a change of colour builds once and makes no tube again", s1.b === s0.b + 1 && s1.m === 0, JSON.stringify([s0, s1]));
+    const cell = await p.$('.egrid tbody tr:first-child td:nth-child(4) input');
+    await cell.fill("6100"); await cell.press("Tab"); await p.waitForTimeout(150);
+    const s2 = await st();
+    check("an edit builds the scene once (it built it twice: the model, then its results going out of date)", s2.b === s1.b + 1, JSON.stringify([s1, s2]));
+    await p.selectOption(".ctxbar .cbpick", "ratio"); await p.waitForTimeout(400); }
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

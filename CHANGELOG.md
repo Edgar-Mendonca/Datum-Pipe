@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.2 — 2026-11-18
+
+Speed: an edit redraws only what changed.
+
+**One redraw per change.** An edit built the 3D view twice (once for the new model, again as its results went out of date) and a third time when the automatic analysis came back. Changes that arrive together now give one redraw.
+
+**The pipe is kept between redraws.** The pipe's tubes and the node markers are kept from one redraw to the next: a change of colour, load case or selection makes none of them again, and an edit makes only the tubes it moved.
+
+**Faster.** On the 1441-element speed check, an edit is drawn again, analysed and drawn with its results in about 0.85 s (it took 0.8 to 1.5 s, often over the 1.2 s budget); 0.3 s of that is the pause that waits for you to stop typing.
+
+**Checked.** Two new window checks (one redraw per edit; no tube made again for a change of colour); the speed check; the real app.
+
 ## 0.7.1 — 2026-11-18
 
 Fixes found in a full health check, before the next features.

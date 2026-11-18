@@ -449,11 +449,18 @@
       ]
     },
     {
-      "v": "0.7.2–0.7.5",
-      "title": "Speed and a better 3D model",
+      "v": "0.7.2",
+      "title": "Speed",
+      "when": "Done",
+      "items": [
+        "An edit redraws only what changed: about 0.85 s on 1441 elements"
+      ]
+    },
+    {
+      "v": "0.7.3–0.7.5",
+      "title": "A better 3D model",
       "when": "Next",
       "items": [
-        "0.7.2: an edit redraws only what changed",
         "0.7.3: lighting, outlines, a fading floor and a view cube",
         "0.7.4: real fittings: elbows, flanges, valves, reducers, tees",
         "0.7.5: real supports: shoes, guides, clamps, spring cans"

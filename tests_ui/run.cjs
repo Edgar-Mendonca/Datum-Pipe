@@ -710,8 +710,20 @@ const shots = process.env.SHOTS;
     await open("bellows"); await p.waitForTimeout(400);
     check("the expansion joint is drawn", JSON.parse(await p.$eval(".v3d", e => e.dataset.parts ?? "{}")).bellows === 1);
     await p.click('.ctxbar button:text-is("Centre line")'); await p.waitForTimeout(250);
-    check("the centre line view draws no fittings", Object.keys(JSON.parse(await p.$eval(".v3d", e => e.dataset.parts ?? "{}"))).length === 0, await p.$eval(".v3d", e => e.dataset.parts));
+    check("the centre line view draws no fittings", Object.keys(JSON.parse(await p.$eval(".v3d", e => e.dataset.parts ?? "{}"))).filter(k => !k.startsWith("support-") && k !== "nozzle").length === 0, await p.$eval(".v3d", e => e.dataset.parts));
     await p.click('.ctxbar button:text-is("Solid")'); await p.waitForTimeout(150); }
+
+  // 0.7.5: every kind of support is drawn as built, on horizontal and vertical pipe.
+  { await open("pump"); await p.waitForTimeout(300);
+    const list = [[60, { kind: "rest" }], [60, { kind: "guide" }], [60, { kind: "linestop" }], [85, { kind: "restraint", dir: [1, 0, 0] }], [85, { kind: "restraint", dir: [0, 0, 1] }],
+      [110, { kind: "spring", dir: [0, 1, 0], k: 1e6 }], [110, { kind: "spring", dir: [1, 0, 0], k: 1e6 }], [70, { kind: "hanger", k: 0, cold: 0 }], [100, { kind: "constant", load: 1000 }], [120, { kind: "rotspring", dir: [1, 0, 0], k: 1e6 }],
+      [40, { kind: "rest" }], [40, { kind: "guide" }], [30, { kind: "anchor" }], [40, { kind: "hanger", k: 0, cold: 0 }], [120, { kind: "anchor" }]];
+    await p.evaluate(l => { window.__cur = JSON.parse(JSON.stringify(window.__cur)); window.__cur.m.supports = l.map(([node, kind], i) => ({ id: 500 + i, node, kind, tag: "", one_way: false, gap: 0, mu: 0, disp: [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]] })); }, list);
+    const cell = await p.$('.egrid tbody tr:first-child td:nth-child(5) input'); await cell.fill("0.61"); await cell.press("Tab"); await p.waitForTimeout(400);
+    const parts = JSON.parse(await p.$eval(".v3d", e => e.dataset.parts ?? "{}"));
+    const n = Object.entries(parts).filter(([k]) => k.startsWith("support-")).reduce((a, [, v]) => a + v, 0);
+    check("every kind of support is drawn (rests, guides, stops, restraints, springs, hangers, constant, anchors; level and upright)", n === list.length && ["rest", "guide", "linestop", "restraint", "spring", "hanger", "constant", "rotspring", "anchor"].every(k => parts[`support-${k}`] > 0), JSON.stringify(parts));
+    check("the pump's nozzle is drawn flanged to its equipment", parts.nozzle === 1); }
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

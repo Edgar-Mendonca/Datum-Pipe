@@ -21,7 +21,7 @@
   <a href="docs/MEMORY.md"><img src="https://img.shields.io/badge/Memory_&_roadmap-5B6878?style=for-the-badge" alt="Memory and roadmap"></a>
 </p>
 
-![Datum Pipe: a steam line on a pipe rack in 3D, coloured by stress ratio, with its deformed shape and the element table](docs/images/model-stress.png)
+![Datum Pipe: a cooling water header with a tee, a reducer, a flanged joint, a gate valve and a reinforced branch in 3D, on pipe shoes and beams, coloured by stress ratio, with the element table](docs/images/model-stress.png)
 
 Route a piping system in a table, the way a stress engineer marks up an isometric (or import a piping component file); put on its supports, temperatures, pressures, wind and seismic loads; and Datum Pipe works out the displacements, support loads, equipment nozzle loads and code stresses, shows them on the 3D model and on an isometric drawing, and prints a stress report. It is for piping, stress, mechanical, process and plant engineers, consultants and students. It is free and open source (MIT), Windows first, installs in seconds and updates itself. More on the family site: [edgar-mendonca.github.io/Datum/apps/pipe](https://edgar-mendonca.github.io/Datum/apps/pipe).
 
@@ -29,6 +29,7 @@ Route a piping system in a table, the way a stress engineer marks up an isometri
 
 ## What it does
 
+- **A 3D model that looks like the plant** (0.7.3–0.7.5): steel lit as in a room with thin outlines; flanges with their bolts, gate valves with handwheels, reducers, tees with their welds and pads, bellows; rests, guides and line stops as pipe shoes on beams, anchors welded down, struts, spring cans and hangers; flanged nozzles on their equipment; a fading floor grid and a view cube.
 - **A window built for the work** (0.7): a workflow bar down the left, the model tree with counts and a filter, the Inspector as a card over the 3D view, a bar above the view to colour the pipe by any result or property, a node's results when you click it, Next Overstress, a player, graphs along the route, node, support and load tables, Messages and the solver log, a model checker, and output of chosen cases and reports to a spreadsheet.
 - **An element table that draws as you type**: From node, To node, DX, DY, DZ, pipe, material, line conditions and component, with values in any unit (20 ft, 150 mm). Node numbers step by 10; new rows copy the row above. Analysis runs again after every edit, and right-click menus in the 3D view add supports and change components.
 - **Pipe data**: nominal sizes ½" to 24" in every schedule, your own sizes, corrosion allowance, mill tolerance, insulation, cladding and contents; carbon, low-alloy, stainless 304 and 316 and duplex steels with modulus and expansion against temperature and their sources.

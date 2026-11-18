@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.5 — 2026-11-18
+
+A better 3D model, part 3: the supports and the equipment, drawn as they are built.
+
+**Rests, guides and line stops** are pipe shoes (the curved plate under the pipe, the web and the base plate, clear of the insulation) on a steel beam across the pipe; a guide adds its guide angles each side of the shoe, a line stop its stop plates before and after it. On an upright pipe, a riser clamp with lugs on short beams.
+
+**Anchors** are the shoe welded down with stiffeners (on an upright pipe, a clamp with gussets on a plate). An anchor at an equipment nozzle is drawn as the nozzle.
+
+**Restraints** are a strut with its clevis and base plate from a clamp round the pipe (two struts beside the pipe when it holds along the pipe). **Springs** are a spring can under the pipe, or in a strut. **Hangers** are a clamp, a rod and a spring can hung from a beam above; a constant-force support has its housing in place of the can.
+
+**Equipment nozzles** are a flanged joint at the nozzle, the nozzle's neck and the equipment's body behind it, light and see-through (its shape is not in the model).
+
+**Sized to the pipe** at each support, for the picture only. On very large models the shoes and beams are plain blocks, so the speed checks stay within their budgets (open 1441 elements with 1602 supports in about 1.7 s, an edit drawn again in about 0.9 s).
+
+**The README's picture** is the new 3D model.
+
+**Checked.** Two new window checks (every kind of support, level and upright; the flanged nozzle); the speed checks; the real app.
+
 ## 0.7.4 — 2026-11-18
 
 A better 3D model, part 2: the fittings drawn as they look.

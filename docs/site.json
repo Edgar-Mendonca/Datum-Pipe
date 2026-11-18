@@ -477,9 +477,10 @@
     {
       "v": "0.7.5",
       "title": "A better 3D model: the supports",
-      "when": "Next",
+      "when": "Done",
       "items": [
-        "0.7.5: real supports: shoes, guides, clamps, spring cans"
+        "Pipe shoes on beams, guides, line stops, welded anchors, struts, spring cans and hangers",
+        "Flanged nozzles on their equipment"
       ]
     },
     {

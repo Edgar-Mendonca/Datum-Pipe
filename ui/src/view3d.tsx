@@ -8,6 +8,7 @@ import { onMount, onCleanup, createEffect, createSignal, on, Show, For } from "s
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { Geom, Model, Seg, V3, num } from "./api";
 import { out, model, sel, setSel, opts, themeTick, openMenu, act, Item, note } from "./store";
 import { cardOpen } from "./tree";
@@ -373,22 +374,33 @@ const View3DInner = () => {
     // Supports, nozzles and loads.
     const sz = Math.max(od0, ext * 0.012);
     const dirAt = (pi: number): Vec => { const sg = g.segs.find(x => x.a === pi || x.b === pi); return sg ? segAt(g, sg, sg.a === pi ? 0 : 1)[1] : [1, 0, 0]; };
+    // The pipe's radius (and with insulation) at a point: of the first piece that meets it.
+    const radAt = (pi: number): [number, number] => { const sg = g.segs.find(x => x.a === pi || x.b === pi); const p = sg ? pipeOf(sg.a === pi ? sg.pipe : sg.pipe_b) : m.pipes[0]; const r = (p?.od ?? 0.17) / 2; return [r, r + (p?.ins_t ?? 0) + (p?.clad_t ?? 0)]; };
+    const atNozzle = new Set(m.nozzles.map(z => z.node));
+    const beamMat = ol(new THREE.MeshStandardMaterial({ color: 0x7d8792, metalness: 0.45, roughness: 0.5 }));
     for (const sp of m.supports) {
       const pi = g.node_point[String(sp.node)]; if (pi === undefined) continue;
-      const pt = g.points[pi].p as Vec, t = dirAt(pi);
-      const grp = supportSymbol(sp.kind, sz, t, sp.id === (s?.kind === "support" ? s.id : -1) ? selMat : supMat);
+      // An anchor at a nozzle is the equipment itself (drawn below).
+      if (sp.kind.kind === "anchor" && atNozzle.has(sp.node)) continue;
+      const pt = g.points[pi].p as Vec, t = dirAt(pi), [r, ro] = radAt(pi), on = sp.id === (s?.kind === "support" ? s.id : -1);
+      const grp = supportSymbol(sp.kind, r, ro, t, { sup: on ? selMat : supMat, beam: on ? selMat : beamMat }, big);
+      count(`support-${sp.kind.kind}`);
       grp.position.copy(V(pt)); grp.traverse(x => { x.userData = { support: sp.id }; }); group.add(grp); pickables.push(grp);
     }
+    const eqMat = new THREE.MeshStandardMaterial({ color: 0xc9b48a, metalness: 0.1, roughness: 0.6, transparent: true, opacity: 0.32, depthWrite: false });
     for (const z of m.nozzles) {
       const pi = g.node_point[String(z.node)]; if (pi === undefined) continue;
       const pt = g.points[pi].p as Vec;
       let ax = len(z.axis as Vec) > 0 ? unitv(z.axis as Vec) : null;
       if (!ax) { const sg = g.segs.find(x => x.a === pi || x.b === pi); ax = sg ? (sg.a === pi ? segAt(g, sg, 0)[1] : mul(segAt(g, sg, 1)[1], -1)) : [1, 0, 0]; }
-      const stub = new THREE.Mesh(new THREE.CylinderGeometry(sz * 1.6, sz * 1.6, sz * 0.5, 24), nozMat);
-      stub.position.copy(V(addv(pt, mul(ax, -sz * 0.25)))); stub.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(ax));
-      stub.userData = { nozzle: z.id }; group.add(stub); pickables.push(stub);
-      const eq = new THREE.Mesh(new THREE.BoxGeometry(sz * 5, sz * 5, sz * 5), new THREE.MeshStandardMaterial({ color: 0xb7791f, transparent: true, opacity: 0.18 }));
-      eq.position.copy(V(addv(pt, mul(ax, -sz * 3)))); group.add(eq);
+      // The nozzle (0.7.5): a flanged joint at the node, the nozzle's neck, and the equipment's body
+      // behind it, light and see-through (its shape is not in the model).
+      const [r] = radAt(pi), neck = Math.max(r * 2.2, 0.2), B = Math.max(r * 7, 0.7);
+      flangeJoint(addv(pt, mul(ax, -Math.max(r * 0.35, 0.012))), ax, r, Math.max(r * 0.5, 0.04), false, { nozzle: z.id });
+      part(new THREE.CylinderGeometry(r * 1.02, r * 1.02, neck, 32), z.id === (s?.kind === "nozzle" ? s.id : -1) ? selMat : nozMat, addv(pt, mul(ax, -neck / 2 - Math.max(r * 0.7, 0.025))), ax, { nozzle: z.id });
+      count("nozzle");
+      const eq = new THREE.Mesh(new RoundedBoxGeometry(B, B, B, 3, B * 0.12), eqMat);
+      eq.position.copy(V(addv(pt, mul(ax, -neck - B / 2 - Math.max(r * 0.6, 0.02))))); group.add(eq);
     }
     for (const l of m.loads) {
       const pi = g.node_point[String(l.node)]; if (pi === undefined) continue;
@@ -437,7 +449,7 @@ const View3DInner = () => {
       const mm = x as THREE.Mesh;
       if (!mm.isMesh || Array.isArray(mm.material) || (mm as any).isInstancedMesh) return;
       const geo = mm.geometry as THREE.BufferGeometry;
-      if (moving.has(geo.getAttribute("position") as THREE.BufferAttribute) || !geo.index) return;
+      if (moving.has(geo.getAttribute("position") as THREE.BufferAttribute)) return;
       const list = buckets.get(mm.material) ?? []; list.push(mm); buckets.set(mm.material, list);
     });
     for (const [mat, list] of buckets) {
@@ -445,13 +457,15 @@ const View3DInner = () => {
       // One position, normal and index buffer for the bucket, each mesh moved into place as it is
       // copied (most pipe meshes are built in place already); `starts` maps triangles back.
       let nv = 0, ni = 0;
-      for (const mm of list) { nv += mm.geometry.getAttribute("position").count; ni += mm.geometry.index!.count; }
+      // Shapes without an index (extruded ones) count each vertex once, in order.
+      const icount = (gg: THREE.BufferGeometry) => gg.index ? gg.index.count : gg.getAttribute("position").count;
+      for (const mm of list) { nv += mm.geometry.getAttribute("position").count; ni += icount(mm.geometry); }
       const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
       const starts: number[] = [], tags = list.map(mm => mm.userData);
       const v = new THREE.Vector3(), nm = new THREE.Matrix3();
       let ov = 0, oi = 0;
       for (const mm of list) {
-        const gp = mm.geometry.getAttribute("position") as THREE.BufferAttribute, gn = mm.geometry.getAttribute("normal") as THREE.BufferAttribute, gi = mm.geometry.index!;
+        const gp = mm.geometry.getAttribute("position") as THREE.BufferAttribute, gn = mm.geometry.getAttribute("normal") as THREE.BufferAttribute, gi = mm.geometry.index;
         const still = mm.matrixWorld.equals(IDENTITY);
         if (still) { pos.set(gp.array as Float32Array, ov * 3); if (gn) nor.set(gn.array as Float32Array, ov * 3); }
         else {
@@ -462,8 +476,9 @@ const View3DInner = () => {
           }
         }
         starts.push(oi / 3);
-        const ga = gi.array; for (let i = 0; i < gi.count; i++) idx[oi + i] = ga[i] + ov;
-        ov += gp.count; oi += gi.count;
+        const nidx = icount(mm.geometry);
+        if (gi) { const ga = gi.array; for (let i = 0; i < nidx; i++) idx[oi + i] = ga[i] + ov; } else for (let i = 0; i < nidx; i++) idx[oi + i] = i + ov;
+        ov += gp.count; oi += nidx;
       }
       const merged = new THREE.BufferGeometry();
       merged.setAttribute("position", new THREE.BufferAttribute(pos, 3));
@@ -500,15 +515,15 @@ const View3DInner = () => {
   /** Two directions square to `t` and to each other. */
   const across = (t: Vec): [Vec, Vec] => { const u = unitv(Math.abs(t[1]) < 0.9 ? cross(t, [0, 1, 0]) : cross(t, [1, 0, 0])); return [u, cross(t, u)]; };
   /** A part made along +Y, turned to `axis` and placed at `at`; picked as the element. */
-  const part = (geo: THREE.BufferGeometry, mat: THREE.Material, at: Vec, axis: Vec, el: number | null) => {
+  const part = (geo: THREE.BufferGeometry, mat: THREE.Material, at: Vec, axis: Vec, el: number | null | Record<string, number>) => {
     const mm = new THREE.Mesh(geo, mat); mm.position.copy(V(at)); mm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(unitv(axis)));
-    if (el !== null) { mm.userData = { element: el }; pickables.push(mm); }
+    if (el !== null) { mm.userData = typeof el === "number" ? { element: el } : el; pickables.push(mm); }
     group.add(mm); return mm;
   };
   const boltCount = (r: number) => { const d = 2 * r; return d < 0.115 ? 4 : d < 0.33 ? 8 : d < 0.6 ? 12 : d < 0.9 ? 16 : 20; };
   /** A flanged joint at `c` on axis `t`: two flanges (weld-neck hubs `hub` long, or slip-on), the
    *  gasket between them and the bolts with their nuts. `one` draws one flange only (facing +t). */
-  const flangeJoint = (c: Vec, t: Vec, r: number, hub: number, slip: boolean, el: number, one = false) => {
+  const flangeJoint = (c: Vec, t: Vec, r: number, hub: number, slip: boolean, el: number | Record<string, number>, one = false) => {
     const M = FM!, R = r * 2.0, T = Math.max(r * 0.32, 0.01), gk = T * 0.14, seg = 36;
     const sides = one ? [1] : [1, -1];
     for (const sd of sides) {
@@ -840,25 +855,129 @@ export const bounds = (g: Geom): [V3, V3] => {
 const extent = (g: Geom) => { const [lo, hi] = bounds(g); return Math.max(0.5, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2])); };
 
 /** A support's symbol, at the origin, sized s, for a pipe along t. */
-const supportSymbol = (kind: Model["supports"][number]["kind"], s: number, t: Vec, mat: THREE.Material): THREE.Group => {
+/** A support drawn as it is built (0.7.5), in proportion to the pipe at its node: `r` the pipe's
+ *  radius, `ro` its outside with insulation, `t` the pipe's direction. Rests, guides and line stops
+ *  are a pipe shoe on a beam (with the guide's or stop's plates); an anchor is the shoe welded down
+ *  with stiffeners; a restraint a strut from a clamp; a spring a spring can; a hanger a clamp, a rod
+ *  and a spring can (or a constant-force housing) hung from a beam above. On a vertical pipe the
+ *  shoe becomes a riser clamp with lugs. The sizes are for the picture only. */
+/** Support shapes kept between builds by their sizes (a rack has hundreds of the same shoe). */
+const supGeo = new Map<string, THREE.BufferGeometry>();
+const sgeo = (key: string, make: () => THREE.BufferGeometry) => {
+  let gg = supGeo.get(key);
+  if (!gg) { if (supGeo.size > 400) { supGeo.forEach(x => x.dispose()); supGeo.clear(); } gg = make(); gg.userData.kept = true; supGeo.set(key, gg); }
+  return gg;
+};
+const supportSymbol = (kind: Model["supports"][number]["kind"], r: number, ro: number, t: Vec, M: { sup: THREE.Material; beam: THREE.Material }, simple = false): THREE.Group => {
   const g = new THREE.Group();
-  const add = (geo: THREE.BufferGeometry, at: Vec, dir?: Vec) => { const m = new THREE.Mesh(geo, mat); m.position.copy(V(at)); if (dir) m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(unitv(dir))); g.add(m); return m; };
-  const lat = unitv(len(cross([0, 1, 0], t)) > 0.1 ? cross([0, 1, 0], t) : [1, 0, 0]);
+  const f = (x: number) => x.toPrecision(5);
+  const vertical = Math.abs(t[1]) > 0.9;
+  // The local frame: x along the pipe, y up (square to the pipe), z across.
+  const ex = unitv(t), ey = vertical ? [1, 0, 0] as Vec : unitv(sub([0, 1, 0], mul(ex, ex[1]))), ez = cross(ex, ey);
+  const basis = new THREE.Matrix4().makeBasis(V(ex), V(ey), V(ez)), q = new THREE.Quaternion().setFromRotationMatrix(basis);
+  const L = (v: Vec): Vec => addv(addv(mul(ex, v[0]), mul(ey, v[1])), mul(ez, v[2]));
+  /** A box w (along) × h (up) × d (across), centred at local (x, y, z). */
+  const box = (w: number, h: number, d: number, at: Vec, mat = M.sup) => { const m = new THREE.Mesh(sgeo(`b${f(w)},${f(h)},${f(d)}`, () => new THREE.BoxGeometry(w, h, d)), mat); m.position.copy(V(L(at))); m.quaternion.copy(q); g.add(m); return m; };
+  /** A prism of a 2D outline (in the local y–z plane, or x–y with `across`) extruded `len`. */
+  const prism = (pts: [number, number][], len: number, at: Vec, across = false, mat = M.beam) => {
+    const geo = sgeo(`p${pts.length},${f(pts[0][0])},${f(pts[0][1])},${f(pts[2][0])},${f(pts[2][1])},${f(len)}`, () => { const sh = new THREE.Shape(pts.map(([a, b]) => new THREE.Vector2(a, b))), gx = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); gx.translate(0, 0, -len / 2); return gx; });
+    // Outline x → local z (across) and y → up, extruded along the pipe; or x → along, extruded across.
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(L(at)));
+    const b = across ? new THREE.Matrix4().makeBasis(V(ex), V(ey), V(ez)) : new THREE.Matrix4().makeBasis(V(mul(ez, -1)), V(ey), V(ex));
+    m.quaternion.setFromRotationMatrix(b); g.add(m); return m;
+  };
+  const cyl = (rad: number, h: number, at: Vec, dir: Vec, mat = M.sup, n = 20) => { const m = new THREE.Mesh(sgeo(`c${f(rad)},${f(h)},${n}`, () => new THREE.CylinderGeometry(rad, rad, h, n)), mat); m.position.copy(V(at)); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(unitv(dir))); g.add(m); return m; };
+  /** A clamp band round the pipe (a ring with a square section). */
+  const band = (w: number, at = 0) => {
+    const ri = ro * 1.0, rb = ro + Math.max(r * 0.08, 0.006);
+    const geo = sgeo(`l${f(ri)},${f(rb)},${f(w)}`, () => new THREE.LatheGeometry([new THREE.Vector2(ri, -w / 2), new THREE.Vector2(rb, -w / 2), new THREE.Vector2(rb, w / 2), new THREE.Vector2(ri, w / 2), new THREE.Vector2(ri, -w / 2)], 36));
+    const m = new THREE.Mesh(geo, M.sup); m.position.copy(V(mul(ex, at))); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(ex)); g.add(m); return rb;
+  };
+  /** An I-beam across under (or over) the pipe, its top (or bottom) face at local height `y`. */
+  const beam = (y: number, below = true) => {
+    const D = Math.max(r * 1.3, 0.12), bf = D * 0.55, tf = D * 0.08, tw = D * 0.05, len = Math.max(ro * 5, 0.8);
+    const c = below ? y - D / 2 : y + D / 2;
+    if (simple) { box(bf, D, len, [0, c, 0], M.beam); return D; }
+    const I: [number, number][] = [[-bf / 2, -D / 2], [bf / 2, -D / 2], [bf / 2, -D / 2 + tf], [tw / 2, -D / 2 + tf], [tw / 2, D / 2 - tf], [bf / 2, D / 2 - tf], [bf / 2, D / 2], [-bf / 2, D / 2], [-bf / 2, D / 2 - tf], [-tw / 2, D / 2 - tf], [-tw / 2, -D / 2 + tf], [-bf / 2, -D / 2 + tf]];
+    prism(I, len, [0, c, 0], true);
+    return D;
+  };
+  const tp = Math.max(r * 0.07, 0.006), Ls = Math.max(r * 2.4, 0.25), bw = Math.max(ro * 1.3, 0.14);
+  /** A pipe shoe: the curved plate under the pipe, the web, the base plate; returns its base height. */
+  const shoe = () => {
+    const base = -(ro + Math.max(r * 0.35, 0.05)), tb = tp * 1.3;
+    if (simple) { box(Ls, -base - r * 0.9, bw, [0, (base - r * 0.9) / 2, 0]); return base; }
+    const arc: [number, number][] = [];
+    for (let k = 0; k <= 16; k++) { const a = Math.PI * (1.25 + 0.5 * k / 16); arc.push([r * Math.cos(a), r * Math.sin(a)]); }
+    for (let k = 16; k >= 0; k--) { const a = Math.PI * (1.25 + 0.5 * k / 16); arc.push([(r + tp) * Math.cos(a), (r + tp) * Math.sin(a)]); }
+    prism(arc, Ls, [0, 0, 0], false, M.sup);
+    const webTop = -(r + tp) * Math.cos(Math.PI * 0.25) * 0 - (r + tp);
+    box(Ls, webTop - (base + tb) + tp, tp * 1.2, [0, (webTop + base + tb) / 2, 0]);
+    box(Ls, tb, bw, [0, base + tb / 2, 0]);
+    return base;
+  };
+  const vlugs = () => { const rb = band(Math.max(r * 0.6, 0.06)); for (const k of [-1, 1]) box(Math.max(r * 0.5, 0.05), tp * 1.5, Math.max(r * 0.9, 0.08), [0, 0, k * (rb + Math.max(r * 0.45, 0.04))]); return rb; };
   switch (kind.kind) {
-    case "anchor": add(new THREE.BoxGeometry(s * 2.2, s * 2.2, s * 2.2), [0, 0, 0]); break;
-    case "rest": add(new THREE.ConeGeometry(s * 0.7, s * 1.4, 4), [0, -s * 1.3, 0]); add(new THREE.BoxGeometry(s * 2.2, s * 0.15, s * 2.2), [0, -s * 2.05, 0]); break;
-    case "guide": for (const k of [-1, 1]) add(new THREE.BoxGeometry(s * 0.15, s * 1.6, s * 1.6), mul(lat, k * s * 0.85), [0, 1, 0]); add(new THREE.BoxGeometry(s * 2.2, s * 0.15, s * 2.2), [0, -s * 1.1, 0]); break;
-    case "linestop": for (const k of [-1, 1]) add(new THREE.CylinderGeometry(s * 1.1, s * 1.1, s * 0.15, 20), mul(t, k * s * 0.6), t); break;
-    case "restraint": { const d = unitv(kind.dir as Vec); add(new THREE.CylinderGeometry(s * 0.12, s * 0.12, s * 2.6, 8), [0, 0, 0], d); for (const k of [-1, 1]) add(new THREE.ConeGeometry(s * 0.35, s * 0.6, 12), mul(d, k * s * 1.5), mul(d, k)); break; }
-    case "hanger":
-    case "spring": {
-      const d = unitv((kind.kind === "hanger" ? [0, 1, 0] : kind.dir) as Vec), pts: THREE.Vector3[] = [];
-      for (let i = 0; i <= 24; i++) { const a = i / 24 * Math.PI * 8; const off = addv(mul(d, -s * (0.8 + 1.6 * i / 24)), addv(mul(lat, Math.cos(a) * s * 0.4), mul(unitv(cross(d, lat)), Math.sin(a) * s * 0.4))); pts.push(V(off)); }
-      const ln = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: (mat as THREE.MeshStandardMaterial).color })); g.add(ln);
-      add(new THREE.BoxGeometry(s * 1.6, s * 0.15, s * 1.6), mul(d, -s * 2.5)); break;
+    case "rest": case "guide": case "linestop": {
+      if (vertical) { const rb = vlugs(); for (const k of [-1, 1]) box(Math.max(r * 0.9, 0.1), tp * 2, Math.max(r * 1.0, 0.1), [0, -tp * 1.8, k * (rb + Math.max(r * 0.45, 0.04))], M.beam); break; }
+      const base = shoe();
+      beam(base);
+      if (kind.kind === "guide") for (const k of [-1, 1]) { box(Ls * 0.5, tp * 4, tp * 1.4, [0, base + tp * 2, k * (bw / 2 + tp * 1.6)]); box(Ls * 0.5, tp * 1.2, tp * 3, [0, base + tp * 0.6, k * (bw / 2 + tp * 3)]); }
+      if (kind.kind === "linestop") for (const k of [-1, 1]) box(tp * 1.4, tp * 4, bw * 0.9, [k * (Ls / 2 + tp * 1.4), base + tp * 2, 0]);
+      break;
     }
-    case "rotspring": add(new THREE.TorusGeometry(s * 1.1, s * 0.1, 8, 28), [0, 0, 0], cross(unitv(kind.dir as Vec), [0, 0, 1]).some(Math.abs) ? kind.dir as Vec : [0, 1, 0]); break;
-    case "constant": add(new THREE.CylinderGeometry(s * 0.08, s * 0.08, s * 2, 6), [0, s * 1.2, 0]); add(new THREE.BoxGeometry(s * 1.4, s * 1.0, s * 1.0), [0, s * 2.6, 0]); break;
+    case "anchor": {
+      if (vertical) { const rb = vlugs(); for (const k of [-1, 1]) for (const j of [-1, 1]) box(tp * 1.2, Math.max(r * 0.6, 0.06), Math.max(r * 0.5, 0.05), [j * Math.max(r * 0.25, 0.03), -Math.max(r * 0.3, 0.03), k * (rb + Math.max(r * 0.25, 0.025))]); box(Math.max(r * 2.6, 0.3), tp * 2, Math.max(rb * 3.2, 0.4), [0, -Math.max(r * 0.6, 0.06) - tp, 0], M.beam); break; }
+      const base = shoe();
+      beam(base);
+      // Stiffeners across the shoe at its ends and middle: welded down, it holds every way.
+      for (const x of [-Ls / 2 + tp, 0, Ls / 2 - tp]) box(tp * 1.2, -base - r * 0.55, bw * 0.9, [x, (base - r * 0.55) / 2 + tp, 0]);
+      break;
+    }
+    case "restraint": case "spring": {
+      const d = unitv(kind.dir as Vec), along = Math.abs(d[0] * ex[0] + d[1] * ex[1] + d[2] * ex[2]) > 0.7;
+      const rb = band(Math.max(r * 0.6, 0.06));
+      const isSpring = kind.kind === "spring", Ln = Math.max(ro * 3, 0.45), rr = Math.max(r * 0.07, 0.01);
+      if (isSpring && Math.abs(d[1]) > 0.9 && !vertical) {
+        // A base-mounted spring can under the pipe, its load column up to a plate under the pipe.
+        const base = -(ro + Math.max(r * 0.35, 0.05));
+        box(Ls * 0.8, tp * 1.3, bw, [0, base + tp, 0]);
+        const can = Math.max(r * 1.6, 0.18), cr = Math.max(r * 0.8, 0.08);
+        cyl(rr * 1.6, Math.max(r * 0.4, 0.04), L([0, base - Math.max(r * 0.2, 0.02), 0]), ey);
+        cyl(cr, can, L([0, base - Math.max(r * 0.4, 0.04) - can / 2, 0]), ey, M.sup, 28);
+        box(cr * 2.6, tp * 1.5, cr * 2.6, [0, base - Math.max(r * 0.4, 0.04) - can - tp, 0], M.beam);
+        break;
+      }
+      // A strut from the clamp outwards (two, beside the pipe, when it holds along the pipe).
+      const away = mul(d, -1), offs: Vec[] = along ? [mul(ez, rb + rr * 3), mul(ez, -(rb + rr * 3))] : [mul(away, rb)];
+      for (const o of offs) {
+        const a0 = o, a1 = addv(o, mul(away, Ln));
+        cyl(rr, Ln, mul(addv(a0, a1), 0.5), away, M.beam, 10);
+        if (isSpring) cyl(Math.max(r * 0.55, 0.06), Ln * 0.35, mul(addv(a0, a1), 0.5), away, M.sup, 24);
+        cyl(rr * 2.2, rr * 2.6, a0, away, M.sup, 10);
+        const pl = new THREE.Mesh(new THREE.BoxGeometry(rr * 9, tp * 1.6, rr * 9), M.beam); pl.position.copy(V(a1)); pl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(away)); g.add(pl);
+      }
+      break;
+    }
+    case "hanger": case "constant": {
+      // Hung from a beam above: the clamp, the rod, the spring can or the constant-force housing.
+      const up: Vec = [0, 1, 0], rb = vertical ? ro : band(Math.max(r * 0.6, 0.06));
+      const rr = Math.max(r * 0.06, 0.008), gap = Math.max(ro * 1.2, 0.2), can = Math.max(r * 1.8, 0.22), cr = Math.max(r * 0.75, 0.08), top = rb + gap + can + gap * 0.6;
+      if (!vertical) for (const k of [-1, 1]) box(Math.max(r * 0.25, 0.03), Math.max(r * 0.35, 0.04), tp * 1.2, [0, rb + Math.max(r * 0.15, 0.015), k * tp * 1.5]);
+      cyl(rr, gap, mul(up, rb + gap / 2), up, M.beam, 8);
+      if (kind.kind === "hanger") { cyl(cr, can, mul(up, rb + gap + can / 2), up, M.sup, 28); for (const y of [rb + gap, rb + gap + can]) cyl(cr * 1.12, tp * 1.4, mul(up, y), up, M.sup, 28); }
+      else { const hb = new THREE.Mesh(new THREE.BoxGeometry(cr * 3, can, cr * 1.8), M.sup); hb.position.set(0, rb + gap + can / 2, 0); g.add(hb); }
+      cyl(rr, gap * 0.6, mul(up, rb + gap + can + gap * 0.3), up, M.beam, 8);
+      // The beam above, across the pipe.
+      const D = Math.max(r * 1.3, 0.12), bf = D * 0.55, tf = D * 0.08, tw = D * 0.05, len = Math.max(ro * 5, 0.8);
+      const I: [number, number][] = [[-bf / 2, -D / 2], [bf / 2, -D / 2], [bf / 2, -D / 2 + tf], [tw / 2, -D / 2 + tf], [tw / 2, D / 2 - tf], [bf / 2, D / 2 - tf], [bf / 2, D / 2], [-bf / 2, D / 2], [-bf / 2, D / 2 - tf], [-tw / 2, D / 2 - tf], [-tw / 2, -D / 2 + tf], [-bf / 2, -D / 2 + tf]];
+      const sh = new THREE.Shape(I.map(([a, b]) => new THREE.Vector2(a, b))), geo = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); geo.translate(0, 0, -len / 2);
+      const bm = new THREE.Mesh(geo, M.beam); bm.position.set(0, top + D / 2, 0);
+      const across = vertical ? [0, 0, 1] as Vec : ez, alongH = unitv(cross([0, 1, 0], across));
+      bm.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(V(alongH), new THREE.Vector3(0, 1, 0), V(across))); g.add(bm);
+      break;
+    }
+    case "rotspring": { const m = new THREE.Mesh(new THREE.TorusGeometry(ro * 1.4, Math.max(r * 0.08, 0.008), 8, 32), M.sup); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(unitv(kind.dir as Vec))); g.add(m); break; }
   }
   return g;
 };

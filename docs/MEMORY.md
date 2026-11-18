@@ -555,6 +555,13 @@ Order when it starts: 1, 2, 3, 7 first (useful with outside layout tools too); 4
 ### 2026-11-09: Session 2, continued (0.7.0: the new window, finished)
 - Review in the real app: README picture replaced with the new window; help card "window"; Inspector help as a card; the load cases' Kind column widened. Roadmap: the old 0.7 (load combinations…) is 0.8. New UI files: `tree.tsx`, `console.tsx`, `checker.tsx`, `output.tsx`.
 
+- **2026-11-18: health check before the next plan (nothing built).** The owner asked for a full hardening, speed and error check, why the 3D view turns dark, and what Datum Mesh's 3D engine could give Datum Pipe, before any new feature. All checks pass (clippy, cargo test incl. hardening and benchmarks, check:ui, test:ui, cargo deny); real app (Xvfb) opens, analyses, no errors. Found:
+  - The dark view is the 0.6.4 "dark results view": with Auto-analyze on, results exist as soon as the model can be solved and Colour by Stress ratio is the default, so the view turns navy (#1A2230) right after modelling. Also Theme Auto follows Windows dark mode. No recovery if WebGL loses its context (driver reset, sleep): the canvas stays black until the view is left.
+  - Bugs: the analysis message "Highest stress ratio 0.494: 6 checks fail" mixes code stresses with nozzle-load failures (steam example: 6 nozzle checks fail, every stress passes); the message stays on screen after opening another model; Fit does not allow for the Inspector card, so the far end of the model sits under it; the message covers the bottom of the tree and the table.
+  - Speed: an edit on the 1441-element model redraws in 0.76–1.53 s (budget 1.2 s): the whole scene is rebuilt on every edit.
+  - 3D look: thin open cylinders, flat lighting, no edges, symbolic fittings and supports, a plain grid.
+  - Datum Mesh: SolidCraft's B-rep kernel (MIT/Apache, `app/`, used headless by `crates/cad`; +~25 MB installer, long build) and a better three.js view (fat edge lines, fading floor, view cube). Recommended: the look first in three.js (lighting, edges, real fittings and supports), the kernel later only for STEP export. Awaiting the owner.
+
 ## 5. Known limits (0.2.0)
 
 - One-way supports are rests only (+Y); a guide or restraint with a gap acts both ways.

@@ -466,11 +466,19 @@
       ]
     },
     {
-      "v": "0.7.4–0.7.5",
-      "title": "A better 3D model",
+      "v": "0.7.4",
+      "title": "A better 3D model: the fittings",
+      "when": "Done",
+      "items": [
+        "Flanges with bolts, valves with handwheels, reducers, tees with pads and welds, bellows",
+        "A cooling water header example with every fitting; zoom to the pointer"
+      ]
+    },
+    {
+      "v": "0.7.5",
+      "title": "A better 3D model: the supports",
       "when": "Next",
       "items": [
-        "0.7.4: real fittings: elbows, flanges, valves, reducers, tees",
         "0.7.5: real supports: shoes, guides, clamps, spring cans"
       ]
     },

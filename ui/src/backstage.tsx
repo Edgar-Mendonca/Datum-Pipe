@@ -47,13 +47,14 @@ const ExampleArt = (p: { id: string }) => {
     buried: "M4 22H96M8 22l-4 6M28 22l-4 6M48 22l-4 6M68 22l-4 6M10 44H74Q80 44 80 38V10M74 10h12M6 38v12",
     separator: "M38 14Q38 6 50 6Q62 6 62 14V46Q62 54 50 54Q38 54 38 46zM62 22H90M90 16v12",
     drum: "M16 22Q8 22 8 30Q8 38 16 38H84Q92 38 92 30Q92 22 84 22zM30 38v10h-6M70 38v10h6",
+    header: "M6 24H94M30 24V52M26 40h8M60 24v-0M64 24V8M58 24h12M8 18v12M92 18v12M30 52h-8",
   };
 
   return <svg viewBox="0 0 100 60" class="exart"><path d={pics[p.id] ?? pics.blank} {...s} /></svg>;
 };
 
 /** The examples' folders (0.6.7, after Datum Mesh): by kind, in this order. */
-const FOLDERS: [string, string[]][] = [["Process piping", ["pump", "compressor", "steam", "tank", "relief", "bellows"]], ["Other codes", ["power", "buried"]], ["Vessels", ["separator", "drum"]], ["Check by hand", ["lbend", "zbend"]]];
+const FOLDERS: [string, string[]][] = [["Process piping", ["pump", "compressor", "steam", "tank", "relief", "bellows", "header"]], ["Other codes", ["power", "buried"]], ["Vessels", ["separator", "drum"]], ["Check by hand", ["lbend", "zbend"]]];
 const folderOf = (id: string) => FOLDERS.find(f => f[1].includes(id))?.[0] ?? "More";
 
 const Home = () => {

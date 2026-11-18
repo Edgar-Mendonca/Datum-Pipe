@@ -1,7 +1,7 @@
 //! The worked examples (File › Examples), built in code so they always match the engine.
 
 use crate::doc::{Doc, Item, Op};
-use crate::model::{BendKind, Comp, Element, Model, Nozzle, Pipe, RigidKind, Support, SupKind, K0};
+use crate::model::{BendKind, Comp, Element, Model, Nozzle, Pipe, RigidKind, Support, SupKind, TeeKind, K0};
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
@@ -24,6 +24,7 @@ pub fn list() -> Vec<Example> {
         Example { id: "drum", name: "Horizontal drum D-201 on saddles", what: "A pressure vessel: 2.4 m horizontal drum on two 120° saddles; shell and heads, nozzles, and the saddle stresses by Zick's method." },
         Example { id: "power", name: "Boiler steam to a header (power piping)", what: "6\" Sch 80 steam at 300 °C and 40 bar, checked with the power piping code's equations: three bends and a rest between the boiler outlet and a header, and wind." },
         Example { id: "buried", name: "Buried hot water line", what: "8\" hot water at 90 °C buried 1.5 m deep in sand for 60 m, rising at a bend to an anchored pump-house wall: the soil holds it, and it slides at the bend." },
+        Example { id: "header", name: "Cooling water header with branches", what: "10\" cooling water header with a welding tee, a reducer to 8\", a flanged joint and a reinforced branch; a 6\" branch with a gate valve. Every kind of fitting in one line." },
         Example { id: "lbend", name: "A simple L-bend", what: "6\" carbon steel at 200 °C between two anchors, with a long-radius bend. Check it by hand." },
         Example { id: "zbend", name: "A Z-bend", what: "6\" carbon steel at 250 °C: two bends between two anchors, the classic hand-check case." },
     ]
@@ -40,6 +41,7 @@ pub fn get(id: &str) -> Option<Model> {
         "bellows" => Some(bellows()),
         "separator" => Some(separator()),
         "drum" => Some(drum()),
+        "header" => Some(header()),
         "lbend" => Some(lbend()),
         "zbend" => Some(zbend()),
         "power" => Some(power()),
@@ -279,6 +281,50 @@ fn buried() -> Model {
         }
     }
     meta(&mut d, "Buried hot water line", "8\"-HW-501", "8\" Sch 40 carbon steel hot water at 90 °C and 10 bar, buried 1.5 m deep (to the centre line) in medium dense sand (γ 18 kN/m³, φ 32°) for 60 m east from an anchor block, then a bend and 6 m south to a bend that rises 1.5 m out of the ground to an anchor in the pump-house wall. The soil holds the line along its length; near the bends it yields and the pipe slides through it. Soil values are examples: take yours from the soil report.");
+    d.m
+}
+
+/// A cooling water header with every kind of fitting: a welding tee, a reducer, a flanged joint,
+/// a reinforced branch and a gate valve on a branch.
+fn header() -> Model {
+    let mut d = table("Cooling water header with branches", &[
+        (10, 20, 4.0, 0.0, 0.0), (20, 30, 4.0, 0.0, 0.0), (30, 40, 4.0, 0.0, 0.0), (40, 50, 0.8, 0.0, 0.0), (50, 55, 0.3, 0.0, 0.0),
+        (55, 60, 3.7, 0.0, 0.0), (60, 70, 4.0, 0.0, 0.0),
+        (30, 100, 0.0, 0.0, 3.0), (100, 105, 0.0, 0.0, 0.45), (105, 110, 0.0, 0.0, 2.5), (110, 120, 0.0, -1.5, 0.0),
+        (60, 200, 0.0, 2.0, 0.0), (200, 210, 0.0, 0.0, -3.0),
+    ]);
+    pipe(&mut d, "10", "40", 0.0, 1000.0);
+    let mut ids = vec![];
+    for nps in ["8", "6"] {
+        let p = Pipe { fluid_rho: 1000.0, corrosion: 0.0015, ..Pipe::std(0, nps, "40") };
+        ids.push(d.apply(Op::Add { item: Item::Pipe(p), after: None }).expect("pipe")[0]);
+    }
+    let (p8, p6) = (ids[0], ids[1]);
+    for e in d.m.elements.clone() {
+        let pipe = if e.from >= 100 || e.to >= 100 { p6 } else if e.from >= 50 { p8 } else { continue };
+        d.apply(Op::Set { item: Item::Element(Element { pipe, ..e }) }).expect("branch pipe");
+    }
+    let mut set = |to: u32, comp: Comp| {
+        let e = d.m.elements.iter().find(|e| e.to == to).expect("element").clone();
+        d.apply(Op::Set { item: Item::Element(Element { comp, ..e }) }).expect("fitting");
+    };
+    set(30, Comp::Tee { tee: TeeKind::Welding, pad: 0.0 });
+    set(50, Comp::Reducer { to: p8 });
+    set(55, Comp::Rigid { rigid: RigidKind::Flange, mass: 70.0 });
+    set(60, Comp::Tee { tee: TeeKind::Reinforced, pad: 0.008 });
+    set(105, Comp::Rigid { rigid: RigidKind::Valve, mass: 95.0 });
+    bends(&mut d, &[110, 200]);
+    conditions(&mut d, "Cooling water 40 °C", [40.0, 21.0, 21.0], [6.0, 0.0, 0.0], 9.0);
+    support(&mut d, 10, SupKind::Anchor, "Pump header");
+    support(&mut d, 20, SupKind::Rest, "S-20");
+    support(&mut d, 40, SupKind::Rest, "S-40");
+    support(&mut d, 40, SupKind::Guide, "G-40");
+    support(&mut d, 60, SupKind::Rest, "S-60");
+    support(&mut d, 70, SupKind::Anchor, "Header end");
+    support(&mut d, 105, SupKind::Rest, "S-105");
+    support(&mut d, 120, SupKind::Anchor, "E-301 inlet");
+    support(&mut d, 210, SupKind::Anchor, "E-302 inlet");
+    meta(&mut d, "Cooling water header with branches", "10\"-CW-401", "10\" Sch 40 carbon steel cooling water at 40 °C and 6 bar from a pump header (anchor) east along a sleeper: a welding tee at 30 with a 6\" branch south through a gate valve and down to exchanger E-301; a concentric reducer to 8\" at 40–50, a flanged joint, a reinforced branch tee at 60 with a 6\" branch up and north to exchanger E-302, and the header end anchored at 70.");
     d.m
 }
 

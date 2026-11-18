@@ -43,7 +43,7 @@ export interface Out { m: Model; path: string | null; dirty: boolean; undo: bool
 export interface GPoint { p: V3; label: string; node: number | null }
 export type GShape = { kind: "straight" } | { kind: "arc"; centre: V3; normal: V3; r: number; angle: number };
 export interface Seg { a: number; b: number; shape: GShape; element: number; pipe: number; pipe_b: number; material: number; cond: number; rigid: [RigidKind, number] | null; bellows?: Bellows; bend: number | null; extra: number; length: number }
-export interface GTee { node: number; point: number; kind: TeeKind; pad: number; pipe: number; normal: V3 }
+export interface GTee { node: number; point: number; kind: TeeKind; pad: number; pipe: number; normal: V3; branch?: [number, number] | null }
 export interface Geom { points: GPoint[]; segs: Seg[]; tees: GTee[]; node_point: Record<string, number>; warnings: string[] }
 export type Six = [number, number, number, number, number, number];
 export interface Reaction { support: number; node: number; f: Six }

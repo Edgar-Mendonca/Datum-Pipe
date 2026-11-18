@@ -703,6 +703,16 @@ const shots = process.env.SHOTS;
     check("a click on its front looks from the front", (await faces()) === "Front", await faces());
     await p.click('.ctxbar button:text-is("Iso")'); await p.waitForTimeout(200); }
 
+  // 0.7.4: fittings drawn as they look: the header example has one of each.
+  { await open("header"); await p.waitForTimeout(400);
+    const parts = JSON.parse(await p.$eval(".v3d", e => e.dataset.parts ?? "{}"));
+    check("the header shows a welding tee, a reinforced branch, a reducer, a flanged joint and a valve", parts["tee-welding"] === 1 && parts["tee-reinforced"] === 1 && parts.reducer === 1 && parts.flange === 1 && parts.valve === 1, JSON.stringify(parts));
+    await open("bellows"); await p.waitForTimeout(400);
+    check("the expansion joint is drawn", JSON.parse(await p.$eval(".v3d", e => e.dataset.parts ?? "{}")).bellows === 1);
+    await p.click('.ctxbar button:text-is("Centre line")'); await p.waitForTimeout(250);
+    check("the centre line view draws no fittings", Object.keys(JSON.parse(await p.$eval(".v3d", e => e.dataset.parts ?? "{}"))).length === 0, await p.$eval(".v3d", e => e.dataset.parts));
+    await p.click('.ctxbar button:text-is("Solid")'); await p.waitForTimeout(150); }
+
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();
   console.log(failed ? `\n${failed} UI check(s) failed` : "\nAll UI checks passed");

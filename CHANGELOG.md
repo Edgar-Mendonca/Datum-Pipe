@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.4 — 2026-11-18
+
+A better 3D model, part 2: the fittings drawn as they look.
+
+**Flanges.** A flanged joint is two flanges face to face with the gasket between them, the bolts through both and a nut on each end; welding-neck flanges have their tapered hubs, slip-on flanges a short collar.
+
+**Valves.** A flanged gate valve: end flanges with their bolts, the body, the bonnet, the yoke, the stem and a red handwheel, upright (or sideways on a vertical line). Other rigid parts are a body between two flanges.
+
+**Reducers, tees and bends.** A reducer has straight ends and a smooth shoulder; a welding tee is its forged body with a weld at each end; a fabricated branch shows the saddle weld where it meets the run, and a reinforced branch its curved pad. Each bend has a weld bead at both ends.
+
+**Expansion joints.** The convolutions between two collars, and the tie rods with their lugs and nuts when the joint is tied.
+
+**The proportions** are of the pipe's diameter, for the picture only: the analysis uses each element's length, weight and stiffness as before.
+
+**A new example**, Cooling water header with branches: a welding tee, a reducer, a flanged joint, a reinforced branch and a gate valve in one line.
+
+**Zoom to the pointer.** The mouse wheel zooms towards the pointer, as CAD programs do.
+
+**Checked.** Three new window checks; the new example solves, balances in every case and goes out and back in through .pcf; the speed checks; the real app.
+
 ## 0.7.3 — 2026-11-18
 
 A better 3D model, part 1: the light, the outlines, the floor and the view cube.

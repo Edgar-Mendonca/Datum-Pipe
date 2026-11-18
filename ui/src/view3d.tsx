@@ -143,7 +143,7 @@ const View3DInner = () => {
     if (!floorOn) return;
     const t = controls?.target ?? new THREE.Vector3(), d = Math.max(camera.position.distanceTo(t), 1e-3);
     const minor = nice(d / 12), mant = Math.round(minor / 10 ** Math.floor(Math.log10(minor) + 1e-9)), major = minor * (mant === 5 ? 10 : 5);
-    const R = Math.ceil(Math.max(floorL * 0.8, d * 1.6) / major) * major, Rm = Math.min(R, d * 1.1);
+    const R = Math.ceil(Math.min(Math.max(floorL * 0.8, d * 1.6), d * 4) / major) * major, Rm = Math.min(R, d * 1.1);
     const cx = Math.round(t.x / major) * major, cz = Math.round(t.z / major) * major;
     const bgc = dark ? "#121A24" : "#F4F6F8", c2 = dark ? "#3A4A5C" : css("--line3");
     const key = `${minor}|${cx}|${cz}|${R}|${floorY}|${bgc}|${c2}`;
@@ -231,7 +231,7 @@ const View3DInner = () => {
   const build = () => {
     const o = out(), m = model(); if (!o || !m) return;
     scene.remove(group); group.traverse(x => { const mm = x as THREE.Mesh; if (!mm.geometry?.userData.kept) mm.geometry?.dispose?.(); }); group = new THREE.Group(); scene.add(group);
-    const lastGeo = geoCache; geoCache = new Map();
+    const lastGeo = geoCache; geoCache = new Map(); drawn = {};
     let made = 0;
     pickables = []; deform = []; labels.innerHTML = "";
     // The ground follows the theme (Light, Dark or Auto, which follows Windows), and nothing
@@ -271,6 +271,14 @@ const View3DInner = () => {
     const darkMat = ol(new THREE.MeshStandardMaterial({ color: 0x56616d, metalness: 0.55, roughness: 0.38 }));
     const supMat = ol(new THREE.MeshStandardMaterial({ color: new THREE.Color(css("--green")), metalness: 0.15, roughness: 0.5 }));
     const nozMat = ol(new THREE.MeshStandardMaterial({ color: 0xb7791f, metalness: 0.3, roughness: 0.5 }));
+    FM = {
+      forged: ol(new THREE.MeshStandardMaterial({ color: 0x939ea9, metalness: 0.6, roughness: 0.4 })),
+      bolt: ol(new THREE.MeshStandardMaterial({ color: 0x40474f, metalness: 0.7, roughness: 0.35 })),
+      gasket: new THREE.MeshStandardMaterial({ color: 0x2a2e33, roughness: 0.85 }),
+      wheel: ol(new THREE.MeshStandardMaterial({ color: 0xa8352b, metalness: 0.2, roughness: 0.5 })),
+      body: ol(new THREE.MeshStandardMaterial({ color: 0x6f7b88, metalness: 0.45, roughness: 0.45 })),
+      bell: ol(new THREE.MeshStandardMaterial({ color: 0xc3cad2, metalness: 0.75, roughness: 0.28 })),
+    };
     const colourMats = new Map<string, THREE.Material>();
     // Buried pipe is drawn earth-coloured (when the stresses are not shown).
     const soilMat = ol(new THREE.MeshStandardMaterial({ color: 0x9c7a4f, roughness: 0.8 }));
@@ -281,6 +289,8 @@ const View3DInner = () => {
       if (col) { if (!colourMats.has(col)) colourMats.set(col, ol(new THREE.MeshStandardMaterial({ color: col, metalness: 0.1, roughness: 0.5 }))); return colourMats.get(col)!; }
       return sg.rigid ? darkMat : buried.has(sg.element) ? soilMat : steel;
     };
+    /** The material of an element's pipe (its colour by result or property). */
+    const sg0Mat = (el: number) => { const si = g.segs.findIndex(x => x.element === el); return si >= 0 ? matFor(si, g.segs[si]) : steel; };
     const dispAt = (sg: Seg, f: number): Vec => {
       if (!dsrc) return [0, 0, 0];
       const da = dsrc[sg.a], db = dsrc[sg.b];
@@ -317,7 +327,7 @@ const View3DInner = () => {
         if (!gg) { gg = make(); gg.userData.kept = true; made++; }
         geoCache.set(key, gg); return gg;
       };
-      geo = keep(`${r0},${r1}`, () => sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, r0, rad, false) : straight(r0, r1));
+      geo = keep(`${r0},${r1}`, () => sg.shape.kind === "arc" ? new THREE.TubeGeometry(curve, steps, r0, rad, false) : Math.abs(r0 - r1) > 1e-6 ? reducerGeo(pa as Vec, pb2 as Vec, r0, r1, rad) : straight(r0, r1));
       const mesh = new THREE.Mesh(geo, matFor(si, sg));
       mesh.userData = { element: sg.element };
       group.add(mesh); pickables.push(mesh);
@@ -330,11 +340,20 @@ const View3DInner = () => {
         const [c0, t0] = segAt(g, sg, dirF), u = unitv(Math.abs(t0[1]) < 0.9 ? cross(t0, [0, 1, 0]) : cross(t0, [1, 0, 0])), w = cross(t0, u);
         for (let k = 0; k < rad; k++) for (const kk of [k, k + 1]) { const th = 2 * Math.PI * kk / rad; rings.push(...addv(c0, addv(mul(u, rr * Math.cos(th)), mul(w, rr * Math.sin(th))))); }
       }
-      if (sg.rigid) rigidSymbol(sg, r0);
-      if (sg.bellows) bellowsSymbol(sg, r0);
+      if (sg.shape.kind === "arc" && !thin && !big && ampl === 0) for (const f of [0, 1]) { const [c0, t0] = segAt(g, sg, f); bead(c0, t0, r0, sg.element); }
+      if (sg.rigid && !thin) rigidSymbol(sg, r0);
+      if (sg.bellows && !thin) bellowsSymbol(sg, r0);
     });
-    // Tees: a sphere where the branch joins, so the junction reads solid.
-    for (const t of g.tees) { const p = pipeOf(t.pipe); if (!p) continue; const sp = new THREE.Mesh(new THREE.SphereGeometry(p.od / 2 * 1.08, 20, 14), steel); sp.position.copy(V(g.points[t.point].p as Vec)); group.add(sp); }
+    // Tees: the run and the branch found from the pieces that meet at the tee's point.
+    for (const t of g.tees) {
+      const p = pipeOf(t.pipe); if (!p) continue;
+      const R = drawMode() === "centre" ? 0 : p.od / 2, c = g.points[t.point].p as Vec;
+      const away = g.segs.filter(x => x.a === t.point || x.b === t.point).map(x => ({ el: x.element, d: x.a === t.point ? segAt(g, x, 0)[1] : mul(segAt(g, x, 1)[1], -1), pipe: x.a === t.point ? x.pipe : x.pipe_b }));
+      const br = t.branch ? away.find(x => x.el === t.branch![0]) : undefined, run = away.find(x => x !== br);
+      if (!R || !br || !run) { if (R) { const sp = new THREE.Mesh(new THREE.SphereGeometry(R * 1.04, 24, 16), steel); sp.position.copy(V(c)); group.add(sp); } continue; }
+      const rb = (pipeOf(br.pipe)?.od ?? p.od) / 2;
+      teeSymbol(t, R, rb, unitv(run.d), unitv(br.d), sg0Mat(run.el));
+    }
     // Nodes: small spheres to click, and their numbers.
     const od0 = m.pipes[0]?.od ?? 0.17;
     const nodeR = Math.max(od0 * 0.32, ext * 0.004);
@@ -404,7 +423,7 @@ const View3DInner = () => {
     }
     for (const [k, gg] of lastGeo) if (!geoCache.has(k)) gg.dispose();
     // For the window checks: how many builds, and how many tubes the last one had to make.
-    host.dataset.builds = String(+(host.dataset.builds ?? 0) + 1); host.dataset.made = String(made);
+    host.dataset.builds = String(+(host.dataset.builds ?? 0) + 1); host.dataset.made = String(made); host.dataset.parts = JSON.stringify(drawn);
     draw();
   };
   /** Thousands of small meshes are thousands of draw calls: merge every still mesh that shares a
@@ -473,36 +492,144 @@ const View3DInner = () => {
     }
     deform.push([attr, base, dv]);
   };
+  // ---------- fittings (0.7.4): drawn as the parts look, in proportion to the pipe ----------
+  // Their sizes are proportions of the pipe's diameter for the picture only (no dimension table):
+  // the analysis uses the element's length, weight and stiffness as before.
+  /** The materials of the parts, made once per build (`fitMats`). */
+  let FM: { forged: THREE.Material; bolt: THREE.Material; gasket: THREE.Material; wheel: THREE.Material; body: THREE.Material; bell: THREE.Material } | null = null;
+  /** Two directions square to `t` and to each other. */
+  const across = (t: Vec): [Vec, Vec] => { const u = unitv(Math.abs(t[1]) < 0.9 ? cross(t, [0, 1, 0]) : cross(t, [1, 0, 0])); return [u, cross(t, u)]; };
+  /** A part made along +Y, turned to `axis` and placed at `at`; picked as the element. */
+  const part = (geo: THREE.BufferGeometry, mat: THREE.Material, at: Vec, axis: Vec, el: number | null) => {
+    const mm = new THREE.Mesh(geo, mat); mm.position.copy(V(at)); mm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(unitv(axis)));
+    if (el !== null) { mm.userData = { element: el }; pickables.push(mm); }
+    group.add(mm); return mm;
+  };
+  const boltCount = (r: number) => { const d = 2 * r; return d < 0.115 ? 4 : d < 0.33 ? 8 : d < 0.6 ? 12 : d < 0.9 ? 16 : 20; };
+  /** A flanged joint at `c` on axis `t`: two flanges (weld-neck hubs `hub` long, or slip-on), the
+   *  gasket between them and the bolts with their nuts. `one` draws one flange only (facing +t). */
+  const flangeJoint = (c: Vec, t: Vec, r: number, hub: number, slip: boolean, el: number, one = false) => {
+    const M = FM!, R = r * 2.0, T = Math.max(r * 0.32, 0.01), gk = T * 0.14, seg = 36;
+    const sides = one ? [1] : [1, -1];
+    for (const sd of sides) {
+      const x0 = one ? 0 : gk / 2, dir = mul(t, sd);
+      part(new THREE.CylinderGeometry(R, R, T, seg), M.forged, addv(c, mul(dir, x0 + T / 2)), dir, el);
+      if (slip) part(new THREE.CylinderGeometry(r * 1.22, r * 1.22, T * 0.7, seg), M.forged, addv(c, mul(dir, x0 + T + T * 0.35)), dir, el);
+      else if (hub > 0) part(new THREE.CylinderGeometry(r * 1.03, r * 1.38, hub, seg), M.forged, addv(c, mul(dir, x0 + T + hub / 2)), dir, el);
+    }
+    if (!one) part(new THREE.CylinderGeometry(r * 1.5, r * 1.5, gk, seg), M.gasket, c, t, el);
+    // Bolts through both flanges, a nut on each side.
+    const [u, w] = across(t), n = boltCount(r), Rb = (R + r * 1.38) / 2, rb = Math.max(r * 0.085, 0.004);
+    const span = (one ? T : 2 * T + gk), cc = one ? addv(c, mul(t, T / 2)) : c, nh = rb * 1.6;
+    for (let k = 0; k < n; k++) {
+      const th = 2 * Math.PI * (k + 0.5) / n, at = addv(cc, addv(mul(u, Rb * Math.cos(th)), mul(w, Rb * Math.sin(th))));
+      part(new THREE.CylinderGeometry(rb, rb, span + nh * 2 + rb * 2, 8), M.bolt, at, t, null);
+      for (const sd of [1, -1]) part(new THREE.CylinderGeometry(rb * 1.9, rb * 1.9, nh, 6), M.bolt, addv(at, mul(t, sd * (span / 2 + nh / 2))), t, null);
+    }
+  };
+  /** What was drawn, by kind of fitting (for the window checks). */
+  let drawn: Record<string, number> = {};
+  const count = (k: string) => { drawn[k] = (drawn[k] ?? 0) + 1; };
   const rigidSymbol = (sg: Seg, r: number) => {
+    count(sg.rigid![0]);
     const g = out()!.geom!, a = g.points[sg.a].p as Vec, b = g.points[sg.b].p as Vec, mid = addv(a, mul(sub(b, a), 0.5)), t = unitv(sub(b, a)), L = len(sub(b, a));
-    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(t));
-    const mat = new THREE.MeshStandardMaterial({ color: 0x6b7785, metalness: 0.3, roughness: 0.5 });
-    const kind = sg.rigid![0];
-    const put = (geo: THREE.BufferGeometry, at: Vec) => { const mm = new THREE.Mesh(geo, mat); mm.position.copy(V(at)); mm.quaternion.copy(q); mm.userData = { element: sg.element }; group.add(mm); pickables.push(mm); };
-    if (kind === "valve") {
-      put(new THREE.ConeGeometry(r * 1.7, L / 2, 20), addv(mid, mul(t, -L / 4)));
-      const c2 = new THREE.ConeGeometry(r * 1.7, L / 2, 20); c2.rotateX(Math.PI); put(c2, addv(mid, mul(t, L / 4)));
+    const M = FM!, kind = sg.rigid![0], T = Math.max(r * 0.32, 0.01);
+    if (kind === "flange" || kind === "slipon") {
+      flangeJoint(mid, t, r, Math.min(Math.max((L - 2 * T) / 2, r * 0.3), r * 1.6), kind === "slipon", sg.element);
+    } else if (kind === "valve") {
+      // A flanged gate valve: end flanges, the body, the bonnet, the yoke, the stem and the wheel.
+      for (const [e, d] of [[a, t], [b, mul(t, -1)]] as [Vec, Vec][]) flangeJoint(e, d, r, 0, true, sg.element, true);
+      const neck = Math.max(L / 2 - T * 1.7 - r * 0.9, 0);
+      if (neck > 0) for (const sd of [1, -1]) part(new THREE.CylinderGeometry(r * 1.08, r * 1.08, neck, 32), M.body, addv(mid, mul(t, sd * (r * 0.9 + neck / 2))), t, sg.element);
+      const body = new THREE.SphereGeometry(r * 1.45, 32, 20); body.scale(1, 1.15, 1);
+      part(body, M.body, mid, t, sg.element);
       const up: Vec = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
-      const stem = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.15, r * 0.15, r * 3, 8), mat); stem.position.copy(V(addv(mid, mul(up, r * 1.5)))); stem.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(up)); group.add(stem);
-      const wheel = new THREE.Mesh(new THREE.TorusGeometry(r * 1.1, r * 0.12, 8, 24), mat); wheel.position.copy(V(addv(mid, mul(up, r * 3)))); wheel.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(up)); group.add(wheel);
-    } else if (kind === "flange" || kind === "slipon") {
-      for (const f of [0.25, 0.75]) put(new THREE.CylinderGeometry(r * 1.75, r * 1.75, Math.min(L * 0.4, r * 0.5), 28), addv(a, mul(sub(b, a), f)));
-    } else put(new THREE.BoxGeometry(r * 2.6, L * 0.9, r * 2.6), mid);
+      const bon = r * 1.5;
+      part(new THREE.CylinderGeometry(r * 0.72, r * 0.9, bon, 28), M.body, addv(mid, mul(up, r * 0.9 + bon / 2)), up, sg.element);
+      part(new THREE.CylinderGeometry(r * 1.0, r * 1.0, r * 0.2, 28), M.forged, addv(mid, mul(up, r * 0.9 + bon)), up, sg.element);
+      const [yu] = across(up), yh = r * 1.6, ytop = r * 0.9 + bon + yh;
+      for (const sd of [1, -1]) part(new THREE.CylinderGeometry(r * 0.09, r * 0.09, yh, 8), M.forged, addv(mid, addv(mul(up, r * 0.9 + bon + yh / 2), mul(cross(up, t), sd * r * 0.55))), up, null);
+      void yu;
+      part(new THREE.CylinderGeometry(r * 0.62, r * 0.62, r * 0.14, 20), M.forged, addv(mid, mul(up, ytop)), up, null);
+      part(new THREE.CylinderGeometry(r * 0.07, r * 0.07, r * 1.1, 8), M.bolt, addv(mid, mul(up, ytop + r * 0.4)), up, null);
+      const wh = addv(mid, mul(up, ytop + r * 0.75)), wr = r * 1.35;
+      const ring = new THREE.TorusGeometry(wr, Math.max(r * 0.08, 0.004), 10, 40); ring.rotateX(Math.PI / 2);
+      part(ring, M.wheel, wh, up, sg.element);
+      const [s1, s2] = across(up);
+      for (const sv of [s1, s2]) part(new THREE.CylinderGeometry(r * 0.05, r * 0.05, wr * 2, 6), M.wheel, wh, sv, null);
+      part(new THREE.CylinderGeometry(r * 0.16, r * 0.16, r * 0.2, 12), M.wheel, wh, up, null);
+    } else {
+      // Another rigid part (a strainer, an instrument): a body between two flanges.
+      for (const [e, d] of [[a, t], [b, mul(t, -1)]] as [Vec, Vec][]) flangeJoint(e, d, r, 0, true, sg.element, true);
+      part(new THREE.CylinderGeometry(r * 1.3, r * 1.3, Math.max(L - 2 * T * 1.7, r * 0.5), 32), M.body, mid, t, sg.element);
+    }
+  };
+  /** A concentric reducer: straight ends, a smooth shoulder between (a lathe along the element). */
+  const reducerGeo = (a: Vec, b: Vec, r0: number, r1: number, rad: number) => {
+    count("reducer");
+    const L = len(sub(b, a)), n = 24, pts: THREE.Vector2[] = [];
+    for (let i = 0; i <= n; i++) {
+      const y = L * i / n, f = Math.min(1, Math.max(0, (i / n - 0.2) / 0.6)), sm = f * f * (3 - 2 * f);
+      pts.push(new THREE.Vector2(r0 + (r1 - r0) * sm, y));
+    }
+    const geo = new THREE.LatheGeometry(pts, rad);
+    geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(unitv(sub(b, a))))); geo.translate(...a);
+    return geo;
+  };
+  /** A weld bead round the pipe at `c`, square to `t`. */
+  const bead = (c: Vec, t: Vec, r: number, el: number | null) => {
+    const tg = new THREE.TorusGeometry(r * 1.005, Math.max(r * 0.035, 0.0015), 6, 36); tg.rotateX(Math.PI / 2);
+    part(tg, FM!.forged, c, t, el);
+  };
+  /** A tee: a welding tee's body; a fabricated branch's saddle weld; a reinforcing pad. */
+  const teeSymbol = (tee: Geom["tees"][number], R: number, rb: number, ex: Vec, ez: Vec, steel: THREE.Material) => {
+    count(`tee-${tee.kind}`);
+    const g = out()!.geom!, c = g.points[tee.point].p as Vec, ey = cross(ez, ex);
+    // A point on the run's surface (radius Rs) above the branch's circle of radius rho, at angle phi.
+    const onRun = (rho: number, phi: number, Rs: number): Vec => { const x = rho * Math.cos(phi), y = Math.max(-Rs * 0.999, Math.min(Rs * 0.999, rho * Math.sin(phi))), z = Math.sqrt(Rs * Rs - y * y); return addv(c, addv(mul(ex, x), addv(mul(ey, y), mul(ez, z)))); };
+    if (tee.kind === "welding") {
+      part(new THREE.CylinderGeometry(R * 1.04, R * 1.04, R * 2.6, 40), steel, c, ex, null);
+      part(new THREE.CylinderGeometry(rb * 1.04, rb * 1.04, R * 1.3, 40), steel, addv(c, mul(ez, R * 0.65)), ez, null);
+      for (const sd of [1, -1]) bead(addv(c, mul(ex, sd * R * 1.3)), ex, R * 1.04, null);
+      bead(addv(c, mul(ez, R * 1.3)), ez, rb * 1.04, null);
+      return;
+    }
+    if (tee.kind === "reinforced") {
+      // The pad: a ring on the run round the branch, its own thickness proud of the run.
+      const tp = Math.max(tee.pad, R * 0.06), Rp = R + tp, ro = Math.min(rb * 1.9, R * 0.98), nr = 4, nf = 48;
+      const pos: number[] = [], idx: number[] = [];
+      for (let i = 0; i <= nr; i++) for (let k = 0; k <= nf; k++) pos.push(...onRun(rb + (ro - rb) * i / nr, 2 * Math.PI * k / nf, Rp));
+      for (let k = 0; k <= nf; k++) { pos.push(...onRun(ro, 2 * Math.PI * k / nf, Rp)); pos.push(...onRun(ro, 2 * Math.PI * k / nf, R)); }
+      const row = nf + 1, edge = (nr + 1) * row;
+      for (let i = 0; i < nr; i++) for (let k = 0; k < nf; k++) { const q0 = i * row + k; idx.push(q0, q0 + 1, q0 + row, q0 + 1, q0 + row + 1, q0 + row); }
+      for (let k = 0; k < nf; k++) { const q0 = edge + 2 * k; idx.push(q0, q0 + 1, q0 + 2, q0 + 1, q0 + 3, q0 + 2); }
+      const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3)); pg.setIndex(idx); pg.computeVertexNormals();
+      const padMat = FM!.forged.clone(); padMat.side = THREE.DoubleSide; padMat.userData = {}; group.add(new THREE.Mesh(pg, padMat));
+    }
+    // The weld where the branch meets the run (or the pad).
+    const Rs = tee.kind === "reinforced" ? R + Math.max(tee.pad, R * 0.06) : R;
+    const curve = new THREE.CatmullRomCurve3(Array.from({ length: 48 }, (_, k) => V(onRun(rb * 1.01, 2 * Math.PI * k / 48, Rs))), true);
+    group.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 96, Math.max(rb * 0.05, 0.002), 6, true), FM!.forged));
   };
 
-  // An expansion joint: convolutions (rings) along it, with tie rods when it is tied.
+  // An expansion joint: the convolutions between two collars, and tie rods when it is tied.
   const bellowsSymbol = (sg: Seg, r: number) => {
-    const g = out()!.geom!, a = g.points[sg.a].p as Vec, b = g.points[sg.b].p as Vec, t = unitv(sub(b, a));
-    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), V(t));
-    const mat = new THREE.MeshStandardMaterial({ color: 0x8a96a3, metalness: 0.4, roughness: 0.45 });
-    const n = 7;
-    for (let i = 0; i < n; i++) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(r * 1.25, r * 0.22, 8, 28), mat);
-      ring.position.copy(V(addv(a, mul(sub(b, a), (i + 1) / (n + 1))))); ring.quaternion.copy(q); ring.userData = { element: sg.element }; group.add(ring); pickables.push(ring);
-    }
+    const g = out()!.geom!, a = g.points[sg.a].p as Vec, b = g.points[sg.b].p as Vec, t = unitv(sub(b, a)), L = len(sub(b, a));
+    count("bellows");
+    const M = FM!, col = Math.min(L * 0.12, r * 0.8), Lc = L - 2 * col, nc = Math.max(5, Math.round(Lc / (r * 0.32)));
+    const pts: THREE.Vector2[] = [new THREE.Vector2(r * 1.06, 0), new THREE.Vector2(r * 1.12, col * 0.15), new THREE.Vector2(r * 1.12, col)];
+    for (let i = 1; i <= nc * 8; i++) { const y = col + Lc * i / (nc * 8); pts.push(new THREE.Vector2(r * 1.3 - r * 0.18 * Math.cos(2 * Math.PI * i / 8), y)); }
+    pts.push(new THREE.Vector2(r * 1.12, L - col), new THREE.Vector2(r * 1.12, L - col * 0.15), new THREE.Vector2(r * 1.06, L));
+    const lg = new THREE.LatheGeometry(pts, 40);
+    part(lg, M.bell, a, t, sg.element);
     if (sg.bellows!.tied) {
-      const side: Vec = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
-      for (const s of [1, -1]) { const rod = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.08, r * 0.08, len(sub(b, a)), 6), mat); rod.position.copy(V(addv(addv(a, mul(sub(b, a), 0.5)), mul(side, s * r * 1.8)))); rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), V(t)); group.add(rod); }
+      const [u, w] = across(t), rr = Math.max(r * 0.07, 0.004);
+      for (const sv of [u, mul(u, -1), w, mul(w, -1)].slice(0, 4)) {
+        const off = mul(sv, r * 1.75);
+        for (const e of [addv(a, mul(t, col * 0.5)), addv(b, mul(t, -col * 0.5))]) part(new THREE.BoxGeometry(r * 0.5, col * 0.6, r * 0.18), M.forged, addv(e, mul(sv, r * 1.45)), t, null);
+        part(new THREE.CylinderGeometry(rr, rr, L - col * 0.4, 8), M.bolt, addv(addv(a, mul(sub(b, a), 0.5)), off), t, null);
+        for (const e of [addv(a, mul(t, col * 0.5 - col * 0.45)), addv(b, mul(t, -col * 0.5 + col * 0.45))]) part(new THREE.CylinderGeometry(rr * 1.9, rr * 1.9, rr * 1.6, 6), M.bolt, addv(e, off), t, null);
+      }
     }
   };
 
@@ -562,6 +689,8 @@ const View3DInner = () => {
     host.prepend(renderer.domElement);
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = false;
+    // The wheel zooms towards the pointer, as CAD programs do (0.7.4).
+    controls.zoomToCursor = true;
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN };
     controls.addEventListener("change", draw);
     camera.position.set(8, 6, 8);

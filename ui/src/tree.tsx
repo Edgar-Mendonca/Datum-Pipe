@@ -80,7 +80,7 @@ const ResultsTree = () => {
         <Head>Code stresses · worst ratio</Head>
         <For each={r()!.cases.filter(c => c.stresses.length)}>{c => { const w = worst(c); return <button class="ti" onClick={() => { setCaseId(c.id); setView("results"); }}><span class="tw" /><b>{c.name}</b><em classList={{ bad: w.ratio > 1 }}>{num(w.ratio, 3)}{w.point >= 0 ? ` at ${r()!.geom.points[w.point]?.label ?? ""}` : ""}</em></button>; }}</For>
         <Head>Checks</Head>
-        <button class="ti" onClick={() => setView("results")}><span class="tw" /><b>Equilibrium</b><em classList={{ ok: r()!.cases.every(c => c.spectrum || c.imbalance <= 1e-6), bad: r()!.cases.some(c => !c.spectrum && c.imbalance > 1e-6) }}>{r()!.cases.every(c => c.spectrum || c.imbalance <= 1e-6) ? "balanced ✓" : "check"}</em></button>
+        <button class="ti" onClick={() => setView("results")}><span class="tw" /><b>Equilibrium</b><em classList={{ ok: r()!.cases.every(c => c.spectrum || c.combined || c.imbalance <= 1e-6), bad: r()!.cases.some(c => !c.spectrum && !c.combined && c.imbalance > 1e-6) }}>{r()!.cases.every(c => c.spectrum || c.combined || c.imbalance <= 1e-6) ? "balanced ✓" : "check"}</em></button>
         <Show when={r()!.walls.length}><button class="ti" onClick={() => setView("results")}><span class="tw" /><b>Minimum wall</b><em classList={{ ok: r()!.walls.every(w => w.pass), bad: !r()!.walls.every(w => w.pass) }}>{num(Math.max(...r()!.walls.map(w => w.ratio)), 3)}</em></button></Show>
         <Show when={r()!.modes?.length}><button class="ti" onClick={() => setView("results")}><span class="tw" /><b>Lowest natural frequency</b><em>{num(r()!.modes![0].freq, 3)} Hz</em></button></Show>
         <Head>Tables and report</Head>

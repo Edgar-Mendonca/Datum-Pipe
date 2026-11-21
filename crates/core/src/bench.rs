@@ -9,7 +9,7 @@
 //! thermal growth, a steam turbine's nozzle criteria with its nozzle loads by statics, a
 //! flange's equivalent pressure, a relief valve's thrust at an open end, a cantilever from a
 //! flexible nozzle (springs in series), an expansion joint's rates and pressure thrust, wind that changes with height in both
-//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, a vessel nozzle under its piping's loads, a vessel under full vacuum, a pipe span's natural frequencies, a cantilever in a response spectrum, and a heavy tip mass driven harmonically. `run()` gives the rows of Help › Verification; the test fails on any row
+//! directions, a vertical vessel's shell and heads, a vessel nozzle's reinforcement, a horizontal vessel on two saddles, a vertical vessel on a skirt, a bolted cover, lifting lugs, a vessel nozzle under its piping's loads, a vessel under full vacuum, a pipe span's natural frequencies, a cantilever in a response spectrum, a heavy tip mass driven harmonically, and load combinations by each rule. `run()` gives the rows of Help › Verification; the test fails on any row
 //! over its tolerance, so the report is always true for the version that runs it.
 
 use crate::doc::{Item, Op};
@@ -985,6 +985,45 @@ pub fn run() -> Vec<Check> {
         out.push(row(40, name, "Shell thickness for pressure", "len", p_sh * 1.806 / (2.0 * fz - p_sh), r.parts[1].t_req, TOL, src));
         out.push(row(40, name, "MAWP at the top (shell governs)", "press", mawp, r.mawp, TOL, src));
         out.push(row(40, name, "Hydrostatic test pressure", "press", (1.25 * mawp).max(1.43 * mawp), r.test, TOL, "max(1.25 Pd f20/fd, 1.43 Pd)"));
+    }
+    // 41. Load combinations (0.7.6) on the Z-bend: each rule worked out by hand from the results of
+    // the cases it combines, value by value; OPE1 − SUS as an expansion combination gives EXP1's
+    // stresses exactly; 1.0 SUS checked as sustained gives SUS's; an algebraic combination balances.
+    {
+        use crate::model::{CaseKind, ComboPart, ComboRule, LoadCase, Recipe};
+        let mut m = crate::examples::get("zbend").expect("zbend");
+        let id = |m: &Model, n: &str| m.cases.iter().find(|c| c.name == n).expect("case").id;
+        let (ope, sus, exp) = (id(&m, "OPE1"), id(&m, "SUS"), id(&m, "EXP1"));
+        let mut next = m.next.max(m.max_id() + 1);
+        for (name, kind, rule, parts) in [
+            ("C-EXP", CaseKind::Exp, ComboRule::Algebraic, vec![(ope, 1.0), (sus, -1.0)]),
+            ("C-SUS", CaseKind::Sus, ComboRule::Algebraic, vec![(sus, 1.0)]),
+            ("C-2SUS", CaseKind::Ope, ComboRule::Algebraic, vec![(sus, 2.0)]),
+            ("C-SCALAR", CaseKind::Ope, ComboRule::Scalar, vec![(sus, 1.0), (ope, -1.0)]),
+            ("C-SRSS", CaseKind::Ope, ComboRule::Srss, vec![(ope, 1.0), (exp, 1.0)]),
+            ("C-MAX", CaseKind::Ope, ComboRule::Max, vec![(sus, 1.0), (ope, -1.0)]),
+            ("C-SIGNMAX", CaseKind::Ope, ComboRule::Signmax, vec![(sus, 1.0), (ope, 1.0), (exp, -2.0)]),
+            ("C-SIGNMIN", CaseKind::Ope, ComboRule::Signmin, vec![(sus, 1.0), (ope, 1.0), (exp, -2.0)]),
+        ] {
+            m.cases.push(LoadCase { id: next, name: name.into(), kind, recipe: Recipe::Combo { rule, parts: parts.into_iter().map(|(case, factor)| ComboPart { case, factor }).collect() } });
+            next += 1;
+        }
+        m.next = next;
+        assert!(m.check().is_ok(), "{:?}", m.check());
+        let r = analyze(&m).expect("combinations");
+        let name = "Load combinations on the Z-bend";
+        let worst = |c: &str| case(&r, c).stresses.iter().map(|s| s.stress).fold(0.0, f64::max);
+        out.push(row(41, name, "OPE1 − SUS as an expansion range: worst stress", "stress", worst("EXP1"), worst("C-EXP"), 1e-9, "The range EXP1 = OPE1 − SUS, by its own recipe"));
+        out.push(row(41, name, "1.0 × SUS checked as sustained: worst stress", "stress", worst("SUS"), worst("C-SUS"), 1e-9, "The sustained case SUS"));
+        out.push(row(41, name, "2.0 × SUS: anchor A-10's vertical load", "force", 2.0 * reaction(&r, "SUS", 10)[1], reaction(&r, "C-2SUS", 10)[1], 1e-9, "2 × SUS's"));
+        let (a, b, e) = (disp(&r, "SUS", 20), disp(&r, "OPE1", 20), disp(&r, "EXP1", 20));
+        out.push(row(41, name, "Scalar sum of SUS and −OPE1: node 20's movement Y", "disp", a[1].abs() + b[1].abs(), disp(&r, "C-SCALAR", 20)[1], 1e-9, "The sizes added (with signs they cancel)"));
+        out.push(row(41, name, "Square root of the sum of the squares of OPE1 and EXP1: node 20's movement X", "disp", (b[0] * b[0] + e[0] * e[0]).sqrt(), disp(&r, "C-SRSS", 20)[0], 1e-9, "√(OPE1² + EXP1²)"));
+        let big = |x: f64, y: f64| if x.abs() >= y.abs() { x } else { y };
+        out.push(row(41, name, "Largest in size, with its sign, of SUS and −OPE1: node 20's movement X", "disp", big(a[0], -b[0]), disp(&r, "C-MAX", 20)[0], 1e-9, "SUS or −OPE1, the larger in size"));
+        out.push(row(41, name, "Largest value of SUS, OPE1 and −2 EXP1: node 20's movement X", "disp", a[0].max(b[0]).max(-2.0 * e[0]), disp(&r, "C-SIGNMAX", 20)[0], 1e-9, "max(SUS, OPE1, −2 EXP1)"));
+        out.push(row(41, name, "Smallest value of SUS, OPE1 and −2 EXP1: node 20's movement X", "disp", a[0].min(b[0]).min(-2.0 * e[0]), disp(&r, "C-SIGNMIN", 20)[0], 1e-9, "min(SUS, OPE1, −2 EXP1)"));
+        out.push(row(41, name, "An algebraic combination balances", "ratio", 0.0, case(&r, "C-2SUS").imbalance, 1e-9, "Statics: Σ reactions + Σ loads = 0"));
     }
     // 8. Equilibrium on every example: in every load case the reactions balance the loads.
     for e in crate::examples::list() {

@@ -2,7 +2,7 @@
 // against temperature and allowables, with sources), line conditions (T1–T3, P1–P3, hydrotest)
 // and the load cases. Each edit goes to the engine as one operation.
 import { For, Show, createSignal, createResource, JSX } from "solid-js";
-import { Pipe, Material, Cond, LoadCase, Library, Recipe, Check, SpringSize, Equipment, EquipKind, FlangeSpec, Relief, Soil, SAND, V3, num, parseNum } from "./api";
+import { Pipe, Material, Cond, LoadCase, Library, Recipe, ComboRule, Check, SpringSize, Equipment, EquipKind, FlangeSpec, Relief, Soil, SAND, V3, num, parseNum } from "./api";
 import { openDialog, act, call, model, toast } from "./store";
 import { C } from "./cmds";
 import { Dialog, Icon } from "./ui";
@@ -146,10 +146,38 @@ export const conds = (focus?: number) => openDialog(() => {
 });
 
 const KINDS: [string, string][] = [["sus", "Sustained (SUS)"], ["ope", "Operating (OPE)"], ["exp", "Expansion range (EXP)"], ["hyd", "Hydrotest (HYD)"], ["occ", "Occasional (OCC)"]];
+/** How a combination puts its cases together (0.7.6). */
+export const RULES: [ComboRule, string, string][] = [
+  ["algebraic", "Algebraic", "The sum with signs: Σ f R. Balances like any case."],
+  ["scalar", "Scalar", "The sizes added: Σ |f R|."],
+  ["srss", "SRSS", "The square root of the sum of the squares: √Σ (f R)²."],
+  ["max", "Largest in size", "Of the values, the one largest in size, with its sign."],
+  ["signmax", "Largest value", "The largest of the values, signs counted."],
+  ["signmin", "Smallest value", "The smallest of the values, signs counted."],
+];
 export const recipeText = (c: LoadCase, all: LoadCase[]) => {
   const r = c.recipe;
   if (r.kind === "range") return `${all.find(x => x.id === r.a)?.name ?? "?"} − ${all.find(x => x.id === r.b)?.name ?? "?"}`;
+  if (r.kind === "combo") {
+    const nm = (id: number) => all.find(x => x.id === id)?.name ?? "?";
+    const term = (p: { case: number; factor: number }, first: boolean) => { const f = Math.abs(p.factor), s = p.factor < 0 ? "−" : first ? "" : "+"; return `${first ? s : ` ${s} `}${f === 1 ? "" : `${num(f, 4)} × `}${nm(p.case)}`; };
+    const body = r.rule === "algebraic" ? r.parts.map((p, i) => term(p, i === 0)).join("") : r.parts.map(p => term(p, true)).join(", ");
+    return r.rule === "algebraic" ? body : `${RULES.find(x => x[0] === r.rule)?.[1] ?? r.rule} of ${body}`;
+  }
   return [r.w ? (r.water ? "W (full of water)" : "W") : "", r.t ? `T${r.t}` : "", r.d ? `D${r.d}` : "", r.p ? (r.p === 4 ? "HP" : `P${r.p}`) : "", r.wind ? (r.neg ? "−WIN" : "WIN") : "", r.seis ? (r.neg ? "−SEIS" : "SEIS") : "", r.relief ? "RV" : "", r.cs ? "CS" : ""].filter(Boolean).join(" + ") || "nothing";
+};
+
+/** A combination's row (0.7.6): its rule, and its cases with their factors (only cases above it). */
+const ComboEdit = (p: { c: LoadCase; before: LoadCase[]; put: (r: Recipe) => void }) => {
+  const r = () => p.c.recipe as Extract<Recipe, { kind: "combo" }>;
+  const parts = (ps: { case: number; factor: number }[]) => p.put({ ...r(), parts: ps });
+  return (
+    <td colSpan={7} class="comboedit">
+      <span class="inline"><select class="rule" title={RULES.find(x => x[0] === r().rule)?.[2]} onChange={e => p.put({ ...r(), rule: e.currentTarget.value as ComboRule })}><For each={RULES}>{x => <option value={x[0]} selected={x[0] === r().rule} title={x[2]}>{x[1]}</option>}</For></select>
+        <For each={r().parts}>{(q, k) => <span class="part"><input class="mono fac" value={num(q.factor, 6)} title="Factor" onChange={numIn(v => parts(r().parts.map((x, j) => j === k() ? { ...x, factor: v } : x)), () => num(q.factor, 6))} />×<select onChange={e => parts(r().parts.map((x, j) => j === k() ? { ...x, case: +e.currentTarget.value } : x))}><For each={p.before}>{o => <option value={o.id} selected={o.id === q.case}>{o.name}</option>}</For></select><Show when={r().parts.length > 1}><button class="x" title="Take this case out" onClick={() => parts(r().parts.filter((_, j) => j !== k()))}>×</button></Show></span>}</For>
+        <button class="btn sm" title="Add a case to the combination" onClick={() => { const o = p.before.find(x => !r().parts.some(q => q.case === x.id)) ?? p.before[0]; if (o) parts([...r().parts, { case: o.id, factor: 1 }]); }}>+ case</button></span>
+    </td>
+  );
 };
 
 export const cases = () => openDialog(() => {
@@ -161,19 +189,25 @@ export const cases = () => openDialog(() => {
   const n03: [number, string][] = [[0, "—"], [1, "1"], [2, "2"], [3, "3"]];
   return (
     <Dialog title="Load cases" wide help="cases">
-      <p class="muted">{model()?.settings.auto_cases ? "Built from the model, and kept up to date as you edit. Changing a case here turns that off." : "Your own load cases. Recommend builds them from the model again."}</p>
-      <table class="tbl cases"><thead><tr><th>Name</th><th>Kind</th><th>Weight</th><th>Temperature</th><th>Displacements</th><th>Pressure</th><th>Occasional</th><th title="The cold spring pulled in">Cold spring</th><th>Range</th><th>Made of</th><th /></tr></thead><tbody>
-        <For each={list()}>{c => <tr>
+      <p class="muted">{model()?.settings.auto_cases ? "Built from the model, and kept up to date as you edit. Changing a case here turns that off; adding or changing a combination does not." : "Your own load cases. Recommend builds them from the model again."}</p>
+      <div class="tscroll"><table class="tbl cases"><thead><tr><th>Name</th><th>Kind</th><th>Weight</th><th>Temperature</th><th>Displacements</th><th>Pressure</th><th>Occasional</th><th title="The cold spring pulled in">Cold spring</th><th>Range</th><th>Made of</th><th /></tr></thead><tbody>
+        <For each={list()}>{(c, i) => <tr classList={{ combo: c.recipe.kind === "combo" }}>
           <td><input value={c.name} onChange={e => put(c.id, { name: e.currentTarget.value })} /></td>
           <td><select onChange={e => put(c.id, { kind: e.currentTarget.value as any })}><For each={KINDS}>{k => <option value={k[0]} selected={k[0] === c.kind}>{k[1]}</option>}</For></select></td>
+          <Show when={c.recipe.kind !== "combo"} fallback={<ComboEdit c={c} before={list().slice(0, i())} put={r => put(c.id, { recipe: r })} />}>
           <Show when={c.recipe.kind === "sum"} fallback={<><td colSpan={6} class="muted">The range between two cases</td><td>{c.recipe.kind === "range" && <span class="inline">{sel(c.recipe.a, a => putR(c, { a } as any), list().filter(x => x.id !== c.id).map(x => [x.id, x.name]))} − {sel(c.recipe.b, b => putR(c, { b } as any), list().filter(x => x.id !== c.id).map(x => [x.id, x.name]))}</span>}</td></>}>{_ => { const r = c.recipe as Extract<Recipe, { kind: "sum" }>; return <>
             <td><select onChange={e => putR(c, { w: e.currentTarget.value !== "0", water: e.currentTarget.value === "2" } as any)}><option value="0" selected={!r.w}>—</option><option value="1" selected={r.w && !r.water}>W</option><option value="2" selected={r.w && r.water}>W full of water</option></select></td>
             <td>{sel(r.t, t => putR(c, { t } as any), n03)}</td><td>{sel(r.d, d => putR(c, { d } as any), n03)}</td><td>{sel(r.p, p => putR(c, { p } as any), [...n03, [4, "Hydrotest"]])}</td>
-            <td>{sel((r.wind ? 1 : 0) + (r.seis ? 2 : 0) + (r.relief ? 4 : 0) + (r.neg ? 8 : 0), o => putR(c, { wind: !!(o & 1), seis: !!(o & 2), relief: !!(o & 4), neg: !!(o & 8) } as any), [[0, "—"], [1, "Wind"], [2, "Seismic"], [3, "Wind and seismic"], [9, "Wind, reversed"], [10, "Seismic, reversed"], [11, "Both, reversed"], [4, "Relief thrust"]])}</td><td><input type="checkbox" class="cs" checked={!!r.cs} onChange={e => putR(c, { cs: e.currentTarget.checked } as any)} /></td><td /></>; }}</Show>
+            <td>{sel((r.wind ? 1 : 0) + (r.seis ? 2 : 0) + (r.relief ? 4 : 0) + (r.neg ? 8 : 0), o => putR(c, { wind: !!(o & 1), seis: !!(o & 2), relief: !!(o & 4), neg: !!(o & 8) } as any), [[0, "—"], [1, "Wind"], [2, "Seismic"], [3, "Wind and seismic"], [9, "Wind, reversed"], [10, "Seismic, reversed"], [11, "Both, reversed"], [4, "Relief thrust"]])}</td><td><input type="checkbox" class="cs" checked={!!r.cs} onChange={e => putR(c, { cs: e.currentTarget.checked } as any)} /></td><td /></>; }}</Show></Show>
           <td class="muted">{recipeText(c, list())}</td>
-          <td><button class="x" title="Remove this case" onClick={() => set(list().filter(x => x.id !== c.id))}>×</button></td></tr>}</For></tbody></table>
+          <td><button class="x" title="Remove this case" onClick={() => set(list().filter(x => x.id !== c.id))}>×</button></td></tr>}</For></tbody></table></div>
       <p class="ibtns"><button class="btn sm" onClick={() => set([...list(), { id: 0, name: `L${list().length + 1}`, kind: "ope", recipe: { kind: "sum", w: true, water: false, t: 1, d: 1, p: 1, wind: false, seis: false, relief: false, neg: false, cs: false } }])}>Add a case</button>
         <button class="btn sm" onClick={() => { const a = list()[0], b = list()[1]; if (!a || !b) return toast("A range needs two cases."); set([...list(), { id: 0, name: `EXP${list().length + 1}`, kind: "exp", recipe: { kind: "range", a: a.id, b: b.id } }]); }}>Add a range</button>
+        <button class="btn sm" title="The results of other cases, each times its factor, put together by a rule" onClick={() => {
+          const l = list(); if (!l.length) return toast("A combination needs a case to combine.");
+          const sus = l.find(x => x.kind === "sus") ?? l[0], occ = l.find(x => x.kind === "occ");
+          set([...l, { id: 0, name: `COMB${l.filter(x => x.recipe.kind === "combo").length + 1}`, kind: occ ? "occ" : "sus", recipe: { kind: "combo", rule: occ ? "scalar" : "algebraic", parts: [{ case: sus.id, factor: 1 }, ...(occ ? [{ case: occ.id, factor: 1 }] : [])] } }]);
+        }}>Add a combination</button>
         <button class="btn sm pri" onClick={C.recommendCases}>Recommend</button></p>
     </Dialog>
   );

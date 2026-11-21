@@ -26,7 +26,7 @@ use crate::elements::{Elem, Line, Props, Section};
 use crate::geom::{Geom, Shape};
 use crate::library::interp;
 use crate::mat::*;
-use crate::model::{CaseKind, Comp, LoadCase, Model, Recipe, RigidKind, SupKind, RIGID};
+use crate::model::{CaseKind, ComboRule, Comp, LoadCase, Model, Recipe, RigidKind, SupKind, RIGID};
 use crate::sparse::{Stats, System};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -129,6 +129,10 @@ pub struct CaseResult {
     pub flanges: Vec<crate::flange::FlangeCheck>,
     /// The response spectrum's combined case (equilibrium does not apply to it).
     pub spectrum: bool,
+    /// A combination by a rule that drops signs (0.7.6): its values are each one's own extreme, so
+    /// equilibrium does not apply to it.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub combined: bool,
     /// The soil's loads on buried pipe (0.5.4), point by point.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub soil: Vec<crate::soil::SoilLoad>,
@@ -1551,7 +1555,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                     }
                 }
                 let reacted = add6(sum_reactions(&g, &reactions), soil_sum(&g, &soil));
-                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction, equipment: vec![], flanges: vec![], spectrum: false, soil });
+                let (mut raw_glob, cr) = (glob.clone(), CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts, iterations: iters[k], friction, equipment: vec![], flanges: vec![], spectrum: false, combined: false, soil });
                 raw.insert(c.id, std::mem::take(&mut raw_glob));
                 cr
             }
@@ -1568,7 +1572,20 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                 let soil: Vec<crate::soil::SoilLoad> = ra.soil.iter().zip(&rb.soil).map(|(x, y)| crate::soil::SoilLoad { force: sub(x.force, y.force), yielded: x.yielded || y.yielded, ..x.clone() }).collect();
                 let reacted = add6(sum_reactions(&g, &reactions), soil_sum(&g, &soil));
                 raw.insert(c.id, glob);
-                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: false, soil }
+                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: false, combined: false, soil }
+            }
+            Recipe::Combo { rule, ref parts } => {
+                // Each value of the cases' results, times its factor, combined by the rule.
+                let rs: Vec<(&CaseResult, &Vec<[[f64; 6]; 2]>, f64)> = parts.iter().map(|p| Ok((by_id.get(&p.case).ok_or("A combination uses a case that comes after it.")?, &raw[&p.case], p.factor))).collect::<Result<_, String>>()?;
+                let comb = |f: &dyn Fn(&CaseResult, &Vec<[[f64; 6]; 2]>) -> f64| -> f64 { let v: Vec<f64> = rs.iter().map(|(r, g, k)| k * f(r, g)).collect(); rule.apply(&v) };
+                let disp: Vec<[f64; 6]> = (0..rs[0].0.disp.len()).map(|i| std::array::from_fn(|d| comb(&|r, _| r.disp[i][d]))).collect();
+                let glob: Vec<[[f64; 6]; 2]> = (0..rs[0].1.len()).map(|i| [0, 1].map(|e| std::array::from_fn(|d| comb(&|_, g| g[i][e][d])))).collect();
+                let reactions: Vec<Reaction> = rs[0].0.reactions.iter().map(|x| Reaction { support: x.support, node: x.node, f: std::array::from_fn(|d| comb(&|r, _| r.reactions.iter().find(|y| y.support == x.support).map_or(0.0, |y| y.f[d]))) }).collect();
+                let applied: [f64; 6] = std::array::from_fn(|d| comb(&|r, _| r.applied[d]));
+                let soil: Vec<crate::soil::SoilLoad> = rs[0].0.soil.iter().enumerate().map(|(i, x)| crate::soil::SoilLoad { force: std::array::from_fn(|d| comb(&|r, _| r.soil.get(i).map_or(0.0, |y| y.force[d]))), yielded: rs.iter().any(|(r, _, _)| r.soil.get(i).is_some_and(|y| y.yielded)), ..x.clone() }).collect();
+                let reacted = add6(sum_reactions(&g, &reactions), soil_sum(&g, &soil));
+                raw.insert(c.id, glob);
+                CaseResult { id: c.id, name: c.name.clone(), kind: c.kind, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied, reacted, imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: false, combined: rule != ComboRule::Algebraic, soil }
             }
         };
         by_id.insert(c.id, r.clone());
@@ -1700,7 +1717,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
         let spec_id = m.max_id() + 1_000_000;
         cases.push(LoadCase { id: spec_id, name: "OCC SPEC".into(), kind: CaseKind::Occ, recipe: Recipe::Range { a: o1, b: o1 } });
         raw.insert(spec_id, glob);
-        results.push(CaseResult { id: spec_id, name: "OCC SPEC".into(), kind: CaseKind::Occ, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true, soil: vec![] });
+        results.push(CaseResult { id: spec_id, name: "OCC SPEC".into(), kind: CaseKind::Occ, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true, combined: false, soil: vec![] });
     }
     // ---------------------------------------------------------------- harmonic response
     // A force at frequency Ω by the modes, with the static part exact (the mode-acceleration form):
@@ -1781,7 +1798,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             let hid = m.max_id() + 1_000_001;
             cases.push(LoadCase { id: hid, name: "HARM".into(), kind: CaseKind::Ope, recipe: Recipe::Range { a: o1, b: o1 } });
             raw.insert(hid, glob);
-            results.push(CaseResult { id: hid, name: "HARM".into(), kind: CaseKind::Ope, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true, soil: vec![] });
+            results.push(CaseResult { id: hid, name: "HARM".into(), kind: CaseKind::Ope, disp, forces: vec![], reactions, nozzles: vec![], stresses: vec![], applied: [0.0; 6], reacted: [0.0; 6], imbalance: 0.0, worst: None, contacts: vec![], iterations: 0, friction: vec![], equipment: vec![], flanges: vec![], spectrum: true, combined: false, soil: vec![] });
         } else {
             warnings.push(format!("The harmonic load's node {} is not on the piping.", h.node));
         }
@@ -1796,8 +1813,27 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                 let i = if t > 0 { t } else if (1..=3).contains(&p) { p } else { 0 };
                 if i > 0 { i as f64 } else { 0.0 }
             }
-            Recipe::Range { .. } => 0.0,
+            Recipe::Range { .. } | Recipe::Combo { .. } => 0.0,
         }
+    };
+    // The sum cases a case is made of, through ranges and combinations (for its pressure and the
+    // temperature its allowable is taken at).
+    let leaves = |c: &LoadCase| -> Vec<&LoadCase> {
+        let mut out = vec![];
+        let mut todo = vec![c.id];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(id) = todo.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            let Some(x) = m.cases.iter().find(|x| x.id == id) else { continue };
+            match &x.recipe {
+                Recipe::Sum { .. } => out.push(x),
+                Recipe::Range { a, b } => todo.extend([*a, *b]),
+                Recipe::Combo { parts, .. } => todo.extend(parts.iter().map(|p| p.case)),
+            }
+        }
+        out
     };
     // The largest sustained stress at each segment end (for the liberal allowable range).
     let mut sl_max: Vec<[f64; 2]> = vec![[0.0; 2]; parts.len()];
@@ -1830,12 +1866,20 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             // a range uses the hotter of its two cases.
             // A range takes Sh at the hotter of its two cases' metal temperatures (found by review: it took
             // the higher-numbered case).
-            let (pidx, tids) = match c.recipe {
-                Recipe::Sum { p, .. } => (p, vec![temp_of(c) as usize]),
+            // A combination takes the highest pressure of the cases it is made of, and Sh at the
+            // hottest of their temperatures.
+            let mut pidxs: Vec<u8> = vec![];
+            let (pidx, tids) = match &c.recipe {
+                Recipe::Sum { p, .. } => (*p, vec![temp_of(c) as usize]),
                 Recipe::Range { a, b } => {
-                    let ca = m.cases.iter().find(|x| x.id == a);
-                    let cb = m.cases.iter().find(|x| x.id == b);
+                    let ca = m.cases.iter().find(|x| x.id == *a);
+                    let cb = m.cases.iter().find(|x| x.id == *b);
                     (0, vec![ca.map_or(0, |x| temp_of(x) as usize), cb.map_or(0, |x| temp_of(x) as usize)])
+                }
+                Recipe::Combo { .. } => {
+                    let ls = leaves(c);
+                    pidxs = ls.iter().filter_map(|x| match x.recipe { Recipe::Sum { p, .. } if p > 0 => Some(p), _ => None }).collect();
+                    (0, ls.iter().map(|x| temp_of(x) as usize).collect())
                 }
             };
             let mut stresses = vec![];
@@ -1852,7 +1896,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
                 let sc = interp(&mat.allow, m.settings.ambient);
                 let hot = if tids.iter().any(|&t| t > 0) { tids.iter().map(|&t| if t > 0 { p.t[t - 1] } else { m.settings.ambient }).fold(m.settings.ambient, f64::max) } else { p.t.iter().cloned().fold(m.settings.ambient, f64::max) };
                 let sh = interp(&mat.allow, hot);
-                let pressure = if pidx >= 1 { p.p[pidx as usize - 1] } else { 0.0 };
+                let pressure = if pidx >= 1 { p.p[pidx as usize - 1] } else { pidxs.iter().map(|&k| p.p[k as usize - 1]).fold(0.0, f64::max) };
                 for end in 0..2 {
                     let e = glob[i][end];
                     let (_, t) = p.el.line.at(if end == 0 { 0.0 } else { p.el.line.length() });
@@ -1927,7 +1971,7 @@ fn solve_model(m: &Model) -> Result<Results, String> {
             res.nozzles.push(NozzleLoad { nozzle: zid, node: z.node, local, shear, bending, ratios, pass: checked.then(|| ratios.iter().all(|r| *r <= 1.0)) });
         }
         // A combined spectrum's values have no signs: equilibrium does not apply to it.
-        res.imbalance = if res.spectrum { 0.0 } else { imbalance(&g, res, wscale) };
+        res.imbalance = if res.spectrum || res.combined { 0.0 } else { imbalance(&g, res, wscale) };
         // Rotating equipment: in the cases that are loads (not ranges between two cases).
         if m.cases.iter().any(|c| c.id == res.id && matches!(c.recipe, Recipe::Sum { .. })) {
             res.equipment = m.equipment.iter().map(|e| crate::equip::check(e, &at)).collect();

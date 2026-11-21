@@ -293,6 +293,13 @@ fn exec(m: &mut Model, op: Op, created: &mut Vec<u32>) -> Result<(), String> {
             loop {
                 let before: Vec<u32> = m.cases.iter().map(|c| c.id).collect();
                 m.cases.retain(|c| !gone.contains(&c.id) && !matches!(c.recipe, crate::model::Recipe::Range { a, b } if gone.contains(&a) || gone.contains(&b)));
+                // A combination loses the deleted cases; with none left it goes too.
+                for c in &mut m.cases {
+                    if let crate::model::Recipe::Combo { parts, .. } = &mut c.recipe {
+                        parts.retain(|p| !gone.contains(&p.case));
+                    }
+                }
+                m.cases.retain(|c| !matches!(&c.recipe, crate::model::Recipe::Combo { parts, .. } if parts.is_empty()));
                 if m.cases.len() == before.len() {
                     break;
                 }
@@ -480,8 +487,13 @@ fn exec(m: &mut Model, op: Op, created: &mut Vec<u32>) -> Result<(), String> {
             m.vessels = list;
         }
         Op::SetCases { cases } => {
+            // Changing the cases themselves turns their automatic building off; adding, editing or
+            // removing combinations (0.7.6) does not: they are kept when the cases are built again.
+            let plain = |l: &[LoadCase]| l.iter().filter(|c| !matches!(c.recipe, crate::model::Recipe::Combo { .. })).cloned().collect::<Vec<_>>();
+            if plain(&m.cases) != plain(&cases) {
+                m.settings.auto_cases = false;
+            }
             m.cases = cases;
-            m.settings.auto_cases = false;
             // New cases may come with id 0.
             let mut next = m.next.max(m.max_id() + 1);
             for c in &mut m.cases {

@@ -13,6 +13,7 @@
 //!   directions, also OPE1−WIN and OCC −WIN (and the same for seismic).
 
 use crate::model::{CaseKind, LoadCase, Model, Recipe};
+use std::collections::HashMap;
 
 /// Which operating cases 1–3 the model uses: a temperature away from the installed one, a pressure,
 /// or an imposed displacement.
@@ -111,6 +112,29 @@ pub fn rebuild(m: &mut Model) {
             *b = map[b];
         }
     }
+    // Your combinations (0.7.6) are kept, after the cases: each part found again by its case's
+    // name; a combination whose cases are all gone goes too.
+    let by_name: HashMap<String, u32> = new.iter().map(|c| (c.name.clone(), c.id)).collect();
+    let old_names: HashMap<u32, String> = m.cases.iter().map(|c| (c.id, c.name.clone())).collect();
+    let mut kept: Vec<LoadCase> = vec![];
+    for c in m.cases.iter().filter(|c| matches!(c.recipe, Recipe::Combo { .. })) {
+        let Recipe::Combo { rule, parts } = &c.recipe else { continue };
+        let parts: Vec<_> = parts.iter().filter_map(|p| {
+            let name = old_names.get(&p.case)?;
+            by_name.get(name).copied().or_else(|| kept.iter().find(|k| &k.name == name).map(|k| k.id)).map(|case| crate::model::ComboPart { case, factor: p.factor })
+        }).collect();
+        if parts.is_empty() || by_name.contains_key(&c.name) {
+            continue;
+        }
+        let id = if taken.contains(&c.id) || new.iter().any(|x| x.id == c.id) {
+            next += 1;
+            next - 1
+        } else {
+            c.id
+        };
+        kept.push(LoadCase { id, name: c.name.clone(), kind: c.kind, recipe: Recipe::Combo { rule: *rule, parts } });
+    }
+    new.extend(kept);
     m.cases = new;
     m.next = next.max(m.max_id() + 1);
 }
@@ -134,5 +158,55 @@ mod tests {
         rebuild(&mut m);
         assert_eq!(ids, m.cases.iter().map(|c| c.id).collect::<Vec<_>>(), "rebuilding keeps ids");
         assert!(m.check().is_ok(), "{:?}", m.check());
+    }
+
+    #[test]
+    fn combinations_are_kept_checked_and_cascaded() {
+        use crate::model::{ComboPart, ComboRule};
+        let mut m = Model::new();
+        m.conds[0].t = [K0 + 250.0, K0 + 120.0, K0 + 21.0];
+        rebuild(&mut m);
+        let id = |m: &Model, n: &str| m.cases.iter().find(|c| c.name == n).unwrap().id;
+        let (sus, ope2) = (id(&m, "SUS"), id(&m, "OPE2"));
+        let combo = LoadCase { id: 900, name: "SUS+OPE2".into(), kind: CaseKind::Ope, recipe: Recipe::Combo { rule: ComboRule::Scalar, parts: vec![ComboPart { case: sus, factor: 1.0 }, ComboPart { case: ope2, factor: 1.5 }] } };
+        m.cases.push(combo.clone());
+        m.next = m.next.max(901);
+        assert!(m.check().is_ok(), "{:?}", m.check());
+        // Rebuilding the recommended cases keeps the combination, its parts found by name.
+        rebuild(&mut m);
+        let c = m.cases.iter().find(|c| c.name == "SUS+OPE2").expect("kept");
+        assert_eq!(c.recipe, Recipe::Combo { rule: ComboRule::Scalar, parts: vec![ComboPart { case: id(&m, "SUS"), factor: 1.0 }, ComboPart { case: id(&m, "OPE2"), factor: 1.5 }] });
+        // OPE2 no longer used: the combination keeps SUS only.
+        m.conds[0].t[1] = m.settings.ambient;
+        rebuild(&mut m);
+        let c = m.cases.iter().find(|c| c.name == "SUS+OPE2").expect("kept with SUS");
+        assert!(matches!(&c.recipe, Recipe::Combo { parts, .. } if parts.len() == 1));
+        assert!(m.check().is_ok(), "{:?}", m.check());
+        // A combination before its cases, of itself, or with no cases is refused.
+        let mut bad = m.clone();
+        let c = bad.cases.pop().unwrap();
+        bad.cases.insert(0, c);
+        assert!(bad.check().unwrap_err().contains("must come after"));
+        let mut bad = m.clone();
+        if let Recipe::Combo { parts, .. } = &mut bad.cases.last_mut().unwrap().recipe { parts.clear(); }
+        assert!(bad.check().is_err());
+        // Saved and read back the same.
+        let (back, w) = crate::model::from_json(&crate::model::to_json(&m)).unwrap();
+        assert!(w.is_empty() && back == m);
+        // Deleting the case it is made of takes the combination with it.
+        let sus = id(&m, "SUS");
+        let mut d = crate::doc::Doc::new(m);
+        d.apply(crate::doc::Op::Delete { ids: vec![sus] }).unwrap();
+        assert!(!d.m.cases.iter().any(|c| c.name == "SUS+OPE2"), "{:?}", d.m.cases);
+        // Adding a combination keeps the cases built automatically; changing a case does not.
+        let mut d = crate::doc::Doc::new(Model::new());
+        assert!(d.m.settings.auto_cases);
+        let mut cs = d.m.cases.clone();
+        cs.push(LoadCase { id: 0, name: "2 SUS".into(), kind: CaseKind::Ope, recipe: Recipe::Combo { rule: ComboRule::Algebraic, parts: vec![ComboPart { case: id(&d.m, "SUS"), factor: 2.0 }] } });
+        d.apply(crate::doc::Op::SetCases { cases: cs.clone() }).unwrap();
+        assert!(d.m.settings.auto_cases && d.m.cases.iter().any(|c| c.name == "2 SUS" && c.id != 0));
+        cs[0].name = "OPE".into();
+        d.apply(crate::doc::Op::SetCases { cases: cs }).unwrap();
+        assert!(!d.m.settings.auto_cases);
     }
 }

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.7.6 — 2026-11-21
+
+Load combinations.
+
+**Combinations.** Load Cases › Add a combination: the results of cases above it, each times its factor, put together value by value (every movement, section force and support load) by a rule:
+
+- **Algebraic**: the sum with signs. It balances like any case.
+- **Scalar**: the sizes added.
+- **SRSS**: the square root of the sum of the squares.
+- **Largest in size** (with its sign), **Largest value** and **Smallest value**: envelopes of the cases.
+
+**Checked as its kind says.** Sustained or occasional: the sustained expression on the combined section forces, with the highest pressure of its cases, against Sh or k Sh at the hottest of their temperatures. Expansion: the range expression against the allowable range. Operating: loads only. With a rule other than Algebraic each combined value is its own worst, so the stress is on the safe side, and equilibrium does not apply (the results say so).
+
+**Kept.** Combinations stay when the recommended cases are built again (each case found by its name), and adding or changing one does not turn the automatic cases off; deleting a case takes it out of the combinations that use it.
+
+**An example.** The steam line on a pipe rack has SUS+WIN: SUS and OCC WIN, sizes added, checked as occasional.
+
+**Verified.** Benchmark 41: each rule worked out by hand from the cases it combines; OPE1 − SUS as an expansion combination gives EXP1's stresses; 1.0 SUS as sustained gives SUS's; an algebraic combination balances.
+
+**Fixed.** Escape did not close a dialog once an edit had drawn its table again (the focus was lost).
+
+**Checked.** Engine tests for keeping, checking and deleting combinations; ten new window checks; the real app.
+
 ## 0.7.5 — 2026-11-18
 
 A better 3D model, part 3: the supports and the equipment, drawn as they are built.

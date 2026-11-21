@@ -41,6 +41,7 @@ const shots = process.env.SHOTS;
             if (a.op.Add?.item?.Support) nx.m.supports.push({ ...a.op.Add.item.Support, id: 999 });
             if (a.op.SetReliefs) nx.m.reliefs = a.op.SetReliefs.list;
             if (a.op.SetVessels) nx.m.vessels = a.op.SetVessels.list;
+            if (a.op.SetCases) nx.m.cases = a.op.SetCases.cases.map((c, i) => ({ ...c, id: c.id || 8000 + i }));
             window.__cur = nx; return nx;
           }
           if (c === "history") return window.__cur;
@@ -724,6 +725,34 @@ const shots = process.env.SHOTS;
     const n = Object.entries(parts).filter(([k]) => k.startsWith("support-")).reduce((a, [, v]) => a + v, 0);
     check("every kind of support is drawn (rests, guides, stops, restraints, springs, hangers, constant, anchors; level and upright)", n === list.length && ["rest", "guide", "linestop", "restraint", "spring", "hanger", "constant", "rotspring", "anchor"].every(k => parts[`support-${k}`] > 0), JSON.stringify(parts));
     check("the pump's nozzle is drawn flanged to its equipment", parts.nozzle === 1); }
+
+  // 0.7.6: load combinations: the steam example's SUS+WIN, a new one from the dialog, its rule and
+  // factors, and a combination's results.
+  { await open("steam"); await p.waitForTimeout(300);
+    await p.click('.tabs > button:text-is("Loads")');
+    await p.click('.ribbon button[title="Load Cases"]'); await p.waitForTimeout(300);
+    const t = (await p.textContent(".dlg .tbl.cases")) ?? "";
+    check("the steam example has the combination SUS+WIN, scalar of SUS and OCC WIN", t.includes("Scalar of SUS, OCC WIN") && (await p.$$(".dlg tr.combo")).length === 1, t.slice(-300));
+    await p.click('.dlg button:has-text("Add a combination")'); await p.waitForTimeout(300);
+    const op = await lastOp(); const nc = op?.SetCases?.cases?.at(-1);
+    check("Add a combination adds one, made of cases above it", nc?.recipe?.kind === "combo" && nc.recipe.parts.length >= 1 && op.SetCases.cases.slice(0, -1).some(c => c.id === nc.recipe.parts[0].case), JSON.stringify(nc));
+    const rows = await p.$$(".dlg tr.combo");
+    check("the new combination has its own row with a rule and its cases", rows.length === 2 && !!(await rows[1].$("select.rule")) && (await rows[1].$$(".part")).length >= 1);
+    await (await rows[1].$("select.rule")).selectOption("srss"); await p.waitForTimeout(250);
+    check("the rule is sent", (await lastOp())?.SetCases?.cases?.at(-1)?.recipe?.rule === "srss");
+    { const f = await (await p.$$(".dlg tr.combo"))[1].$("input.fac"); await f.fill("1.5"); await f.press("Tab"); await p.waitForTimeout(250); }
+    check("a factor is sent", (await lastOp())?.SetCases?.cases?.at(-1)?.recipe?.parts?.[0]?.factor === 1.5);
+    await (await (await p.$$(".dlg tr.combo"))[1].$('button:has-text("+ case")')).click(); await p.waitForTimeout(250);
+    check("+ case adds a case to it", ((await lastOp())?.SetCases?.cases?.at(-1)?.recipe?.parts?.length ?? 0) >= 2);
+    const names = await p.$$eval(".dlg .tbl.cases tbody tr td:first-child input", els => els.map(e => e.value));
+    const opts = await (await p.$$(".dlg tr.combo"))[1].$$eval(".part select option", os => os.map(o => o.textContent));
+    check("a combination offers only the cases above it", !opts.includes(names.at(-1)) && opts.includes("SUS"), JSON.stringify(opts));
+    await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+    check("Escape closes the dialog after an edit drew its table again (the focus was lost)", !(await p.$(".dlg")));
+    await open("steam"); await p.keyboard.press("F5"); await p.waitForTimeout(500);
+    await p.click('.side button[title="Results"]').catch(() => {}); await p.waitForTimeout(300);
+    const body = (await p.textContent("body")) ?? "";
+    check("the combination's results are listed, its equilibrium not applicable", body.includes("SUS+WIN") && body.includes("not applicable")); }
 
   check("no errors in the page", errors.length === 0, errors.join(" | "));
   await b.close(); srv.close();

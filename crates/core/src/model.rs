@@ -456,6 +456,50 @@ pub enum Recipe {
     },
     /// The results of case `a` minus case `b` (the expansion range).
     Range { a: u32, b: u32 },
+    /// A load combination (0.7.6): the results of other cases, each times its factor, combined by
+    /// the rule; checked as its kind says.
+    Combo { rule: ComboRule, parts: Vec<ComboPart> },
+}
+
+/// How a combination puts its cases' results together, value by value (each displacement, section
+/// force and support load), each case's value first multiplied by its factor.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ComboRule {
+    /// The sum with signs: Σ f R. Equilibrium holds, as for any case.
+    #[default]
+    Algebraic,
+    /// The sum of the sizes: Σ |f R| (signs are lost).
+    Scalar,
+    /// The square root of the sum of the squares: √Σ (f R)².
+    Srss,
+    /// The value of the largest size, with its sign.
+    Max,
+    /// The largest value, signs counted.
+    Signmax,
+    /// The smallest value, signs counted.
+    Signmin,
+}
+
+impl ComboRule {
+    /// Combines the values (each already times its factor).
+    pub fn apply(self, v: &[f64]) -> f64 {
+        match self {
+            ComboRule::Algebraic => v.iter().sum(),
+            ComboRule::Scalar => v.iter().map(|x| x.abs()).sum(),
+            ComboRule::Srss => v.iter().map(|x| x * x).sum::<f64>().sqrt(),
+            ComboRule::Max => v.iter().cloned().fold(0.0, |a: f64, x| if x.abs() > a.abs() { x } else { a }),
+            ComboRule::Signmax => v.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
+            ComboRule::Signmin => v.iter().cloned().fold(f64::INFINITY, f64::min),
+        }
+    }
+}
+
+/// A case in a combination and its factor.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ComboPart {
+    pub case: u32,
+    pub factor: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -926,6 +970,7 @@ impl Model {
             match &c.recipe {
                 Recipe::Sum { t, d, p, .. } if *t > 3 || *d > 3 || *p > 4 => return Err(format!("Load case {}: cases are numbered 1 to 3.", c.name)),
                 Recipe::Range { a, b } if !cases.contains(a) || !cases.contains(b) || a == b || *a == c.id || *b == c.id => return Err(format!("Load case {}: a range needs two other load cases.", c.name)),
+                Recipe::Combo { parts, .. } if parts.is_empty() || parts.iter().any(|p| !cases.contains(&p.case) || p.case == c.id || !fin(p.factor)) => return Err(format!("Load case {}: a combination needs one or more other load cases, each with a factor.", c.name)),
                 _ => {}
             }
         }
@@ -935,6 +980,11 @@ impl Model {
             if let Recipe::Range { a, b } = c.recipe {
                 if !before.contains(&a) || !before.contains(&b) {
                     return Err(format!("Load case {}: a range must come after the two cases it uses.", c.name));
+                }
+            }
+            if let Recipe::Combo { parts, .. } = &c.recipe {
+                if parts.iter().any(|p| !before.contains(&p.case)) {
+                    return Err(format!("Load case {}: a combination must come after the cases it uses.", c.name));
                 }
             }
             before.insert(c.id);

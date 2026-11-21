@@ -27,7 +27,8 @@ export interface Support { id: number; node: number; kind: SupKind; k: number; d
 export interface Nozzle { id: number; node: number; name: string; axis: V3; allow: [number, number, number, number]; stiff?: [number, number, number, number, number]; vessel?: V3 }
 export interface Load { id: number; node: number; f: V3; m: V3 }
 export type CaseKind = "sus" | "ope" | "exp" | "hyd" | "occ";
-export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean; relief?: boolean; neg?: boolean; cs?: boolean } | { kind: "range"; a: number; b: number };
+export type ComboRule = "algebraic" | "scalar" | "srss" | "max" | "signmax" | "signmin";
+export type Recipe = { kind: "sum"; w: boolean; water: boolean; t: number; d: number; p: number; wind?: boolean; seis?: boolean; relief?: boolean; neg?: boolean; cs?: boolean } | { kind: "range"; a: number; b: number } | { kind: "combo"; rule: ComboRule; parts: { case: number; factor: number }[] };
 export interface LoadCase { id: number; name: string; kind: CaseKind; recipe: Recipe }
 export interface Project { project: string; line: string; calc: string; by: string; checked: string; rev: string; client: string }
 export interface HarmonicLoad { node: number; f: V3; m: V3; freq: number }
@@ -49,7 +50,7 @@ export type Six = [number, number, number, number, number, number];
 export interface Reaction { support: number; node: number; f: Six }
 export interface NozzleLoad { nozzle: number; node: number; local: Six; shear: number; bending: number; ratios: [number, number, number, number]; pass: boolean | null }
 export interface Stress { seg: number; end: number; point: number; stress: number; allow: number; ratio: number; pass: boolean; ii: number; io: number }
-export interface CaseResult { id: number; name: string; kind: CaseKind; disp: Six[]; forces: [Six, Six][]; reactions: Reaction[]; nozzles: NozzleLoad[]; stresses: Stress[]; applied: Six; reacted: Six; imbalance: number; worst: number | null; contacts: Contact[]; iterations: number; friction: Friction[]; equipment?: EquipCheck[]; flanges?: FlangeCheck[]; spectrum?: boolean; soil?: SoilLoad[] }
+export interface CaseResult { id: number; name: string; kind: CaseKind; disp: Six[]; forces: [Six, Six][]; reactions: Reaction[]; nozzles: NozzleLoad[]; stresses: Stress[]; applied: Six; reacted: Six; imbalance: number; worst: number | null; contacts: Contact[]; iterations: number; friction: Friction[]; equipment?: EquipCheck[]; flanges?: FlangeCheck[]; spectrum?: boolean; combined?: boolean; soil?: SoilLoad[] }
 export interface Friction { support: number; node: number; state: "sticking" | "sliding" | "free"; force: V3; normal: number; mu: number }
 export interface Contact { support: number; node: number; dir: V3; state: "touching" | "open" | "lifted off"; movement: number; gap: number }
 export interface Wall { element: number; case: number; p: number; t: number; s: number; t_design: number; t_min: number; t_nominal_needed: number; t_nominal: number; hoop: number; ratio: number; pass: boolean; at: string; i: number; od: number; thick: boolean }

@@ -10,7 +10,7 @@ import "@fontsource/ibm-plex-mono/latin-500.css";
 import "@fontsource/ibm-plex-mono/latin-600.css";
 import "./styles.css";
 import { invoke, listen, Out, Options, Shown, Typed } from "./api";
-import { out, setOut, view, setView, View, backstage, setBackstage, setOpts, opts, dialogs, toast, loadOut, setThemeRaw, applyTheme, sel, setSel, model, tab, setTab } from "./store";
+import { out, setOut, view, setView, View, backstage, setBackstage, setOpts, opts, dialogs, closeDialog, toast, loadOut, setThemeRaw, applyTheme, sel, setSel, model, tab, setTab } from "./store";
 import { C } from "./cmds";
 import { TitleBar, Ribbon, palette } from "./ribbon";
 import { Backstage, update, checkUpdate } from "./backstage";
@@ -78,7 +78,9 @@ const App = () => {
   });
   const keys = (e: KeyboardEvent) => {
     const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
-    if (dialogs().length) return;
+    // A dialog whose focus was lost (its table drawn again after an edit) still closes on Escape
+    // (0.7.6); inside the dialog its own handler closes it first.
+    if (dialogs().length) { if (e.key === "Escape") closeDialog(); return; }
     const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
     if ((ctrl && k === "k") || (e.altKey && k === "q")) { e.preventDefault(); palette(); }
     else if (ctrl && k === "s") { e.preventDefault(); C.save(e.shiftKey); }

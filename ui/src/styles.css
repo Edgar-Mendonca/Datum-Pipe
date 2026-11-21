@@ -1011,3 +1011,16 @@ textarea.paste { width: 100%; box-sizing: border-box; min-height: 160px; font: 1
 .v3d .cube .cf-top polygon, .v3d .cube .cf-bottom polygon { fill: color-mix(in srgb, var(--panel) 78%, #2F6FD0); }
 .v3d .cube .cf:hover polygon { fill: color-mix(in srgb, #2F6FD0 30%, var(--panel)); stroke: #2F6FD0; }
 .v3d .cube text { font: 700 7px var(--mono); letter-spacing: .03em; text-transform: uppercase; fill: var(--text); pointer-events: none; }
+
+/* 0.7.6: a combination's row in the load cases. */
+.tbl.cases tr.combo td { background: color-mix(in srgb, var(--panel) 70%, var(--sky)); }
+.tbl.cases .comboedit .inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tbl.cases .comboedit .part { display: inline-flex; gap: 3px; align-items: center; border: 1px solid var(--line); padding: 1px 4px; background: var(--bg2); }
+.tbl.cases .comboedit input.fac { width: 56px; }
+.tbl.cases td:first-child input { width: 104px; }
+.tbl.cases .inline select { min-width: 74px; max-width: 110px; width: auto; }
+.tbl.cases .comboedit { max-width: 540px; }
+.tbl.cases .comboedit select.rule { width: auto; min-width: 130px; max-width: 170px; flex: none; }
+.dlg .tscroll { overflow-x: auto; max-width: 100%; }
+.dlg:has(.tbl.cases) { width: min(1280px, 96vw); max-width: 96vw; }
+.tbl.cases td:nth-last-child(2) { min-width: 120px; }

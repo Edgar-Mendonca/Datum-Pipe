@@ -484,11 +484,20 @@
       ]
     },
     {
+      "v": "0.7.6",
+      "title": "Load combinations",
+      "when": "Done",
+      "items": [
+        "Any cases with factors: algebraic, scalar, SRSS, or an envelope",
+        "Checked as sustained, occasional or expansion; kept when the cases are built again"
+      ]
+    },
+    {
       "v": "0.8",
       "title": "More options",
       "when": "Next",
       "items": [
-        "Load combinations",
+        "Design support loads with the governing case",
         "A sustained case with the operating support states",
         "More operating cases",
         "Pipe sizes to other national standards",

@@ -106,7 +106,7 @@ export const Summary = (p: { r: Results }) => (
     <For each={p.r.cases}>{c => { const w = c.worst !== null ? c.stresses[c.worst] : null; return <tr class="f" onClick={() => { setCaseId(c.id); setTableKind(c.stresses.length ? "stress" : "supports"); }}>
       <td><b>{c.name}</b></td><td>{KIND[c.kind]}</td><td>{c.spectrum && c.kind === "ope" ? "Amplitudes, not checked" : checkText(c.kind)}</td>
       <td class="r">{w ? num(w.ratio, 3) : "—"}</td><td>{w ? p.r.geom.points[w.point]?.label : ""}</td><td class="r">{w ? v("stress", w.stress) : ""}</td><td class="r">{w ? v("stress", w.allow) : ""}</td>
-      <td><Badge pass={casePass(c)} /></td><td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.spectrum ? "not applicable" : c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)}</td></tr>; }}</For>
+      <td><Badge pass={casePass(c)} /></td><td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.spectrum || c.combined ? "not applicable" : c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)}</td></tr>; }}</For>
     <Show when={p.r.walls.length}><tr class="f" onClick={() => setTableKind("wall")}><td><b>Pressure</b></td><td>Minimum wall</td><td>Nominal wall ≥ needed</td><td class="r">{num(Math.max(...p.r.walls.map(w => w.ratio)), 3)}</td><td /><td /><td /><td><Badge pass={p.r.walls.every(w => w.pass)} /></td><td /></tr></Show>
   </tbody></table>
 );
@@ -234,7 +234,7 @@ export const Equilibrium = (p: { r: Results }) => (
     <table class="tbl"><thead><tr><Th>Case</Th><Th r>Σ FX loads {u("force")}</Th><Th r>Σ FX reactions</Th><Th r>Σ FY loads</Th><Th r>Σ FY reactions</Th><Th r>Σ FZ loads</Th><Th r>Σ FZ reactions</Th><Th r>Σ M loads {u("moment")}</Th><Th r>Σ M reactions</Th><Th r>Imbalance</Th></tr></thead><tbody>
       <For each={p.r.cases}>{c => <tr><td>{c.name}</td><For each={[0, 1, 2]}>{k => <><td class="r">{v("force", c.applied[k])}</td><td class="r">{v("force", c.reacted[k])}</td></>}</For>
         <td class="r">{v("moment", Math.hypot(c.applied[3], c.applied[4], c.applied[5]))}</td><td class="r">{v("moment", Math.hypot(c.reacted[3], c.reacted[4], c.reacted[5]))}</td>
-        <td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.spectrum ? (c.kind === "ope" ? "not applicable (amplitudes)" : "not applicable (combined)") : <>{c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)} {c.imbalance <= 1e-6 ? "✓" : "✗"}</>}</td></tr>}</For></tbody></table>
+        <td class="r" classList={{ bad: c.imbalance > 1e-6 }}>{c.combined ? "not applicable (combined without signs)" : c.spectrum ? (c.kind === "ope" ? "not applicable (amplitudes)" : "not applicable (combined)") : <>{c.imbalance < 1e-12 ? "< 1e-12" : c.imbalance.toExponential(1)} {c.imbalance <= 1e-6 ? "✓" : "✗"}</>}</td></tr>}</For></tbody></table>
     <p class="muted small">Solver: {p.r.stats.equations} equations, {p.r.stats.nonzeros} stored entries, residual {p.r.stats.residual.toExponential(1)}, {num(p.r.stats.ms, 3)} ms. Datum Pipe {p.r.version}.</p>
   </>
 );

@@ -469,6 +469,12 @@ fn steam() -> Model {
     // A pulsating 500 N sideways at the corner 60 at 12 Hz (an example value), as case HARM.
     st.harmonic = Some(crate::model::Harmonic { node: 60, f: [500.0, 0.0, 0.0], m: [0.0; 3], freq: 12.0 });
     d.apply(Op::SetSettings { s: st, units: "SI".into() }).expect("occasional loads");
+    // A load combination (0.7.6): the sustained loads and the wind's own effect, sizes added,
+    // checked as occasional.
+    let (sus, win) = (d.m.cases.iter().find(|c| c.name == "SUS").expect("SUS").id, d.m.cases.iter().find(|c| c.name == "OCC WIN").expect("OCC WIN").id);
+    let mut cs = d.m.cases.clone();
+    cs.push(crate::model::LoadCase { id: 0, name: "SUS+WIN".into(), kind: crate::model::CaseKind::Occ, recipe: crate::model::Recipe::Combo { rule: crate::model::ComboRule::Scalar, parts: vec![crate::model::ComboPart { case: sus, factor: 1.0 }, crate::model::ComboPart { case: win, factor: 1.0 }] } });
+    d.apply(Op::SetCases { cases: cs }).expect("combination");
     nozzle(&mut d, 70, "T-301 inlet", [0.0, 0.0, -1.0], [12000.0, 9000.0, 12000.0, 12000.0]);
     machine(&mut d, "T-301", crate::equip::EquipKind::Turbine, 1.0, [1.0, 0.0, 0.0]);
     meta(&mut d, "Steam line on a pipe rack", "8\"-ST-301", "8\" Sch 40 carbon steel, steam at 250 °C and 15 bar, 75 mm of insulation with aluminium cladding. 24 m along a pipe rack on one-way rests with friction (μ 0.3), with guides (3 mm gaps) at 10 and 30 and a line stop at 20 that holds the line along its axis, then 6 m down and 6 m north (on a rest at 65) to a turbine inlet that grows 2 mm up when hot. The turbine's nozzle fails the turbine criteria (Results › Equipment): the line is too stiff near it, so try a loop or a spring near the turbine. Wind (0.8 kPa from the south) and 0.15 g of static seismic are checked as occasional cases, in both directions.");
